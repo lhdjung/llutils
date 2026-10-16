@@ -1,0 +1,66 @@
+
+integers, n = 1e+04 
+1 base         130.7µs
+2 collapse      36.7µs
+3 llutils_2    136.8µs
+4 llutils_all  133.5µs
+
+integers, n = 1e+05 
+1 base          1.17ms
+2 collapse    444.13µs
+3 llutils_2   274.95µs
+4 llutils_all  307.7µs
+
+integers, n = 1e+06 
+1 base         12.35ms
+2 collapse      8.42ms
+3 llutils_2     2.74ms
+4 llutils_all   1.25ms
+
+integers, n = 1e+07 
+1 base         122.3ms
+2 collapse      88.4ms
+3 llutils_2     29.5ms
+4 llutils_all   11.1ms
+
+integers, n = 1e+08 
+1 base           1.28s
+2 collapse    909.94ms
+3 llutils_2   359.28ms
+4 llutils_all 167.89ms
+
+doubles, n = 1e7
+1 base         172.5ms
+2 collapse     108.2ms
+3 llutils_2     55.3ms
+4 llutils_all   23.7ms
+
+integer against double, n = 1e7
+1 base         183.9ms
+2 collapse     119.5ms
+3 llutils_2     72.6ms
+4 llutils_all   31.8ms
+
+character, n = 1e7
+1 base         305.3ms
+2 collapse      79.4ms
+3 llutils_2     45.9ms
+4 llutils_all   21.8ms
+
+factor (100 levels), n = 1e7
+1 base         137.1ms
+2 collapse      10.9ms
+3 llutils_2     11.7ms
+4 llutils_all   13.8ms
+
+Date, n = 1e7
+1 base           13.3s
+2 collapse      90.2ms
+3 llutils_2     88.8ms
+4 llutils_all   39.4ms
+
+POSIXct, n = 1e7
+1 base         165.4ms
+2 collapse      90.8ms
+3 llutils_2     29.8ms
+4 llutils_all   16.7ms
