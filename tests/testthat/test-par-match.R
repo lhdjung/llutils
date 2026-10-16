@@ -18,8 +18,8 @@ test_that("integers and doubles match as in base", {
   dbl <- c(0, -0, NA, NaN, Inf, -Inf, 0.1 + 0.2, 0.3, 1.5, 2)
   expect_base(big(dbl), rev(dbl))
   expect_base(big(dbl), c(NaN, 0.3, 2)) # NaN isn't NA, -0 is 0
-  expect_base(big(1:5), c(1.5, 2, 3)) # integer against double
-  expect_base(big(dbl), 1:3)
+  expect_base(big(c(1:5, NA)), c(1.5, 2, NaN, NA, 3)) # integer against double
+  expect_base(big(dbl), c(1:3, NA))
 })
 
 test_that("strings match as in base, in any encoding", {

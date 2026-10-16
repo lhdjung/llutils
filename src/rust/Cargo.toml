@@ -17,6 +17,7 @@ path = 'document.rs'
 extendr-api = '*'
 rayon = '1'
 rustc-hash = '2'
+regex = '1'
 
 [profile.release]
 lto = true

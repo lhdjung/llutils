@@ -18,6 +18,11 @@ index_codes <- function(codes, m, nthreads) .Call(wrap__index_codes, codes, m, n
 #' @noRd
 par_match_dbl <- function(x, table, nomatch, nthreads, as_date) .Call(wrap__par_match_dbl, x, table, nomatch, nthreads, as_date)
 
+#' One side integer, the other double: integers are converted as they are
+#' hashed, rather than copied to a double vector first.
+#' @noRd
+par_match_mixed <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_mixed, x, table, nomatch, nthreads)
+
 #' Matches strings by pointer: R stores each string once per encoding, so
 #' equal pointers mean equal strings. That could miss a match only for
 #' non-ASCII strings in `table` (ASCII is never marked with an encoding):
@@ -26,5 +31,10 @@ par_match_dbl <- function(x, table, nomatch, nthreads, as_date) .Call(wrap__par_
 #' marked UTF-8 and unmarked.
 #' @noRd
 par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr, x, table, nomatch, nthreads)
+
+#' `grepl(pattern, x)` with Rust's regex syntax. Strings are matched as
+#' bytes, so R should pass them through `enc2utf8()` first. `NA` gives `NA`.
+#' @noRd
+detect_regex_rs <- function(x, pattern, nthreads) .Call(wrap__detect_regex_rs, x, pattern, nthreads)
 
 # nolint end

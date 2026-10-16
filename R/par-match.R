@@ -24,22 +24,14 @@ par_match <- function(
   nomatch = NA_integer_,
   nthreads = getOption("llutils.threads", 0L)
 ) {
-  if (
-    !is.numeric(nthreads) ||
-      length(nthreads) != 1 ||
-      is.na(nthreads) ||
-      nthreads < 0 ||
-      nthreads != trunc(nthreads)
-  ) {
-    stop("`nthreads` must be a single non-negative whole number.")
-  }
+  nthreads <- check_nthreads(nthreads)
   nomatch <- as.integer(nomatch)[1]
   if (is.factor(x)) {
     # Base converts all of `x` to strings; matching the levels is enough.
     # The extra `NA` level is for missing values.
     m <- match(c(levels(x), NA), table, nomatch)
     if (length(x) >= 1e5) {
-      return(index_codes(x, m, as.integer(nthreads)))
+      return(index_codes(x, m, nthreads))
     }
     i <- as.integer(x)
     i[is.na(i)] <- length(m)
@@ -58,7 +50,6 @@ par_match <- function(
 
 # NULL where base must take over: other types, or a case Rust declines.
 par_match_fast <- function(x, table, nomatch, nthreads) {
-  nthreads <- as.integer(nthreads)
   if (identical(class(x), "Date") && identical(class(table), "Date")) {
     return(par_match_dbl(
       as_dbl(x),
@@ -72,8 +63,10 @@ par_match_fast <- function(x, table, nomatch, nthreads) {
   table <- plain(table)
   if (is.integer(x) && is.integer(table)) {
     par_match_int(x, table, nomatch, nthreads)
+  } else if (is.double(x) && is.double(table)) {
+    par_match_dbl(x, table, nomatch, nthreads, FALSE)
   } else if (is_num(x) && is_num(table)) {
-    par_match_dbl(as_dbl(x), as_dbl(table), nomatch, nthreads, FALSE)
+    par_match_mixed(x, table, nomatch, nthreads)
   } else if (is.character(x) && is.character(table)) {
     par_match_chr(x, table, nomatch, nthreads)
   }
@@ -93,3 +86,16 @@ is_num <- function(x) is.integer(x) || is.double(x)
 
 # Doubles go to Rust as they are, attributes and all, without a copy.
 as_dbl <- function(x) if (is.double(x)) x else as.double(x)
+
+check_nthreads <- function(nthreads) {
+  if (
+    !is.numeric(nthreads) ||
+      length(nthreads) != 1 ||
+      is.na(nthreads) ||
+      nthreads < 0 ||
+      nthreads != trunc(nthreads)
+  ) {
+    stop("`nthreads` must be a single non-negative whole number.")
+  }
+  as.integer(nthreads)
+}

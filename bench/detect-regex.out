@@ -1,0 +1,34 @@
+
+pattern: abc   n = 1e6
+1 base        332.81ms
+2 base_perl    74.96ms
+3 stringi     251.63ms
+4 llutils_2    16.62ms
+5 llutils_all   7.42ms
+
+pattern: [aeiou]{3}[0-9]   n = 1e6
+1 base         994.4ms
+2 base_perl    247.9ms
+3 stringi      380.1ms
+4 llutils_2     33.9ms
+5 llutils_all   15.1ms
+
+pattern: ^q.*z\s   n = 1e6
+1 base        254.76ms
+2 base_perl    53.72ms
+3 stringi     227.21ms
+4 llutils_2    14.52ms
+5 llutils_all   8.74ms
+
+pattern: (?i)QU[a-z]+    n = 1e6
+1 base         550.1ms
+2 base_perl    107.8ms
+3 stringi      273.9ms
+4 llutils_2     31.8ms
+5 llutils_all   13.7ms
+
+Small inputs: base_perl against llutils, pattern [aeiou]{3}[0-9]
+n = 100 :  32.4µs 101.9µs 
+n = 999 : 244µs 150µs 
+n = 1000 : 243µs 150µs 
+n = 10000 :   2.43ms 400.12µs 
