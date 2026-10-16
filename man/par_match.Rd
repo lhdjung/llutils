@@ -22,9 +22,10 @@ x \%par_in\% table
 \item{nomatch}{The value returned where there is no match, coerced to
 integer.}
 
-\item{nthreads}{Number of threads. \code{0} (the default, unless the
-\code{llutils.threads} option is set) uses the \code{RAYON_NUM_THREADS}
-environment variable, or else all cores.}
+\item{nthreads}{Most threads to use. \code{0} (the default, unless the
+\code{llutils.threads} option is set) means the \code{RAYON_NUM_THREADS}
+environment variable, or else all cores. Inputs too small to keep that
+many busy get fewer.}
 }
 \value{
 Like \code{\link[=match]{match()}}: an integer vector of first positions in \code{table},
@@ -32,9 +33,11 @@ Like \code{\link[=match]{match()}}: an integer vector of first positions in \cod
 }
 \description{
 Same results as base \code{\link[=match]{match()}} and \code{\%in\%}, computed in parallel when \code{x}
-has at least 1e5 elements and both sides are integer, double (in any
-mix), character, Date, or POSIXct. Factors are matched by their levels.
-Anything else goes to base \code{\link[=match]{match()}} unchanged.
+or \code{table} has at least 1e4 elements and both sides are integer, double
+(in any mix), character, Date, or POSIXct. Factors are matched by their
+levels. Anything else goes to base \code{\link[=match]{match()}} unchanged. Strings are
+matched by their pointers, which the threads read straight from R's
+memory, as data.table does.
 }
 \examples{
 par_match(c(3, 1, 9), 1:5, nthreads = 2)

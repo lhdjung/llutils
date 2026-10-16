@@ -24,11 +24,12 @@ par_match_dbl <- function(x, table, nomatch, nthreads, as_date) .Call(wrap__par_
 par_match_mixed <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_mixed, x, table, nomatch, nthreads)
 
 #' Matches strings by pointer: R stores each string once per encoding, so
-#' equal pointers mean equal strings. That could miss a match only for
-#' non-ASCII strings in `table` (ASCII is never marked with an encoding):
-#' then every string is checked, and this returns `NULL`, for R to fall back
-#' to base, if there are latin1 or bytes strings, or non-ASCII strings both
-#' marked UTF-8 and unmarked.
+#' equal pointers mean equal strings. That could miss a match only between
+#' non-ASCII strings (ASCII is never marked with an encoding), so if either
+#' side is all ASCII the pointers are enough. Otherwise every string is
+#' checked, and this returns `NULL`, for R to fall back to base, if there
+#' are latin1 or bytes strings, or non-ASCII strings both marked UTF-8 and
+#' unmarked.
 #' @noRd
 par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr, x, table, nomatch, nthreads)
 

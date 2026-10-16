@@ -11,9 +11,10 @@ detect_regex(x, pattern, nthreads = getOption("llutils.threads", 0L))
 
 \item{pattern}{A single string: the regex.}
 
-\item{nthreads}{Number of threads. \code{0} (the default, unless the
-\code{llutils.threads} option is set) uses the \code{RAYON_NUM_THREADS}
-environment variable, or else all cores.}
+\item{nthreads}{Most threads to use. \code{0} (the default, unless the
+\code{llutils.threads} option is set) means the \code{RAYON_NUM_THREADS}
+environment variable, or else all cores. Inputs too small to keep that
+many busy get fewer.}
 }
 \value{
 A logical vector as long as \code{x}.
@@ -30,6 +31,10 @@ word, or space character. Write \verb{[0-9]} or \verb{(?-u:\\\\d)} for ASCII onl
 \item Flags go in the pattern: \code{(?i)} ignores case.
 \item \code{NA} gives \code{NA}, where \code{\link[=grepl]{grepl()}} gives \code{FALSE}.
 }
+}
+\details{
+The threads read the strings straight from R's memory, as data.table
+does.
 }
 \examples{
 detect_regex(c("apple", "banana", NA), "an+a", nthreads = 2)

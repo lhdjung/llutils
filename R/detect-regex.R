@@ -10,6 +10,9 @@
 #' - Flags go in the pattern: `(?i)` ignores case.
 #' - `NA` gives `NA`, where [grepl()] gives `FALSE`.
 #'
+#' The threads read the strings straight from R's memory, as data.table
+#' does.
+#'
 #' @param x A character vector, or something [as.character()] converts.
 #' @param pattern A single string: the regex.
 #' @inheritParams par_match

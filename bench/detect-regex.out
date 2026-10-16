@@ -1,34 +1,73 @@
 
 pattern: abc   n = 1e6
-1 base        332.81ms
-2 base_perl    74.96ms
-3 stringi     251.63ms
-4 llutils_2    16.62ms
-5 llutils_all   7.42ms
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base        331.59ms
+2 base_perl    76.66ms
+3 stringi     247.33ms
+4 llutils_2    13.51ms
+5 llutils_all   7.21ms
 
 pattern: [aeiou]{3}[0-9]   n = 1e6
-1 base         994.4ms
-2 base_perl    247.9ms
-3 stringi      380.1ms
-4 llutils_2     33.9ms
-5 llutils_all   15.1ms
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         994.1ms
+2 base_perl    247.3ms
+3 stringi      377.6ms
+4 llutils_2     33.3ms
+5 llutils_all   15.6ms
 
 pattern: ^q.*z\s   n = 1e6
-1 base        254.76ms
-2 base_perl    53.72ms
-3 stringi     227.21ms
-4 llutils_2    14.52ms
-5 llutils_all   8.74ms
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base        259.98ms
+2 base_perl    53.17ms
+3 stringi     220.71ms
+4 llutils_2    17.61ms
+5 llutils_all   8.04ms
 
 pattern: (?i)QU[a-z]+    n = 1e6
-1 base         550.1ms
-2 base_perl    107.8ms
-3 stringi      273.9ms
-4 llutils_2     31.8ms
-5 llutils_all   13.7ms
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         563.7ms
+2 base_perl    107.4ms
+3 stringi      269.9ms
+4 llutils_2     31.6ms
+5 llutils_all   14.2ms
 
-Small inputs: base_perl against llutils, pattern [aeiou]{3}[0-9]
-n = 100 :  32.4µs 101.9µs 
-n = 999 : 244µs 150µs 
-n = 1000 : 243µs 150µs 
-n = 10000 :   2.43ms 400.12µs 
+Small inputs, pattern repeated so llutils reuses the compiled regex
+n = 100 : 32.2µs 17µs 17.8µs 
+n = 1000 : 244.4µs  66.6µs  68.1µs 
+n = 3000 : 734µs 175µs 176µs 
+n = 10000 :   2.48ms 335.42µs 231.94µs 
+n = 30000 :   7.46ms 894.83µs 431.65µs 
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] llutils_0.0.0.9000
+
+loaded via a namespace (and not attached):
+ [1] compiler_4.5.2  magrittr_2.0.5  bench_1.1.4     cli_3.6.6      
+ [5] tools_4.5.2     pillar_1.11.1   glue_1.8.1      tibble_3.3.1   
+ [9] utf8_1.2.6      vctrs_0.7.3     stringi_1.8.9   lifecycle_1.0.5
+[13] pkgconfig_2.0.3 rlang_1.3.0     profmem_0.7.0  

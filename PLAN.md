@@ -3,14 +3,20 @@
 Multithreaded `match()`, `%in%`, and regex detection in Rust. Open work
 only. Started from exhaustive's Rust plan (`git show 1b2678c:PLAN.md` in
 exhaustive).
-Benchmarks are in `bench/`, run on 2026-10-16 with 8 cores.
+Benchmarks are in `bench/`, run on 2026-10-17 with 8 cores. Measure after
+`pkgbuild::compile_dll(debug = FALSE)` or an install: `rextendr::document()`
+and `load_all()` build the Rust in debug mode, 5-20x slower.
 
 ## Positioning
 
 - **The niche is threads, plus results identical to base where possible.**
   collapse's `fmatch()` is single-threaded, and threads are the whole gap: at 1e7
-  lookups `par_match()` takes 11ms for integers and 22ms for strings, where
-  collapse takes 88ms and 79ms. Being identical to base makes `par_match()`
+  lookups into 1e4 keys `par_match()` takes 15ms for integers and 16ms for
+  strings, where collapse takes 90ms and 79ms. The table is hashed in
+  parallel too, so a join-like lookup of 1e7 into 1e7 keys takes 87ms
+  for integers (collapse 441ms) and 180ms for strings (collapse 521ms).
+  Strings need a scan of one side for non-ASCII text, so on 2 threads
+  they only tie with collapse (434ms). Being identical to base makes `par_match()`
   a safe drop-in for `match()`, so the tests compare against base, not
   against a spec. `detect_regex()` can't be identical, since its syntax is
   Rust's, so it carries its own name instead of claiming to be `grepl()`.
@@ -19,13 +25,14 @@ Benchmarks are in `bench/`, run on 2026-10-16 with 8 cores.
   uses collapse. Phases 2 and 4 of the old plan were dropped for that reason
   (see Skipped).
 - **Be realistic about the audience.** For someone who already has
-  collapse, llutils is a 2-8x speedup on lookups of 1e6 or more elements
-  (Dates 2x, strings 4x, integers 8x), and a tie on factors. That's narrow,
+  collapse, llutils is a 2-8x speedup on lookups of 1e5 or more elements
+  (Dates 2x, strings 5x, integers 6x), and 2x on factors; below 1e5 it
+  beats base but not collapse. That's narrow,
   so its functions must cover every common type, and each new function
   must win by a similar margin against the fastest existing package, not
   just against base. Regex is the stronger case: it is limited by CPU, so
-  threads scale, and at 1e6 strings `detect_regex()` takes 7-15ms against
-  54-249ms for `grepl(perl = TRUE)` and 226-382ms for stringi.
+  threads scale, and at 1e6 strings `detect_regex()` takes 7-16ms against
+  53-247ms for `grepl(perl = TRUE)` and 221-378ms for stringi.
 - **"Lightweight" is not the selling point, but holds.** No R package
   dependencies: extendr is compiled into the package, so `Imports` is empty
   (collapse imports Rcpp). CRAN's Windows and macOS binaries need no Rust.
@@ -52,6 +59,15 @@ Benchmarks are in `bench/`, run on 2026-10-16 with 8 cores.
 
 - FxHash (`rustc-hash`) is 2-3x faster than Rust's default hasher here, but
   doesn't resist inputs crafted to collide. Such inputs only slow it down.
+- Tables of 65536 or more elements are hashed in parallel: split by hash
+  into up to 256 runs, one map each. The runs hold a key and position per
+  element, 16 bytes, so a 1e7 table takes 160MB while it is built.
+- String tables need a scan of the shorter side for non-ASCII text, one
+  cache miss per string, which the hash build does not. At 2 threads that
+  is most of the time for a large string table.
+- Thread pools are kept between calls, one per thread count, and each
+  thread gets at least 1e4 elements (`detect_regex()`: 2500 strings), so
+  small inputs use fewer than `nthreads`. A forked child gets fresh pools.
 - Other classes (difftime, integer64, POSIXlt, subclasses of Date) go to
   base. So do tables longer than 2^31 - 1, Dates beyond 1e10 days (base
   matches those by their printed numbers), and string tables with non-ASCII
@@ -64,14 +80,18 @@ Benchmarks are in `bench/`, run on 2026-10-16 with 8 cores.
   on the same. Reading on R's thread instead made it 2-3x slower, because
   strings are scattered in memory.
 - Each chunk clones the regex: threads sharing one contend for its cache.
-- Compiling the regex costs about 70us, so below a few hundred strings it is
-  slower than `grepl(perl = TRUE)` (100 strings: 102us against 32us).
-  Below 5000 strings it runs on one thread.
+- Compiling the regex costs about 70us, so the first call on a pattern
+  with fewer than a few hundred strings is slower than `grepl(perl = TRUE)`.
+  The last compiled regex is kept, so repeats cost nothing (100 strings:
+  17us against 32us). Below 5000 strings it runs on one thread.
 - `enc2utf8()` runs serially first, about 4ms per 1e6 strings, and is most
   of the remaining time for fast patterns. bytes-encoded strings are matched
   byte by byte.
-- The `regex` crate and its 4 dependencies add 5 of the package's 28
+- The `regex` crate and its 4 dependencies add 5 of the package's 25
   crates, which adds to the vendored tarball.
+- Rust 1.83 or later: `f64::from_bits` in a `const`, `div_ceil`, and the
+  locked rayon need it. R 4.3 or later: base matches Dates by printed day only since
+  `mtfrm()` arrived there.
 
 ## Release 0.1.0 (later)
 

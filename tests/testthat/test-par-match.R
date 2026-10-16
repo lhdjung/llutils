@@ -1,7 +1,7 @@
 withr::local_options(llutils.threads = 2) # CRAN allows at most 2 cores
 
 # Long enough for the parallel path.
-big <- function(v) rep_len(v, 1e5)
+big <- function(v) rep_len(v, 1e4)
 
 expect_base <- function(x, table) {
   expect_identical(par_match(x, table), match(x, table))
@@ -76,4 +76,21 @@ test_that("Rust takes the cases it can and declines the rest", {
   dates <- function(x) par_match_dbl(x, 1, NA_integer_, 2L, TRUE)
   expect_identical(dates(c(1.5, 2)), c(1L, NA))
   expect_null(dates(1e15))
+})
+
+test_that("large tables, built in parallel, still give the first match", {
+  set.seed(2)
+  keys <- sample.int(1e6, 1e5)
+  table <- c(keys, keys) # every key twice; the first must win
+  expect_base(sample(c(keys, 0L), 1e5, TRUE), table)
+  expect_base(as.character(sample(c(keys, 0L), 1e5, TRUE)), as.character(table))
+  expect_base(1L, table) # a short `x` against a long table
+})
+
+test_that("a forked child works after the parent has used a pool", {
+  skip_on_os("windows")
+  x <- big(1:3)
+  expect_identical(par_match(x, 2:3), match(x, 2:3))
+  r <- parallel::mclapply(1:2, function(i) par_match(x, 2:3), mc.cores = 2)
+  expect_identical(r, rep(list(match(x, 2:3)), 2))
 })

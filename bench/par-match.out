@@ -1,66 +1,171 @@
 
+join-like integers, x and table both 1e+06 
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base          45.4ms
+2 collapse      23.6ms
+3 llutils_2       16ms
+4 llutils_all    4.8ms
+
+join-like character, both 1e+06 
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         114.5ms
+2 collapse      22.7ms
+3 llutils_2     31.2ms
+4 llutils_all   20.1ms
+
+join-like integers, x and table both 1e+07 
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         875.1ms
+2 collapse     440.9ms
+3 llutils_2    199.9ms
+4 llutils_all   87.2ms
+
+join-like character, both 1e+07 
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base           2.43s
+2 collapse    520.95ms
+3 llutils_2   434.18ms
+4 llutils_all 179.78ms
+
+integers, n = 1e+03 
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         100.2µs
+2 collapse      20.9µs
+3 llutils_2     60.1µs
+4 llutils_all   60.1µs
+
 integers, n = 1e+04 
-1 base         130.7µs
-2 collapse      36.7µs
-3 llutils_2    136.8µs
-4 llutils_all  133.5µs
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         156.3µs
+2 collapse      39.2µs
+3 llutils_2     87.5µs
+4 llutils_all   88.7µs
 
 integers, n = 1e+05 
-1 base          1.17ms
-2 collapse    444.13µs
-3 llutils_2   274.95µs
-4 llutils_all  307.7µs
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base          1.18ms
+2 collapse     566.5µs
+3 llutils_2    311.7µs
+4 llutils_all 300.32µs
 
 integers, n = 1e+06 
-1 base         12.35ms
-2 collapse      8.42ms
-3 llutils_2     2.74ms
-4 llutils_all   1.25ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         12.31ms
+2 collapse      8.54ms
+3 llutils_2     2.98ms
+4 llutils_all   1.14ms
 
 integers, n = 1e+07 
-1 base         122.3ms
-2 collapse      88.4ms
-3 llutils_2     29.5ms
-4 llutils_all   11.1ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         122.7ms
+2 collapse      88.6ms
+3 llutils_2     29.1ms
+4 llutils_all   11.7ms
 
 integers, n = 1e+08 
-1 base           1.28s
-2 collapse    909.94ms
-3 llutils_2   359.28ms
-4 llutils_all 167.89ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base           1.36s
+2 collapse    900.54ms
+3 llutils_2   325.16ms
+4 llutils_all 191.19ms
 
 doubles, n = 1e7
-1 base         172.5ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         173.7ms
 2 collapse     108.2ms
-3 llutils_2     55.3ms
-4 llutils_all   23.7ms
+3 llutils_2     49.8ms
+4 llutils_all   21.1ms
 
 integer against double, n = 1e7
-1 base         183.9ms
-2 collapse     119.5ms
-3 llutils_2     72.6ms
-4 llutils_all   31.8ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         185.7ms
+2 collapse     120.9ms
+3 llutils_2     55.4ms
+4 llutils_all   19.3ms
 
 character, n = 1e7
-1 base         305.3ms
-2 collapse      79.4ms
-3 llutils_2     45.9ms
-4 llutils_all   21.8ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         248.7ms
+2 collapse      77.3ms
+3 llutils_2     28.8ms
+4 llutils_all   10.9ms
 
 factor (100 levels), n = 1e7
-1 base         137.1ms
-2 collapse      10.9ms
-3 llutils_2     11.7ms
-4 llutils_all   13.8ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base        123.73ms
+2 collapse     10.22ms
+3 llutils_2     6.69ms
+4 llutils_all   5.82ms
 
 Date, n = 1e7
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
 1 base           13.3s
-2 collapse      90.2ms
-3 llutils_2     88.8ms
-4 llutils_all   39.4ms
+2 collapse        90ms
+3 llutils_2     82.6ms
+4 llutils_all   34.3ms
 
 POSIXct, n = 1e7
-1 base         165.4ms
-2 collapse      90.8ms
-3 llutils_2     29.8ms
-4 llutils_all   16.7ms
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         166.2ms
+2 collapse        89ms
+3 llutils_2     33.6ms
+4 llutils_all     11ms
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] llutils_0.0.0.9000
+
+loaded via a namespace (and not attached):
+ [1] utf8_1.2.6      collapse_2.1.8  magrittr_2.0.5  glue_1.8.1     
+ [5] tibble_3.3.1    parallel_4.5.2  pkgconfig_2.0.3 lifecycle_1.0.5
+ [9] profmem_0.7.0   cli_3.6.6       bench_1.1.4     vctrs_0.7.3    
+[13] compiler_4.5.2  tools_4.5.2     pillar_1.11.1   Rcpp_1.1.2     
+[17] rlang_1.3.0    

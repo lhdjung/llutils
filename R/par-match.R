@@ -1,17 +1,20 @@
 #' Multithreaded `match()` and `%in%`
 #'
 #' Same results as base [match()] and `%in%`, computed in parallel when `x`
-#' has at least 1e5 elements and both sides are integer, double (in any
-#' mix), character, Date, or POSIXct. Factors are matched by their levels.
-#' Anything else goes to base [match()] unchanged.
+#' or `table` has at least 1e4 elements and both sides are integer, double
+#' (in any mix), character, Date, or POSIXct. Factors are matched by their
+#' levels. Anything else goes to base [match()] unchanged. Strings are
+#' matched by their pointers, which the threads read straight from R's
+#' memory, as data.table does.
 #'
 #' @param x Values to look up.
 #' @param table Values to look them up in.
 #' @param nomatch The value returned where there is no match, coerced to
 #'   integer.
-#' @param nthreads Number of threads. `0` (the default, unless the
-#'   `llutils.threads` option is set) uses the `RAYON_NUM_THREADS`
-#'   environment variable, or else all cores.
+#' @param nthreads Most threads to use. `0` (the default, unless the
+#'   `llutils.threads` option is set) means the `RAYON_NUM_THREADS`
+#'   environment variable, or else all cores. Inputs too small to keep that
+#'   many busy get fewer.
 #' @returns Like [match()]: an integer vector of first positions in `table`,
 #'   `nomatch` where there is none. `%par_in%` returns a logical vector.
 #' @export
@@ -30,16 +33,16 @@ par_match <- function(
     # Base converts all of `x` to strings; matching the levels is enough.
     # The extra `NA` level is for missing values.
     m <- match(c(levels(x), NA), table, nomatch)
-    if (length(x) >= 1e5) {
+    if (length(x) >= RUST_MIN) {
       return(index_codes(x, m, nthreads))
     }
     i <- as.integer(x)
     i[is.na(i)] <- length(m)
     return(m[i])
   }
-  # Below 1e5 elements, starting threads costs more than they save. Rust
-  # returns 32-bit positions, so longer tables go to base.
-  fast <- length(x) >= 1e5 && length(table) <= .Machine$integer.max
+  # Rust returns 32-bit positions, so longer tables go to base.
+  fast <- max(length(x), length(table)) >= RUST_MIN &&
+    length(table) <= .Machine$integer.max
   r <- if (fast) par_match_fast(x, table, nomatch, nthreads)
   if (is.null(r)) match(x, table, nomatch) else r
 }
@@ -47,6 +50,9 @@ par_match <- function(
 #' @rdname par_match
 #' @export
 `%par_in%` <- function(x, table) par_match(x, table, nomatch = 0L) > 0L
+
+# Below this many elements, calling into Rust costs more than it saves.
+RUST_MIN <- 1e4
 
 # NULL where base must take over: other types, or a case Rust declines.
 par_match_fast <- function(x, table, nomatch, nthreads) {

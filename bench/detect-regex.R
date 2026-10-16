@@ -15,10 +15,12 @@ for (pat in c("abc", "[aeiou]{3}[0-9]", "^q.*z\\s", "(?i)QU[a-z]+ ")) {
     min_iterations = 3, filter_gc = FALSE
   )[, c("expression", "median")])
 }
-cat("\nSmall inputs: base_perl against llutils, pattern [aeiou]{3}[0-9]\n")
-for (n in c(100, 999, 1000, 1e4)) {
+cat("\nSmall inputs, pattern repeated so llutils reuses the compiled regex\n")
+for (n in c(100, 1000, 3000, 1e4, 3e4)) {
   y <- x[1:n]
   r <- bench::mark(base_perl = grepl("[aeiou]{3}[0-9]", y, perl = TRUE),
-    llutils = detect_regex(y, "[aeiou]{3}[0-9]"), check = FALSE)
+    llutils_2 = detect_regex(y, "[aeiou]{3}[0-9]", nthreads = 2),
+    llutils_all = detect_regex(y, "[aeiou]{3}[0-9]"), check = FALSE)
   cat("n =", n, ":", format(r$median), "\n")
 }
+cat("\n"); print(sessionInfo())
