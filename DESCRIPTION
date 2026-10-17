@@ -21,3 +21,5 @@ Suggests:
 Config/testthat/edition: 3
 Config/rextendr/version: 0.5.0
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.83.0, xz
+URL: https://github.com/lhdjung/llutils
+BugReports: https://github.com/lhdjung/llutils/issues
