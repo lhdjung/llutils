@@ -7,6 +7,7 @@ expect_base <- function(x, table) {
   expect_identical(par_match(x, table), match(x, table))
   expect_identical(par_match(x, table, nomatch = 0), match(x, table, 0))
   expect_identical(x %par_in% table, x %in% table)
+  expect_identical(par_in(x, table), x %in% table)
 }
 
 test_that("integers and doubles match as in base", {

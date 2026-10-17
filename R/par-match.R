@@ -7,6 +7,8 @@
 #' matched by their pointers, which the threads read straight from R's
 #' memory, as data.table does.
 #'
+#' `par_in()` is `%par_in%` as a function, so it takes `nthreads`.
+#'
 #' @param x Values to look up.
 #' @param table Values to look them up in.
 #' @param nomatch The value returned where there is no match, coerced to
@@ -16,11 +18,13 @@
 #'   environment variable, or else all cores. Inputs too small to keep that
 #'   many busy get fewer.
 #' @returns Like [match()]: an integer vector of first positions in `table`,
-#'   `nomatch` where there is none. `%par_in%` returns a logical vector.
+#'   `nomatch` where there is none. `par_in()` and `%par_in%` return a
+#'   logical vector.
 #' @export
 #' @examples
 #' par_match(c(3, 1, 9), 1:5, nthreads = 2)
 #' c("b", "z") %par_in% letters
+#' par_in(c("b", "z"), letters, nthreads = 2)
 par_match <- function(
   x,
   table,
@@ -44,6 +48,12 @@ par_match <- function(
 
 #' @rdname par_match
 #' @export
+par_in <- function(x, table, nthreads = getOption("llutils.threads", 0L)) {
+  par_match(x, table, nomatch = 0L, nthreads = nthreads) > 0L
+}
+
+#' @rdname par_match
+#' @export
 `%par_in%` <- function(x, table) par_match(x, table, nomatch = 0L) > 0L
 
 # Below this many elements, calling into Rust costs more than it saves.
@@ -60,8 +70,10 @@ par_match_fast <- function(x, table, nomatch, nthreads) {
       TRUE
     ))
   }
+
   x <- plain(x)
   table <- plain(table)
+
   if (is.integer(x) && is.integer(table)) {
     par_match_int(x, table, nomatch, nthreads)
   } else if (is.double(x) && is.double(table)) {

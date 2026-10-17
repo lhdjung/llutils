@@ -2,5 +2,6 @@
 
 export("%par_in%")
 export(detect_regex)
+export(par_in)
 export(par_match)
 useDynLib(llutils, .registration = TRUE)

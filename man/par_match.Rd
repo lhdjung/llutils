@@ -2,6 +2,7 @@
 % Please edit documentation in R/par-match.R
 \name{par_match}
 \alias{par_match}
+\alias{par_in}
 \alias{\%par_in\%}
 \title{Multithreaded \code{match()} and \code{\%in\%}}
 \usage{
@@ -11,6 +12,8 @@ par_match(
   nomatch = NA_integer_,
   nthreads = getOption("llutils.threads", 0L)
 )
+
+par_in(x, table, nthreads = getOption("llutils.threads", 0L))
 
 x \%par_in\% table
 }
@@ -29,7 +32,8 @@ many busy get fewer.}
 }
 \value{
 Like \code{\link[=match]{match()}}: an integer vector of first positions in \code{table},
-\code{nomatch} where there is none. \verb{\%par_in\%} returns a logical vector.
+\code{nomatch} where there is none. \code{par_in()} and \verb{\%par_in\%} return a
+logical vector.
 }
 \description{
 Same results as base \code{\link[=match]{match()}} and \code{\%in\%}, computed in parallel when \code{x}
@@ -39,7 +43,11 @@ levels. Anything else goes to base \code{\link[=match]{match()}} unchanged. Stri
 matched by their pointers, which the threads read straight from R's
 memory, as data.table does.
 }
+\details{
+\code{par_in()} is \verb{\%par_in\%} as a function, so it takes \code{nthreads}.
+}
 \examples{
 par_match(c(3, 1, 9), 1:5, nthreads = 2)
 c("b", "z") \%par_in\% letters
+par_in(c("b", "z"), letters, nthreads = 2)
 }
