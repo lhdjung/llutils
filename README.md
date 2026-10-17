@@ -66,9 +66,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base         15.11s
-#> 2 stringi       8.75s
-#> 3 llutils     21.19ms
+#> 1 base         15.18s
+#> 2 stringi       8.35s
+#> 3 llutils     22.38ms
 plot(results)
 ```
 
@@ -117,9 +117,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression            median
 #>   <bch:expr>          <bch:tm>
-#> 1 stringi                5.31s
-#> 2 llutils               3.81ms
-#> 3 llutils_ignore_case   5.79ms
+#> 1 stringi                4.97s
+#> 2 llutils               3.58ms
+#> 3 llutils_ignore_case   5.77ms
 plot(results)
 ```
 
@@ -142,9 +142,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base        259.6ms
-#> 2 collapse    182.6ms
-#> 3 llutils      16.6ms
+#> 1 base        252.1ms
+#> 2 collapse    179.5ms
+#> 3 llutils      14.9ms
 plot(results)
 ```
 

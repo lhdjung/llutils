@@ -14,9 +14,11 @@ knitr::opts_chunk$set(
 )
 # Plots are linked from the `figures` branch, so they never enter the
 # history of `main`. After knitting, replace that branch with one commit:
-#   export GIT_INDEX_FILE=$(mktemp -u)
+#   (export GIT_INDEX_FILE=$(mktemp -u)
 #   git add -f man/figures/README-*
-#   git push -f origin $(git commit-tree $(git write-tree) -m "README figures"):refs/heads/figures
+#   git push -f origin $(git commit-tree $(git write-tree) -m "README figures"):refs/heads/figures)
+# The parentheses keep GIT_INDEX_FILE out of your shell: outside them, it
+# would point every later git command at an index of just the figures.
 knitr::opts_knit$set(
   base.url = "https://raw.githubusercontent.com/lhdjung/llutils/figures/"
 )
