@@ -5,7 +5,8 @@ Authors@R: person("Lukas", "Jung", , "jung-lukas@gmx.net", role = c("aut", "cre"
 Description: Multithreaded versions of match(), %in%, and grepl(),
     written in Rust. match() and %in% give the same results as base R, and
     fall back to it below the size where threads pay off. Regex detection
-    uses the syntax of Rust's regex crate.
+    uses the syntax of Rust's regex crate. Dictionary lookup finds which of
+    many literal terms each string contains, in one pass per string.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

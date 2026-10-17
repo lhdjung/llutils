@@ -415,6 +415,44 @@ fn par_detect_rs(x: Robj, pattern: &str, fixed: bool, nthreads: i32) -> extendr_
     Ok(out)
 }
 
+/// For each string, the 1-based index of the first of `terms` it contains,
+/// or `NA`. One automaton finds every occurrence of every term in a single
+/// pass, and the lowest index wins, so term order sets priority, not where
+/// in the string a term occurs. Strings are matched as bytes, so R should
+/// pass both sides through `enc2utf8()` first. `NA` gives `NA`.
+/// @noRd
+#[extendr]
+fn par_match_term_rs(x: Robj, terms: Robj, ignore_case: bool, nthreads: i32) -> extendr_api::Result<Integers> {
+    let terms = unsafe { charsxps(&terms) }.iter().map(|&p| unsafe { bytes(p) });
+    let ac = aho_corasick::AhoCorasick::builder()
+        .ascii_case_insensitive(ignore_case)
+        .build(terms)
+        .map_err(|e| Error::Other(e.to_string()))?;
+    let x = unsafe { charsxps(&x) };
+    let na = unsafe { R_NaString } as usize;
+    // Unlike a regex, the automaton has no cache, so threads share one.
+    let which = |(out, &p): (&mut Rint, &usize)| {
+        *out = if p == na {
+            Rint::na()
+        } else {
+            let mut best = u32::MAX;
+            for m in ac.find_overlapping_iter(unsafe { bytes(p) }) {
+                best = best.min(m.pattern().as_u32());
+                if best == 0 {
+                    break;
+                }
+            }
+            if best == u32::MAX { Rint::na() } else { (best as i32 + 1).into() }
+        }
+    };
+    let mut out = Integers::new(x.len());
+    let slice: &mut [Rint] = &mut out;
+    pool(nthreads).install(|| {
+        slice.par_iter_mut().zip(x).with_min_len(REGEX_PER_THREAD).for_each(which)
+    });
+    Ok(out)
+}
+
 /// A character vector's string pointers, as integers that threads can share.
 unsafe fn charsxps(x: &Robj) -> &[usize] {
     if x.len() == 0 {
@@ -437,4 +475,5 @@ extendr_module! {
     fn par_match_mixed;
     fn par_match_chr;
     fn par_detect_rs;
+    fn par_match_term_rs;
 }

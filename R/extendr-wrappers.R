@@ -40,4 +40,12 @@ par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr
 #' @noRd
 par_detect_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_detect_rs, x, pattern, fixed, nthreads)
 
+#' For each string, the 1-based index of the first of `terms` it contains,
+#' or `NA`. One automaton finds every occurrence of every term in a single
+#' pass, and the lowest index wins, so term order sets priority, not where
+#' in the string a term occurs. Strings are matched as bytes, so R should
+#' pass both sides through `enc2utf8()` first. `NA` gives `NA`.
+#' @noRd
+par_match_term_rs <- function(x, terms, ignore_case, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, nthreads)
+
 # nolint end
