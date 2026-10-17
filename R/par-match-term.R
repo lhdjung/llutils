@@ -46,6 +46,14 @@ par_match_term <- function(
   ) {
     stop("`ignore_case` must be `TRUE` or `FALSE`.")
   }
+  if (is.factor(x) && nlevels(x) < length(x)) {
+    # Matching the levels is enough. The extra `NA` is for missing values.
+    return(index_codes(
+      x,
+      c(par_match_term(levels(x), terms, ignore_case, nthreads), NA),
+      nthreads
+    ))
+  }
   if (!is.character(x)) {
     x <- as.character(x)
   }

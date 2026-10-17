@@ -45,3 +45,9 @@ test_that("bad patterns and arguments error", {
   expect_error(par_detect("a", NA_character_), "single string")
   expect_error(par_detect("a", "a", nthreads = -1), "nthreads")
 })
+
+test_that("factors are matched by their levels", {
+  f <- factor(rep(c("ab", NA, "cd", "ab"), 5000), levels = c("cd", "ab", "zz"))
+  expect_identical(par_detect(f, "b"), par_detect(as.character(f), "b"))
+  expect_identical(par_detect(f[1:3], "b"), c(TRUE, NA, FALSE))
+})

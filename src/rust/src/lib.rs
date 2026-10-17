@@ -237,26 +237,34 @@ fn par_match_int(x: &[i32], table: &[i32], nomatch: Rint, nthreads: i32) -> Inte
 }
 
 /// `m[codes]` for factor codes, with `NA` codes taking `m`'s last element.
-/// Codes outside the levels error, as in base.
+/// `m` is integer or logical: a result per level, from a function that only
+/// had to run on the levels. Codes outside the levels error, as in base.
 /// @noRd
 #[extendr]
-fn index_codes(codes: &[i32], m: &[i32], nthreads: i32) -> extendr_api::Result<Integers> {
+fn index_codes(codes: &[i32], m: Robj, nthreads: i32) -> extendr_api::Result<Robj> {
+    let ok = if let Ok(m) = Logicals::try_from(&m) {
+        let mut out = Logicals::new(codes.len());
+        index(codes, &m, &mut out, nthreads).map(|_| out.into())
+    } else {
+        let m = Integers::try_from(&m)?;
+        let mut out = Integers::new(codes.len());
+        index(codes, &m, &mut out, nthreads).map(|_| out.into())
+    };
+    ok.ok_or_else(|| Error::Other("malformed factor".into()))
+}
+
+/// `index_codes()` for either type; `None` if a code is outside the levels.
+fn index<T: Copy + Send + Sync>(codes: &[i32], m: &[T], out: &mut [T], nthreads: i32) -> Option<()> {
     let (&na, levels) = m.split_last().unwrap();
-    let mut out = Integers::new(codes.len());
-    let slice: &mut [Rint] = &mut out;
-    pool(nthreads)
-        .install(|| {
-            slice
-                .par_iter_mut()
-                .zip(codes)
-                .with_min_len(MATCH_PER_THREAD)
-                .try_for_each(|(o, &c)| {
-                    *o = if c == NA_INT { na } else { *levels.get((c as usize).wrapping_sub(1))? }.into();
-                    Some(())
-                })
-        })
-        .ok_or_else(|| Error::Other("malformed factor".into()))?;
-    Ok(out)
+    pool(nthreads).install(|| {
+        out.par_iter_mut()
+            .zip(codes)
+            .with_min_len(MATCH_PER_THREAD)
+            .try_for_each(|(o, &c)| {
+                *o = if c == NA_INT { na } else { *levels.get((c as usize).wrapping_sub(1))? };
+                Some(())
+            })
+    })
 }
 
 /// Base matches Dates by their printed day, so 1.5 matches 1: `as_date`

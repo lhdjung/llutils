@@ -73,3 +73,10 @@ test_that("bad arguments error", {
   expect_error(par_match_term("a", "a", ignore_case = NA), "ignore_case")
   expect_error(par_match_term("a", "a", nthreads = -1), "nthreads")
 })
+
+test_that("factors are matched by their levels", {
+  f <- factor(rep(c("ab", NA, "cd", "ab"), 5000), levels = c("cd", "ab", "zz"))
+  terms <- c("d", "b")
+  expect_identical(par_match_term(f, terms), par_match_term(as.character(f), terms))
+  expect_identical(par_match_term(f[1:3], terms), c(2L, NA, 1L))
+})

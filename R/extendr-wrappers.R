@@ -9,7 +9,8 @@ NULL
 par_match_int <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_int, x, table, nomatch, nthreads)
 
 #' `m[codes]` for factor codes, with `NA` codes taking `m`'s last element.
-#' Codes outside the levels error, as in base.
+#' `m` is integer or logical: a result per level, from a function that only
+#' had to run on the levels. Codes outside the levels error, as in base.
 #' @noRd
 index_codes <- function(codes, m, nthreads) .Call(wrap__index_codes, codes, m, nthreads)
 

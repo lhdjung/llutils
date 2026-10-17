@@ -47,6 +47,14 @@ par_detect <- function(
   if (!isTRUE(fixed) && !isFALSE(fixed)) {
     stop("`fixed` must be `TRUE` or `FALSE`.")
   }
+  if (is.factor(x) && nlevels(x) < length(x)) {
+    # Matching the levels is enough. The extra `NA` is for missing values.
+    return(index_codes(
+      x,
+      c(par_detect(levels(x), pattern, fixed, nthreads), NA),
+      nthreads
+    ))
+  }
   if (!is.character(x)) {
     x <- as.character(x)
   }
