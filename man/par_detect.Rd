@@ -4,12 +4,21 @@
 \alias{par_detect}
 \title{Detect regex matches, in parallel}
 \usage{
-par_detect(x, pattern, nthreads = getOption("llutils.threads", 0L))
+par_detect(
+  x,
+  pattern,
+  fixed = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+)
 }
 \arguments{
 \item{x}{A character vector, or something \code{\link[=as.character]{as.character()}} converts.}
 
-\item{pattern}{A single string: the regex.}
+\item{pattern}{A single string: the regex, or the literal string to find
+if \code{fixed = TRUE}.}
+
+\item{fixed}{If \code{TRUE}, \code{pattern} is found as it is, as in
+\code{grepl(fixed = TRUE)}: no character has a special meaning.}
 
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
@@ -44,4 +53,5 @@ data.table does.
 \examples{
 par_detect(c("apple", "banana", NA), "an+a", nthreads = 2)
 par_detect("ABC", "(?i)b")
+par_detect(c("a.c", "abc"), ".", fixed = TRUE)
 }

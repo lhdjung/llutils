@@ -19,7 +19,10 @@
 #'   data.table does.
 #'
 #' @param x A character vector, or something [as.character()] converts.
-#' @param pattern A single string: the regex.
+#' @param pattern A single string: the regex, or the literal string to find
+#'   if `fixed = TRUE`.
+#' @param fixed If `TRUE`, `pattern` is found as it is, as in
+#'   `grepl(fixed = TRUE)`: no character has a special meaning.
 #' @inheritParams par_match
 #'
 #' @returns A logical vector as long as `x`: `TRUE` where `pattern` matches,
@@ -30,19 +33,24 @@
 #' @examples
 #' par_detect(c("apple", "banana", NA), "an+a", nthreads = 2)
 #' par_detect("ABC", "(?i)b")
+#' par_detect(c("a.c", "abc"), ".", fixed = TRUE)
 par_detect <- function(
   x,
   pattern,
+  fixed = FALSE,
   nthreads = getOption("llutils.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
   if (!is.character(pattern) || length(pattern) != 1 || is.na(pattern)) {
     stop("`pattern` must be a single string.")
   }
+  if (!isTRUE(fixed) && !isFALSE(fixed)) {
+    stop("`fixed` must be `TRUE` or `FALSE`.")
+  }
   if (!is.character(x)) {
     x <- as.character(x)
   }
   # Rust reads the bytes; this makes them UTF-8, without copying strings
   # that are ASCII or UTF-8 already.
-  par_detect_rs(enc2utf8(x), enc2utf8(pattern), nthreads)
+  par_detect_rs(enc2utf8(x), enc2utf8(pattern), fixed, nthreads)
 }

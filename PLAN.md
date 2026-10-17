@@ -49,9 +49,8 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   single-threaded, but a hash table shared across threads is real work, so
   this goes last.
 - `match()`'s `incomparables` argument: not supported, rarely used.
-- `par_detect()` siblings: literal (fixed) search, a vectorised
-  `pattern`, extracting or replacing matches. Literal search is covered for
-  now by escaping the pattern.
+- `par_detect()` siblings: a vectorised `pattern`, extracting or
+  replacing matches.
 
 ## Known limits
 

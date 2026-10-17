@@ -9,6 +9,17 @@ test_that("par_detect() agrees with grepl() where the syntaxes agree", {
   expect_identical(par_detect(x[1:10], "a"), grepl("a", x[1:10])) # serial path
 })
 
+test_that("fixed = TRUE finds the pattern as it is", {
+  x <- rep(c("a.c", "abc", "(a)", NA), 2000) # long enough for the parallel path
+  for (p in c(".", "a.c", "(a)", "(", "\\")) {
+    expected <- grepl(p, x, fixed = TRUE)
+    expected[is.na(x)] <- NA
+    expect_identical(par_detect(x, p, fixed = TRUE), expected, info = p)
+  }
+  expect_identical(par_detect("a.c", "a.c", fixed = TRUE), TRUE)
+  expect_error(par_detect("a", "a", fixed = NA), "fixed")
+})
+
 test_that("NA gives NA, and other inputs are converted", {
   expect_identical(par_detect(c("a", NA, "b"), "a"), c(TRUE, NA, FALSE))
   expect_identical(par_detect(factor(c("ab", "cd")), "b"), c(TRUE, FALSE))

@@ -369,12 +369,13 @@ fn regex(pattern: &str) -> extendr_api::Result<regex::bytes::Regex> {
     Ok(re)
 }
 
-/// `grepl(pattern, x)` with Rust's regex syntax. Strings are matched as
-/// bytes, so R should pass them through `enc2utf8()` first. `NA` gives `NA`.
+/// `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
+/// `fixed`. Strings are matched as bytes, so R should pass them through
+/// `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
 #[extendr]
-fn par_detect_rs(x: Robj, pattern: &str, nthreads: i32) -> extendr_api::Result<Logicals> {
-    let re = regex(pattern)?;
+fn par_detect_rs(x: Robj, pattern: &str, fixed: bool, nthreads: i32) -> extendr_api::Result<Logicals> {
+    let re = if fixed { regex(&regex::escape(pattern))? } else { regex(pattern)? };
     let x = unsafe { charsxps(&x) };
     let na = unsafe { R_NaString } as usize;
     // The threads read the strings themselves: R stores them scattered in
