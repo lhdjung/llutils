@@ -38,7 +38,8 @@ llutils functions got. Don't feel shackled by it! Revise it if needed.
   threads scale, and at 1e6 strings `par_detect()` takes 7-16ms against
   53-247ms for `grepl(perl = TRUE)` and 221-378ms for stringi.
 - **Dictionary lookup is the widest margin.** `par_match_term()` is
-  `match()` for substrings: which of `terms` each string contains, earliest term winning.
+  `match()` for substrings: which of `terms` each string contains, earliest
+  term winning.
   At 1e5 strings and 1000 terms it takes 3.5ms (2 threads: 9ms). The only
   exact R equivalent, a `stri_detect_fixed()` per term, takes 4.9s;
   extracting the leftmost hit with one alternation takes 15s (PCRE) to 29s
@@ -54,17 +55,52 @@ llutils functions got. Don't feel shackled by it! Revise it if needed.
   Posit Package Manager or r2u, needs Cargo and rustc >= 1.83. The crates
   are vendored for CRAN, so the build needs no network.
 
+## Next
+
+Use cases for every function are collected in
+`vignettes/articles/use-cases.Rmd`; add to it as new ones turn up. In
+order:
+
+1. **README: point to the use-cases article, and mention `whole_word`** in
+   the "Which term?" section. Do it with the next knit, which also needs a
+   push of the `figures` branch (recipe in README.Rmd).
+2. **`par_count()`**, the next `par_detect()` sibling. It returns integers,
+   so the threads never build strings on R's thread, and it should scale
+   like `par_detect()`. Take `pattern` (a regex) as `par_detect()` does;
+   a `terms` version, counting dictionary hits per string, covers lexicon
+   scoring (sentiment, topic word counts) and can reuse
+   `par_match_term_rs()`'s loop over overlapping hits, `whole_word` and all.
+3. **Keep the last automaton**, as `regex()` keeps the last regex, keyed by
+   `terms`, `ignore_case`, and `whole_word`. Building takes about 0.9ms for
+   1000 terms, most of a call below 1e4 strings, so repeated small calls
+   (a Shiny app, a loop over groups) pay it every time. Comparing the
+   `terms` vector costs a pass over it; compare the pointers of its CHARSXPs,
+   as `par_match_chr()` does, not the bytes.
+4. **A vectorised `pattern` for `par_detect()`**: one pattern per string,
+   as in `stringi::stri_detect_regex()`. Compile each distinct pattern once
+   (most vectors repeat a few), then match in parallel. Measure against
+   stringi, which recycles the same way on one thread.
+5. **`par_find_interval()`**, a threaded `findInterval()`: binary search
+   of each value in sorted breaks, for binning and range joins. Each search
+   is a few cache misses, as `par_match()`'s probes are, so threads should
+   win by a similar margin. Base runs on one thread and collapse has no
+   threaded version; measure against both, and against data.table's
+   rolling joins, before committing to it.
+6. **Matching on several columns at once**, as in a join's key lookup.
+   Base pastes the columns into strings, and `vctrs::vec_match()` handles
+   data frames but is single-threaded. data.table's joins are the real
+   competitor, so measure against them, not against vctrs.
+
 ## Open (start each when there's a concrete use)
 
-- Matching on several columns at once, as in a join's key lookup. Base
-  pastes the columns into strings, and `vctrs::vec_match()` handles data
-  frames but is single-threaded.
+- All terms per string, not just the first: a list of integer vectors, for
+  tagging (an abstract with every drug it names). Wait for a request; the
+  first-term contract covers coding, which assigns one category.
 - Parallel `unique()` and distinct counts. `fnunique()` takes 102ms at 1e7
   single-threaded, but a hash table shared across threads is real work, so
   this goes last.
-- `par_detect()` siblings: `par_count()` first (it returns integers, so
-  it needs no strings built on R's thread), then extracting or replacing
-  matches, which do.
+- Extracting or replacing regex matches. Both build strings, which only
+  R's thread can do, so measure how much of the regex speedup survives.
 - `par_match_term()` with regex terms, through `regex::RegexSet`. Literal
   terms cover the dictionary case, so this waits for a request.
 
@@ -132,9 +168,20 @@ llutils functions got. Don't feel shackled by it! Revise it if needed.
   last automaton, as `regex()` does, if small repeated calls turn up.
 - `ignore_case` folds ASCII letters only, which is what aho-corasick offers.
   Lowercasing both sides with `tolower()` covers the rest.
+- `whole_word` drops a hit if the character right before or after it is a
+  letter or digit in any script, or `_` (Rust's `char::is_alphanumeric()`).
+  That is PCRE's `(?<!\w)term(?!\w)`, not `\bterm\b`: the two differ only
+  for terms that start or end with punctuation, where `"c++"` should not
+  need a word character after it. It costs nothing measurable: 1e5
+  strings and 1000 terms take 4.2ms, where a `\b` regex per term in
+  stringi gives the same result in 15s, and PCRE takes 1.8s only to
+  detect.
+
+Versions:
+
 - Rust 1.83 or later: `f64::from_bits` in a `const`, `div_ceil`, and the
-  locked rayon need it. R 4.3 or later: base matches Dates by printed day only since
-  `mtfrm()` arrived there.
+  locked rayon need it. R 4.3 or later: base matches Dates by printed day
+  only since `mtfrm()` arrived there.
 
 ## Release 0.1.0 (later)
 
@@ -155,3 +202,11 @@ Not before experimenting with and reviewing what is here.
 - A short-circuiting `any_in()`: `any(x %par_in% table)` covers it.
 - Sorting and tabulating: data.table's sorting is already multithreaded,
   and collapse covers counting.
+- A `par_duplicated()` or `par_unique()` on `par_match()`'s hash table:
+  `par_match(x, x) != seq_along(x)` already is `duplicated(x)`, and the
+  use-cases article shows it. A lookup of 1e7 into 1e7 takes 98ms, about
+  as long as `fnunique()` (102ms), so a dedicated function would win little.
+- Fuzzy matching: `stringdist::amatch()` already runs on several threads
+  (OpenMP).
+- Threaded `tolower()`, `nchar()`, `startsWith()`: bound by memory, or by
+  building strings on R's thread, so base is close enough.
