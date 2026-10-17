@@ -1,0 +1,59 @@
+1e5 strings, 1000 terms
+# A tibble: 7 × 2
+  expression        median
+  <bch:expr>      <bch:tm>
+1 base_perl         14.91s
+2 stringi           28.89s
+3 stringi_loop       4.92s
+4 AhoCorasickTrie   42.17s
+5 par_detect       24.72ms
+6 llutils_2         9.03ms
+7 llutils_all       3.45ms
+
+Same, uppercased, ignoring case
+# A tibble: 5 × 2
+  expression         median
+  <bch:expr>       <bch:tm>
+1 base_perl           15.5s
+2 stringi            54.13s
+3 par_detect          3.44s
+4 par_detect_lower 109.45ms
+5 llutils_all        5.28ms
+
+Scaling with terms (1e6 strings, all threads)
+10 terms: 14.2ms 
+1000 terms: 34.8ms 
+10000 terms: 47ms 
+
+Small inputs, 1000 terms
+n = 100 :  27.4ms 903.9µs 
+n = 1000 : 294.32ms   1.02ms 
+n = 10000 : 2.91s 1.51ms 
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] llutils_0.0.0.9000
+
+loaded via a namespace (and not attached):
+ [1] AhoCorasickTrie_0.1.3 utf8_1.2.6            magrittr_2.0.5       
+ [4] glue_1.8.1            tibble_3.3.1          pkgconfig_2.0.3      
+ [7] lifecycle_1.0.5       profmem_0.7.0         cli_3.6.6            
+[10] bench_1.1.4           vctrs_0.7.3           compiler_4.5.2       
+[13] tools_4.5.2           pillar_1.11.1         Rcpp_1.1.2           
+[16] rlang_1.3.0           stringi_1.8.9        
