@@ -1,7 +1,7 @@
 withr::local_options(llutils.threads = 2) # CRAN allows at most 2 cores
 
-# Long enough for the parallel path.
-big <- function(v) rep_len(v, 1e4)
+# Long enough for two threads.
+big <- function(v) rep_len(v, 2e4)
 
 expect_base <- function(x, table) {
   expect_identical(par_match(x, table), match(x, table))
@@ -48,6 +48,9 @@ test_that("factors match by level", {
   expect_base(big(f), c("a", NA))
   expect_base(big(f), c("a", "b"))
   expect_base(f, factor(c("z", "c")))
+  bad <- structure(c(1L, 3L), levels = c("a", "b"), class = "factor")
+  expect_error(par_match(bad, "a"), "malformed factor")
+  expect_error(par_match(big(bad), "a"), "malformed factor")
 })
 
 test_that("short and unsupported inputs go to base", {
@@ -62,6 +65,7 @@ test_that("nthreads is validated", {
   expect_identical(par_match(x, 1L, nthreads = 1), x)
   expect_error(par_match(1L, 1L, nthreads = -1), "nthreads")
   expect_error(par_match(x, 1L, nthreads = 1.5), "nthreads")
+  expect_error(par_match(x, 1L, nthreads = 1e10), "nthreads")
 })
 
 test_that("Rust takes the cases it can and declines the rest", {

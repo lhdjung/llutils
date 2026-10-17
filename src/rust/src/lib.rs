@@ -20,14 +20,15 @@ const NA_INT: i32 = i32::MIN;
 const NA_BITS: u64 = 0x7FF00000000007A2; // R's NA_real_: a NaN with 1954 in its low word
 const NA_REAL: f64 = f64::from_bits(NA_BITS);
 
-/// A pool of up to `nthreads` threads (0 = `RAYON_NUM_THREADS`, else all
-/// cores), but no more than `max_useful`: waking a thread costs about 10us,
-/// so each one needs enough elements to earn it. Starting threads costs
-/// about 100us, so pools are kept between calls, one per count. A forked
-/// child (`parallel::mclapply()`) inherits the pool structs but not their
-/// threads, so a new pid starts over, leaking the dead pools rather than
-/// waiting on them.
-fn pool(nthreads: i32, max_useful: usize) -> Arc<rayon::ThreadPool> {
+/// A pool of `nthreads` threads (0 = `RAYON_NUM_THREADS`, else all cores).
+/// Starting threads costs about 100us, so pools are kept between calls, one
+/// per requested count. Waking a thread costs about 10us, so callers keep
+/// small inputs on fewer threads with `with_min_len()` rather than a smaller
+/// pool: one pool per input size would pile up idle threads. A forked child
+/// (`parallel::mclapply()`) inherits the pool structs but not their threads,
+/// so a new pid starts over, leaking the dead pools rather than waiting on
+/// them.
+fn pool(nthreads: i32) -> Arc<rayon::ThreadPool> {
     static POOLS: Mutex<Option<(u32, Vec<(usize, Arc<rayon::ThreadPool>)>)>> = Mutex::new(None);
     let n = if nthreads > 0 {
         nthreads as usize
@@ -38,7 +39,6 @@ fn pool(nthreads: i32, max_useful: usize) -> Arc<rayon::ThreadPool> {
             .filter(|&n| n > 0)
             .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
     };
-    let n = n.min(max_useful).max(1);
     let mut cache = POOLS.lock().unwrap_or_else(|e| e.into_inner());
     let pid = std::process::id();
     let pools = match cache.as_mut() {
@@ -80,7 +80,7 @@ fn par_match<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
     let mut out = Integers::new(x.len());
     let slice: &mut [Rint] = &mut out; // threads may share this, not `out`
     pool.install(|| {
-        slice.par_iter_mut().zip(x).for_each(|(o, v)| {
+        slice.par_iter_mut().zip(x).with_min_len(MATCH_PER_THREAD).for_each(|(o, v)| {
             let k = xkey(v);
             *o = (*maps[bucket(&k, maps.len())].get(&k).unwrap_or(&nomatch)).into();
         })
@@ -99,8 +99,8 @@ fn build<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
     table: &[T],
     key: &(impl Fn(&T) -> K + Sync),
 ) -> Vec<HashMap<K, i32>> {
-    let nt = rayon::current_num_threads();
-    if table.len() < PARTITION_MIN || nt == 1 {
+    let nt = rayon::current_num_threads().min(table.len() / MATCH_PER_THREAD);
+    if table.len() < PARTITION_MIN || nt <= 1 {
         let mut m = HashMap::with_capacity_and_hasher(table.len(), Default::default());
         // Reverse so earlier positions overwrite later ones.
         for (i, v) in table.iter().enumerate().rev() {
@@ -156,24 +156,31 @@ fn par_match_int(x: &[i32], table: &[i32], nomatch: Rint, nthreads: i32) -> Inte
         key,
         key,
         nomatch,
-        &pool(nthreads, x.len().max(table.len()) / MATCH_PER_THREAD),
+        &pool(nthreads),
     )
 }
 
 /// `m[codes]` for factor codes, with `NA` codes taking `m`'s last element.
+/// Codes outside the levels error, as in base.
 /// @noRd
 #[extendr]
-fn index_codes(codes: &[i32], m: &[i32], nthreads: i32) -> Integers {
-    let na = m[m.len() - 1];
+fn index_codes(codes: &[i32], m: &[i32], nthreads: i32) -> extendr_api::Result<Integers> {
+    let (&na, levels) = m.split_last().unwrap();
     let mut out = Integers::new(codes.len());
     let slice: &mut [Rint] = &mut out;
-    pool(nthreads, codes.len() / MATCH_PER_THREAD).install(|| {
-        slice
-            .par_iter_mut()
-            .zip(codes)
-            .for_each(|(o, &c)| *o = (if c == NA_INT { na } else { m[c as usize - 1] }).into())
-    });
-    out
+    pool(nthreads)
+        .install(|| {
+            slice
+                .par_iter_mut()
+                .zip(codes)
+                .with_min_len(MATCH_PER_THREAD)
+                .try_for_each(|(o, &c)| {
+                    *o = if c == NA_INT { na } else { *levels.get((c as usize).wrapping_sub(1))? }.into();
+                    Some(())
+                })
+        })
+        .ok_or_else(|| Error::Other("malformed factor".into()))?;
+    Ok(out)
 }
 
 /// Base matches Dates by their printed day, so 1.5 matches 1: `as_date`
@@ -182,13 +189,14 @@ fn index_codes(codes: &[i32], m: &[i32], nthreads: i32) -> Integers {
 /// @noRd
 #[extendr]
 fn par_match_dbl(x: &[f64], table: &[f64], nomatch: Rint, nthreads: i32, as_date: bool) -> Robj {
-    let pool = pool(nthreads, x.len().max(table.len()) / MATCH_PER_THREAD);
+    let pool = pool(nthreads);
     if !as_date {
         let key = |v: &f64| dbl_key(*v);
         return par_match(x, table, key, key, nomatch, &pool).into();
     }
     let far = |v: &f64| v.is_finite() && v.abs() > 1e10;
-    if pool.install(|| table.par_iter().any(far) || x.par_iter().any(far)) {
+    let any_far = |s: &[f64]| s.par_iter().with_min_len(MATCH_PER_THREAD).any(far);
+    if pool.install(|| any_far(table) || any_far(x)) {
         return ().into();
     }
     let key = |v: &f64| dbl_key(v.floor());
@@ -200,7 +208,7 @@ fn par_match_dbl(x: &[f64], table: &[f64], nomatch: Rint, nthreads: i32, as_date
 /// @noRd
 #[extendr]
 fn par_match_mixed(x: Robj, table: Robj, nomatch: Rint, nthreads: i32) -> Integers {
-    let pool = pool(nthreads, x.len().max(table.len()) / MATCH_PER_THREAD);
+    let pool = pool(nthreads);
     let int = |v: &i32| dbl_key(if *v == NA_INT { NA_REAL } else { *v as f64 });
     let dbl = |v: &f64| dbl_key(*v);
     match (x.as_integer_slice(), table.as_real_slice()) {
@@ -243,25 +251,22 @@ fn dbl_key(v: f64) -> u64 {
 #[extendr]
 fn par_match_chr(x: Robj, table: Robj, nomatch: Rint, nthreads: i32) -> Robj {
     let (x, table) = unsafe { (charsxps(&x), charsxps(&table)) };
-    let pool = pool(nthreads, x.len().max(table.len()) / MATCH_PER_THREAD);
+    let pool = pool(nthreads);
     let key = |p: &usize| *p;
     let ascii = |p: &usize| unsafe { bytes(*p).is_ascii() };
     let ce = |p: &usize| unsafe { Rf_getCharCE(*p as SEXP) };
     // The threads read the strings themselves, as detect_regex_rs() does.
     // Reading each one is a cache miss, so this scans the shorter side.
     let ok = pool.install(|| {
+        let both = || x.par_iter().chain(table).with_min_len(MATCH_PER_THREAD);
         if x.len() < table.len() { x } else { table }
             .par_iter()
+            .with_min_len(MATCH_PER_THREAD)
             .all(ascii)
             || {
                 // Encodings seen, as bits: 1 native, 2 UTF-8, 4 anything else.
-                let seen = x
-                    .par_iter()
-                    .chain(table)
-                    .map(|p| 1u8 << ce(p).min(2))
-                    .reduce(|| 0, |a, b| a | b);
-                seen & 4 == 0
-                    && (seen != 3 || x.par_iter().chain(table).all(|p| ce(p) == 1 || ascii(p)))
+                let seen = both().map(|p| 1u8 << ce(p).min(2)).reduce(|| 0, |a, b| a | b);
+                seen & 4 == 0 && (seen != 3 || both().all(|p| ce(p) == 1 || ascii(p)))
             }
     });
     if !ok {
@@ -318,8 +323,9 @@ fn detect_regex_rs(x: Robj, pattern: &str, nthreads: i32) -> extendr_api::Result
     } else {
         // A clone per chunk: threads sharing one regex contend for its cache,
         // and cloning per rayon task costs more than it saves.
-        pool(nthreads, x.len() / REGEX_PER_THREAD).install(|| {
-            let chunk = x.len().div_ceil(4 * rayon::current_num_threads());
+        pool(nthreads).install(|| {
+            let nt = rayon::current_num_threads().min(x.len() / REGEX_PER_THREAD);
+            let chunk = x.len().div_ceil(4 * nt);
             slice
                 .par_chunks_mut(chunk)
                 .zip(x.par_chunks(chunk))

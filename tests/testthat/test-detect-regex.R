@@ -2,7 +2,7 @@ withr::local_options(llutils.threads = 2) # CRAN allows at most 2 cores
 
 test_that("detect_regex() agrees with grepl() where the syntaxes agree", {
   set.seed(1)
-  x <- vapply(1:2000, function(i) paste(sample(c(letters, " ", 0:9), 12, TRUE), collapse = ""), "")
+  x <- vapply(1:6000, function(i) paste(sample(c(letters, " ", 0:9), 12, TRUE), collapse = ""), "")
   for (p in c("abc", "^[a-f]+", "\\d{2}$", "a.c|x.z", "(ab)+", "[^a-z ]{3}", "")) {
     expect_identical(detect_regex(x, p), grepl(p, x, perl = TRUE), info = p)
   }
@@ -21,6 +21,8 @@ test_that("strings match by character, in any encoding", {
   latin1 <- iconv(e, "UTF-8", "latin1")
   expect_identical(detect_regex(c(e, latin1, "e"), paste0("^", e, "$")), c(TRUE, TRUE, FALSE))
   expect_identical(detect_regex(c(e, latin1), "^.$"), c(TRUE, TRUE))
+  big <- rep(c(e, latin1, "e", NA), 2000) # the parallel path
+  expect_identical(detect_regex(big, paste0("^", e, "$")), rep(c(TRUE, TRUE, FALSE, NA), 2000))
   expect_identical(detect_regex(c("\u0663", "3"), "\\d"), c(TRUE, TRUE)) # Arabic-Indic 3
   expect_identical(detect_regex("ABC", "(?i)b"), TRUE)
 })

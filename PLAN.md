@@ -37,7 +37,7 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   dependencies: extendr is compiled into the package, so `Imports` is empty
   (collapse imports Rcpp). CRAN's Windows and macOS binaries need no Rust.
   Building from source, the default on Linux unless users take binaries from
-  Posit Package Manager or r2u, needs Cargo and rustc >= 1.65. The crates
+  Posit Package Manager or r2u, needs Cargo and rustc >= 1.83. The crates
   are vendored for CRAN, so the build needs no network.
 
 ## Open (start each when there's a concrete use)
@@ -65,9 +65,10 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
 - String tables need a scan of the shorter side for non-ASCII text, one
   cache miss per string, which the hash build does not. At 2 threads that
   is most of the time for a large string table.
-- Thread pools are kept between calls, one per thread count, and each
-  thread gets at least 1e4 elements (`detect_regex()`: 2500 strings), so
-  small inputs use fewer than `nthreads`. A forked child gets fresh pools.
+- Thread pools are kept between calls, one per `nthreads` value. Work is
+  split so each thread gets at least 1e4 elements (`detect_regex()`: 2500
+  strings), so small inputs use fewer than `nthreads`. A forked child gets
+  fresh pools.
 - Other classes (difftime, integer64, POSIXlt, subclasses of Date) go to
   base. So do tables longer than 2^31 - 1, Dates beyond 1e10 days (base
   matches those by their printed numbers), and string tables with non-ASCII

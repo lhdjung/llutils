@@ -29,16 +29,11 @@ par_match <- function(
 ) {
   nthreads <- check_nthreads(nthreads)
   nomatch <- as.integer(nomatch)[1]
-  if (is.factor(x)) {
+  if (is.factor(x) && length(x) >= RUST_MIN) {
     # Base converts all of `x` to strings; matching the levels is enough.
     # The extra `NA` level is for missing values.
     m <- match(c(levels(x), NA), table, nomatch)
-    if (length(x) >= RUST_MIN) {
-      return(index_codes(x, m, nthreads))
-    }
-    i <- as.integer(x)
-    i[is.na(i)] <- length(m)
-    return(m[i])
+    return(index_codes(x, m, nthreads))
   }
   # Rust returns 32-bit positions, so longer tables go to base.
   fast <- max(length(x), length(table)) >= RUST_MIN &&
@@ -99,6 +94,7 @@ check_nthreads <- function(nthreads) {
       length(nthreads) != 1 ||
       is.na(nthreads) ||
       nthreads < 0 ||
+      nthreads > .Machine$integer.max ||
       nthreads != trunc(nthreads)
   ) {
     stop("`nthreads` must be a single non-negative whole number.")
