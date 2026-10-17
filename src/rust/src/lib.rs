@@ -255,7 +255,7 @@ fn par_match_chr(x: Robj, table: Robj, nomatch: Rint, nthreads: i32) -> Robj {
     let key = |p: &usize| *p;
     let ascii = |p: &usize| unsafe { bytes(*p).is_ascii() };
     let ce = |p: &usize| unsafe { Rf_getCharCE(*p as SEXP) };
-    // The threads read the strings themselves, as detect_regex_rs() does.
+    // The threads read the strings themselves, as par_detect_rs() does.
     // Reading each one is a cache miss, so this scans the shorter side.
     let ok = pool.install(|| {
         let both = || x.par_iter().chain(table).with_min_len(MATCH_PER_THREAD);
@@ -297,7 +297,7 @@ fn regex(pattern: &str) -> extendr_api::Result<regex::bytes::Regex> {
 /// bytes, so R should pass them through `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
 #[extendr]
-fn detect_regex_rs(x: Robj, pattern: &str, nthreads: i32) -> extendr_api::Result<Logicals> {
+fn par_detect_rs(x: Robj, pattern: &str, nthreads: i32) -> extendr_api::Result<Logicals> {
     let re = regex(pattern)?;
     let x = unsafe { charsxps(&x) };
     let na = unsafe { R_NaString } as usize;
@@ -359,5 +359,5 @@ extendr_module! {
     fn par_match_dbl;
     fn par_match_mixed;
     fn par_match_chr;
-    fn detect_regex_rs;
+    fn par_detect_rs;
 }

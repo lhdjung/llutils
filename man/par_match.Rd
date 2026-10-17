@@ -25,15 +25,21 @@ par_in(x, table, nthreads = getOption("llutils.threads", 0L))
 \item{nomatch}{The value returned where there is no match, coerced to
 integer.}
 
-\item{nthreads}{Max number of threads to use. Unless the \code{llutils.threads}
-option is set, the \code{0} default means the function will read the
-\code{RAYON_NUM_THREADS} environment variable, or else use all cores. Inputs too
-small to keep that many threads busy get fewer.}
+\item{nthreads}{A whole number: the max number of threads to use. \code{0} means
+the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
+default is the \code{llutils.threads} option, or \code{0} if that isn't set. Inputs
+too small to keep that many threads busy get fewer.}
 }
 \value{
-Like \code{\link[=match]{match()}}: an integer vector of first positions in \code{table},
-\code{nomatch} where there is none. \code{par_in()} and \verb{\%par_in\%} return a logical
-vector.
+Just like base \code{match()} and \code{\%in\%}:
+\itemize{
+\item \code{par_match()} returns an integer vector containing the first positions of
+the elements of \code{x} in \code{table}, or \code{nomatch} if an element is not in
+\code{table}.
+\item \verb{\%par_in\%} and \code{par_in()} return a logical vector: \code{TRUE} if an element
+of \code{x} is in \code{table}, and \code{FALSE} if not. They never return \code{NA}: an \code{NA}
+in \code{x} is \code{TRUE} if \code{table} contains \code{NA}, and \code{FALSE} if not.
+}
 }
 \description{
 Same results as base \code{\link[=match]{match()}} and \code{\%in\%}, but much faster for
@@ -41,20 +47,20 @@ large inputs. Use as drop-in replacements:
 \itemize{
 \item \code{par_match()} for \code{match()}.
 \item \verb{\%par_in\%} for \code{\%in\%}.
+}
 
 Also, \code{par_in()} is \verb{\%par_in\%} as a regular function. It combines better
 with the pipe and takes an \code{nthreads} argument, so you can fine-tune its
 performance.
 }
-}
 \details{
-All are computed in parallel when \code{x} or \code{table} has at least 1e4
-elements and both sides are integer, double (in any mix), character, Date,
-or POSIXct.
+Speedups result from a Rust implementation using rayon.
 
-Factors are matched by their levels. Anything else goes to base \code{\link[=match]{match()}}
-unchanged. Strings are matched by their pointers, which the threads read
-straight from R's memory, as data.table does.
+These functions are computed in parallel when \code{x} or \code{table} has at least
+1e4 elements and both sides are integer, double (in any mix), character,
+Date, or POSIXct. Factors are matched by their levels. Anything else goes
+to base \code{\link[=match]{match()}} unchanged. Strings are matched by their pointers, which
+the threads read straight from R's memory, as data.table does.
 }
 \examples{
 par_match(c(3, 1, 9), 1:5, nthreads = 2)

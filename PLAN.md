@@ -18,7 +18,7 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   Strings need a scan of one side for non-ASCII text, so on 2 threads
   they only tie with collapse (434ms). Being identical to base makes `par_match()`
   a safe drop-in for `match()`, so the tests compare against base, not
-  against a spec. `detect_regex()` can't be identical, since its syntax is
+  against a spec. `par_detect()` can't be identical, since its syntax is
   Rust's, so it carries its own name instead of claiming to be `grepl()`.
 - **Overlap with collapse only where llutils adds threads.** Copying
   collapse's single-threaded functions gains nothing: anyone who wants those
@@ -31,7 +31,7 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   so its functions must cover every common type, and each new function
   must win by a similar margin against the fastest existing package, not
   just against base. Regex is the stronger case: it is limited by CPU, so
-  threads scale, and at 1e6 strings `detect_regex()` takes 7-16ms against
+  threads scale, and at 1e6 strings `par_detect()` takes 7-16ms against
   53-247ms for `grepl(perl = TRUE)` and 221-378ms for stringi.
 - **"Lightweight" is not the selling point, but holds.** No R package
   dependencies: extendr is compiled into the package, so `Imports` is empty
@@ -49,7 +49,7 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   single-threaded, but a hash table shared across threads is real work, so
   this goes last.
 - `match()`'s `incomparables` argument: not supported, rarely used.
-- `detect_regex()` siblings: literal (fixed) search, a vectorised
+- `par_detect()` siblings: literal (fixed) search, a vectorised
   `pattern`, extracting or replacing matches. Literal search is covered for
   now by escaping the pattern.
 
@@ -66,7 +66,7 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   cache miss per string, which the hash build does not. At 2 threads that
   is most of the time for a large string table.
 - Thread pools are kept between calls, one per `nthreads` value. Work is
-  split so each thread gets at least 1e4 elements (`detect_regex()`: 2500
+  split so each thread gets at least 1e4 elements (`par_detect()`: 2500
   strings), so small inputs use fewer than `nthreads`. A forked child gets
   fresh pools.
 - Other classes (difftime, integer64, POSIXlt, subclasses of Date) go to
@@ -74,7 +74,7 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   matches those by their printed numbers), and string tables with non-ASCII
   text in mixed or latin1/bytes encodings.
 
-`detect_regex()`:
+`par_detect()`:
 
 - Threads read string bytes through `R_CHAR()` and `LENGTH()`. Those only
   read memory, but R doesn't promise they are thread-safe; data.table relies

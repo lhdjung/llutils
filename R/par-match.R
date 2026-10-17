@@ -3,33 +3,37 @@
 #' @description Same results as base [match()] and `%in%`, but much faster for
 #'   large inputs. Use as drop-in replacements:
 #'
-#' - `par_match()` for `match()`.
-#' - `%par_in%` for `%in%`.
+#'   - `par_match()` for `match()`.
+#'   - `%par_in%` for `%in%`.
 #'
 #'   Also, `par_in()` is `%par_in%` as a regular function. It combines better
 #'   with the pipe and takes an `nthreads` argument, so you can fine-tune its
 #'   performance.
 #'
-#' @details All are computed in parallel when `x` or `table` has at least 1e4
-#'   elements and both sides are integer, double (in any mix), character, Date,
-#'   or POSIXct.
+#' @details Speedups result from a Rust implementation using rayon.
 #'
-#'   Factors are matched by their levels. Anything else goes to base [match()]
-#'   unchanged. Strings are matched by their pointers, which the threads read
-#'   straight from R's memory, as data.table does.
+#'   These functions are computed in parallel when `x` or `table` has at least
+#'   1e4 elements and both sides are integer, double (in any mix), character,
+#'   Date, or POSIXct. Factors are matched by their levels. Anything else goes
+#'   to base [match()] unchanged. Strings are matched by their pointers, which
+#'   the threads read straight from R's memory, as data.table does.
 #'
 #' @param x Values to look up.
 #' @param table Values to look them up in.
 #' @param nomatch The value returned where there is no match, coerced to
 #'   integer.
-#' @param nthreads Max number of threads to use. Unless the `llutils.threads`
-#'   option is set, the `0` default means the function will read the
-#'   `RAYON_NUM_THREADS` environment variable, or else use all cores. Inputs too
-#'   small to keep that many threads busy get fewer.
+#' @param nthreads A whole number: the max number of threads to use. `0` means
+#'   the `RAYON_NUM_THREADS` environment variable, or else all cores. The
+#'   default is the `llutils.threads` option, or `0` if that isn't set. Inputs
+#'   too small to keep that many threads busy get fewer.
 #'
-#' @returns Like [match()]: an integer vector of first positions in `table`,
-#'   `nomatch` where there is none. `par_in()` and `%par_in%` return a logical
-#'   vector.
+#' @returns Just like base `match()` and `%in%`:
+#'   - `par_match()` returns an integer vector containing the first positions of
+#'   the elements of `x` in `table`, or `nomatch` if an element is not in
+#'   `table`.
+#'   - `%par_in%` and `par_in()` return a logical vector: `TRUE` if an element
+#'   of `x` is in `table`, and `FALSE` if not. They never return `NA`: an `NA`
+#'   in `x` is `TRUE` if `table` contains `NA`, and `FALSE` if not.
 #'
 #' @export
 #'
@@ -49,8 +53,11 @@ par_match <- function(
   if (is.factor(x) && length(x) >= RUST_MIN) {
     # Base converts all of `x` to strings; matching the levels is enough.
     # The extra `NA` level is for missing values.
-    m <- match(c(levels(x), NA), table, nomatch)
-    return(index_codes(x, m, nthreads))
+    return(index_codes(
+      x,
+      match(c(levels(x), NA_character_), table, nomatch),
+      nthreads
+    ))
   }
 
   # Rust returns 32-bit positions, so longer tables go to base.

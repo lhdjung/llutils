@@ -37,6 +37,6 @@ par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr
 #' `grepl(pattern, x)` with Rust's regex syntax. Strings are matched as
 #' bytes, so R should pass them through `enc2utf8()` first. `NA` gives `NA`.
 #' @noRd
-detect_regex_rs <- function(x, pattern, nthreads) .Call(wrap__detect_regex_rs, x, pattern, nthreads)
+par_detect_rs <- function(x, pattern, nthreads) .Call(wrap__par_detect_rs, x, pattern, nthreads)
 
 # nolint end
