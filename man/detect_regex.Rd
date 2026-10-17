@@ -11,10 +11,10 @@ detect_regex(x, pattern, nthreads = getOption("llutils.threads", 0L))
 
 \item{pattern}{A single string: the regex.}
 
-\item{nthreads}{Most threads to use. \code{0} (the default, unless the
-\code{llutils.threads} option is set) means the \code{RAYON_NUM_THREADS}
-environment variable, or else all cores. Inputs too small to keep that
-many busy get fewer.}
+\item{nthreads}{Max number of threads to use. Unless the \code{llutils.threads}
+option is set, the \code{0} default means the function will read the
+\code{RAYON_NUM_THREADS} environment variable, or else use all cores. Inputs too
+small to keep that many threads busy get fewer.}
 }
 \value{
 A logical vector as long as \code{x}.

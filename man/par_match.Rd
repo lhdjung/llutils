@@ -2,8 +2,8 @@
 % Please edit documentation in R/par-match.R
 \name{par_match}
 \alias{par_match}
-\alias{par_in}
 \alias{\%par_in\%}
+\alias{par_in}
 \title{Multithreaded \code{match()} and \code{\%in\%}}
 \usage{
 par_match(
@@ -13,9 +13,9 @@ par_match(
   nthreads = getOption("llutils.threads", 0L)
 )
 
-par_in(x, table, nthreads = getOption("llutils.threads", 0L))
-
 x \%par_in\% table
+
+par_in(x, table, nthreads = getOption("llutils.threads", 0L))
 }
 \arguments{
 \item{x}{Values to look up.}
@@ -25,26 +25,36 @@ x \%par_in\% table
 \item{nomatch}{The value returned where there is no match, coerced to
 integer.}
 
-\item{nthreads}{Most threads to use. \code{0} (the default, unless the
-\code{llutils.threads} option is set) means the \code{RAYON_NUM_THREADS}
-environment variable, or else all cores. Inputs too small to keep that
-many busy get fewer.}
+\item{nthreads}{Max number of threads to use. Unless the \code{llutils.threads}
+option is set, the \code{0} default means the function will read the
+\code{RAYON_NUM_THREADS} environment variable, or else use all cores. Inputs too
+small to keep that many threads busy get fewer.}
 }
 \value{
 Like \code{\link[=match]{match()}}: an integer vector of first positions in \code{table},
-\code{nomatch} where there is none. \code{par_in()} and \verb{\%par_in\%} return a
-logical vector.
+\code{nomatch} where there is none. \code{par_in()} and \verb{\%par_in\%} return a logical
+vector.
 }
 \description{
-Same results as base \code{\link[=match]{match()}} and \code{\%in\%}, computed in parallel when \code{x}
-or \code{table} has at least 1e4 elements and both sides are integer, double
-(in any mix), character, Date, or POSIXct. Factors are matched by their
-levels. Anything else goes to base \code{\link[=match]{match()}} unchanged. Strings are
-matched by their pointers, which the threads read straight from R's
-memory, as data.table does.
+Same results as base \code{\link[=match]{match()}} and \code{\%in\%}, but much faster for
+large inputs. Use as drop-in replacements:
+\itemize{
+\item \code{par_match()} for \code{match()}.
+\item \verb{\%par_in\%} for \code{\%in\%}.
+
+Also, \code{par_in()} is \verb{\%par_in\%} as a regular function. It combines better
+with the pipe and takes an \code{nthreads} argument, so you can fine-tune its
+performance.
+}
 }
 \details{
-\code{par_in()} is \verb{\%par_in\%} as a function, so it takes \code{nthreads}.
+All are computed in parallel when \code{x} or \code{table} has at least 1e4
+elements and both sides are integer, double (in any mix), character, Date,
+or POSIXct.
+
+Factors are matched by their levels. Anything else goes to base \code{\link[=match]{match()}}
+unchanged. Strings are matched by their pointers, which the threads read
+straight from R's memory, as data.table does.
 }
 \examples{
 par_match(c(3, 1, 9), 1:5, nthreads = 2)

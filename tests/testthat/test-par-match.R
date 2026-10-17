@@ -96,6 +96,11 @@ test_that("a forked child works after the parent has used a pool", {
   skip_on_os("windows")
   x <- big(1:3)
   expect_identical(par_match(x, 2:3), match(x, 2:3))
-  r <- parallel::mclapply(1:2, function(i) par_match(x, 2:3), mc.cores = 2)
+  # Some IDEs (Positron) refuse to fork. Errors in the children come back as
+  # values, so this only skips when there was no fork to test.
+  r <- tryCatch(
+    parallel::mclapply(1:2, function(i) par_match(x, 2:3), mc.cores = 2),
+    error = function(e) skip(paste("Can't fork:", conditionMessage(e)))
+  )
   expect_identical(r, rep(list(match(x, 2:3)), 2))
 })
