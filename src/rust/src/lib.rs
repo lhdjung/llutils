@@ -76,6 +76,12 @@ fn par_match<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
     pool: &rayon::ThreadPool,
 ) -> Integers {
     let nomatch = Option::<i32>::from(nomatch).unwrap_or(NA_INT);
+    if x.is_empty() {
+        return Integers::new(0);
+    }
+    if x.len() <= table.len() / SCAN_RATIO {
+        return scan(x, table, xkey, tkey, nomatch, pool);
+    }
     let maps = pool.install(|| build(table, &tkey));
     let mut out = Integers::new(x.len());
     let slice: &mut [Rint] = &mut out; // threads may share this, not `out`
@@ -84,6 +90,63 @@ fn par_match<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
             let k = xkey(v);
             *o = (*maps[bucket(&k, maps.len())].get(&k).unwrap_or(&nomatch)).into();
         })
+    });
+    out
+}
+
+/// `x` at least this many times shorter than the table is hashed instead of
+/// the table, which is then scanned: at 1e7 table elements the two paths
+/// tie near 1e6, and `scan()` takes 3ms for one element where `build()`
+/// takes 30ms.
+const SCAN_RATIO: usize = 10;
+
+/// `par_match()` for a short `x`: hash `x` and scan the table, in one chunk
+/// per thread, each recording the first position it sees for every element
+/// of `x`. The table is never hashed, so this saves the time and memory of
+/// `build()`. Base does this for one element: a lookup of a few keys into a
+/// large table.
+fn scan<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
+    x: &[X],
+    table: &[T],
+    xkey: impl Fn(&X) -> K + Sync,
+    tkey: impl Fn(&T) -> K + Sync,
+    nomatch: i32,
+    pool: &rayon::ThreadPool,
+) -> Integers {
+    // Each key gets the index of its first element in `x`.
+    let mut ids = map(x.len(), x.len());
+    for (i, v) in x.iter().enumerate().rev() {
+        ids.insert(xkey(v), i);
+    }
+    let first = pool.install(|| {
+        let chunk = table.len().div_ceil(rayon::current_num_threads()).max(MATCH_PER_THREAD);
+        table
+            .par_chunks(chunk)
+            .enumerate()
+            .map(|(c, t)| {
+                let mut first = vec![i32::MAX; x.len()];
+                for (j, v) in t.iter().enumerate() {
+                    if let Some(&i) = ids.get(&tkey(v)) {
+                        if first[i] == i32::MAX {
+                            first[i] = (c * chunk + j) as i32 + 1;
+                        }
+                    }
+                }
+                first
+            })
+            .reduce(
+                || vec![i32::MAX; x.len()],
+                |mut a, b| {
+                    a.iter_mut().zip(b).for_each(|(a, b)| *a = (*a).min(b));
+                    a
+                },
+            )
+    });
+    let mut out = Integers::new(x.len());
+    let slice: &mut [Rint] = &mut out;
+    slice.iter_mut().zip(x).for_each(|(o, v)| {
+        let p = first[ids[&xkey(v)]];
+        *o = (if p == i32::MAX { nomatch } else { p }).into();
     });
     out
 }
@@ -101,7 +164,7 @@ fn build<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
 ) -> Vec<HashMap<K, i32>> {
     let nt = rayon::current_num_threads().min(table.len() / MATCH_PER_THREAD);
     if table.len() < PARTITION_MIN || nt <= 1 {
-        let mut m = HashMap::with_capacity_and_hasher(table.len(), Default::default());
+        let mut m = map(table.len(), table.len());
         // Reverse so earlier positions overwrite later ones.
         for (i, v) in table.iter().enumerate().rev() {
             m.insert(key(v), i as i32 + 1);
@@ -127,13 +190,26 @@ fn build<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
         .into_par_iter()
         .map(|b| {
             let n = runs.iter().map(|r| r[b].len()).sum();
-            let mut m = HashMap::with_capacity_and_hasher(n, Default::default());
+            let mut m = map(n, table.len());
             for (k, i) in runs.iter().flat_map(|r| &r[b]) {
                 m.entry(*k).or_insert(*i);
             }
             m
         })
         .collect()
+}
+
+/// A map for `n` keys, one of the maps for `total` keys. hashbrown rounds
+/// its capacity up to a power of two and fills it to 7/8, and a lookup that
+/// misses in a map that full probes several groups: 2-5x slower than in one
+/// half full, at every size. Below 2^18 keys in all the maps fit in cache
+/// and their probes are the whole cost, so each gets twice the room. Above,
+/// memory is the cost, and doubling it costs page faults (1e6 keys into
+/// 1e6: 4.8ms to 6.2ms), so each gets only enough room to stay under 2/3
+/// full.
+fn map<K, V>(n: usize, total: usize) -> HashMap<K, V> {
+    let cap = if total < 1 << 18 { 2 * n } else { n + n / 3 };
+    HashMap::with_capacity_and_hasher(cap, FxBuildHasher)
 }
 
 /// Which of `nb` maps (a power of two) holds `k`: the top bits of its hash,

@@ -3,145 +3,145 @@ join-like integers, x and table both 1e+06
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base          45.4ms
-2 collapse      23.6ms
-3 llutils_2       16ms
-4 llutils_all    4.8ms
+1 base         33.41ms
+2 collapse     23.12ms
+3 llutils_2    15.84ms
+4 llutils_all   6.96ms
 
 join-like character, both 1e+06 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         114.5ms
-2 collapse      22.7ms
-3 llutils_2     31.2ms
-4 llutils_all   20.1ms
+1 base         105.8ms
+2 collapse        17ms
+3 llutils_2     29.3ms
+4 llutils_all   13.6ms
 
 join-like integers, x and table both 1e+07 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         875.1ms
-2 collapse     440.9ms
-3 llutils_2    199.9ms
-4 llutils_all   87.2ms
+1 base         937.1ms
+2 collapse     434.7ms
+3 llutils_2    199.3ms
+4 llutils_all   98.4ms
 
 join-like character, both 1e+07 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base           2.43s
-2 collapse    520.95ms
-3 llutils_2   434.18ms
-4 llutils_all 179.78ms
+1 base            2.2s
+2 collapse       430ms
+3 llutils_2    394.6ms
+4 llutils_all  218.2ms
 
 integers, n = 1e+03 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         100.2µs
-2 collapse      20.9µs
-3 llutils_2     60.1µs
-4 llutils_all   60.1µs
+1 base         118.5µs
+2 collapse      18.4µs
+3 llutils_2     41.1µs
+4 llutils_all   44.5µs
 
 integers, n = 1e+04 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         156.3µs
-2 collapse      39.2µs
-3 llutils_2     87.5µs
-4 llutils_all   88.7µs
+1 base         129.6µs
+2 collapse      36.5µs
+3 llutils_2     86.1µs
+4 llutils_all   90.3µs
 
 integers, n = 1e+05 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base          1.18ms
-2 collapse     566.5µs
-3 llutils_2    311.7µs
-4 llutils_all 300.32µs
+1 base          1.09ms
+2 collapse    568.26µs
+3 llutils_2   219.47µs
+4 llutils_all 255.39µs
 
 integers, n = 1e+06 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         12.31ms
-2 collapse      8.54ms
-3 llutils_2     2.98ms
-4 llutils_all   1.14ms
+1 base         11.89ms
+2 collapse      8.38ms
+3 llutils_2     1.64ms
+4 llutils_all 775.88µs
 
 integers, n = 1e+07 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         122.7ms
-2 collapse      88.6ms
-3 llutils_2     29.1ms
-4 llutils_all   11.7ms
+1 base         119.2ms
+2 collapse     87.82ms
+3 llutils_2    15.83ms
+4 llutils_all   7.83ms
 
 integers, n = 1e+08 
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base           1.36s
-2 collapse    900.54ms
-3 llutils_2   325.16ms
-4 llutils_all 191.19ms
+1 base            1.3s
+2 collapse     885.3ms
+3 llutils_2      181ms
+4 llutils_all   90.3ms
 
 doubles, n = 1e7
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         173.7ms
-2 collapse     108.2ms
-3 llutils_2     49.8ms
-4 llutils_all   21.1ms
+1 base         170.7ms
+2 collapse     107.2ms
+3 llutils_2     27.2ms
+4 llutils_all   13.2ms
 
 integer against double, n = 1e7
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         185.7ms
-2 collapse     120.9ms
-3 llutils_2     55.4ms
-4 llutils_all   19.3ms
+1 base         181.6ms
+2 collapse     119.1ms
+3 llutils_2     29.3ms
+4 llutils_all   14.1ms
 
 character, n = 1e7
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         248.7ms
-2 collapse      77.3ms
-3 llutils_2     28.8ms
+1 base         252.5ms
+2 collapse      78.4ms
+3 llutils_2     17.1ms
 4 llutils_all   10.9ms
 
 factor (100 levels), n = 1e7
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base        123.73ms
-2 collapse     10.22ms
-3 llutils_2     6.69ms
-4 llutils_all   5.82ms
+1 base        117.38ms
+2 collapse       8.9ms
+3 llutils_2     7.93ms
+4 llutils_all   4.48ms
 
 Date, n = 1e7
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base           13.3s
-2 collapse        90ms
-3 llutils_2     82.6ms
-4 llutils_all   34.3ms
+1 base           11.7s
+2 collapse      88.9ms
+3 llutils_2     46.8ms
+4 llutils_all   24.9ms
 
 POSIXct, n = 1e7
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         166.2ms
-2 collapse        89ms
-3 llutils_2     33.6ms
-4 llutils_all     11ms
+1 base         158.4ms
+2 collapse      87.3ms
+3 llutils_2     15.7ms
+4 llutils_all    6.3ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20

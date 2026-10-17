@@ -89,7 +89,12 @@ test_that("large tables, built in parallel, still give the first match", {
   table <- c(keys, keys) # every key twice; the first must win
   expect_base(sample(c(keys, 0L), 1e5, TRUE), table)
   expect_base(as.character(sample(c(keys, 0L), 1e5, TRUE)), as.character(table))
-  expect_base(1L, table) # a short `x` against a long table
+  # A short `x` is hashed instead, and the table scanned in chunks: keys[1]
+  # is in both chunks, and the first position must win.
+  expect_base(1L, table)
+  expect_base(c(keys[1], NA, 0L, keys[1], keys[1e5]), table)
+  expect_base(sample(c(keys, 0L, NA), 1e4, TRUE), table)
+  expect_base(as.character(c(keys[1], NA, 0L, keys[1])), as.character(table))
 })
 
 test_that("a forked child works after the parent has used a pool", {

@@ -11,12 +11,12 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
 
 - **The niche is threads, plus results identical to base where possible.**
   collapse's `fmatch()` is single-threaded, and threads are the whole gap: at 1e7
-  lookups into 1e4 keys `par_match()` takes 15ms for integers and 16ms for
-  strings, where collapse takes 90ms and 79ms. The table is hashed in
-  parallel too, so a join-like lookup of 1e7 into 1e7 keys takes 87ms
-  for integers (collapse 441ms) and 180ms for strings (collapse 521ms).
+  lookups into 1e4 keys `par_match()` takes 8ms for integers and 11ms for
+  strings, where collapse takes 88ms and 78ms. The table is hashed in
+  parallel too, so a join-like lookup of 1e7 into 1e7 keys takes 98ms
+  for integers (collapse 435ms) and 218ms for strings (collapse 430ms).
   Strings need a scan of one side for non-ASCII text, so on 2 threads
-  they only tie with collapse (434ms). Being identical to base makes `par_match()`
+  they only tie with collapse (395ms). Being identical to base makes `par_match()`
   a safe drop-in for `match()`, so the tests compare against base, not
   against a spec. `par_detect()` can't be identical, since its syntax is
   Rust's, so it carries its own name instead of claiming to be `grepl()`.
@@ -25,8 +25,8 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   uses collapse. Phases 2 and 4 of the old plan were dropped for that reason
   (see Skipped).
 - **Be realistic about the audience.** For someone who already has
-  collapse, llutils is a 2-8x speedup on lookups of 1e5 or more elements
-  (Dates 2x, strings 5x, integers 6x), and 2x on factors; below 1e5 it
+  collapse, llutils is a 2-11x speedup on lookups of 1e5 or more elements
+  (Dates 4x, strings 7x, integers 11x), and 2x on factors; below 1e5 it
   beats base but not collapse. That's narrow,
   so its functions must cover every common type, and each new function
   must win by a similar margin against the fastest existing package, not
@@ -62,6 +62,14 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
 - Tables of 65536 or more elements are hashed in parallel: split by hash
   into up to 256 runs, one map each. The runs hold a key and position per
   element, 16 bytes, so a 1e7 table takes 160MB while it is built.
+- Maps below 2^18 keys get twice the capacity they need: at hashbrown's
+  7/8 load a miss probes several groups, 2-5x slower, and such maps fit in
+  cache, so probes are the whole cost. Larger maps are bound by memory, so
+  they get only enough room to stay under 2/3 full.
+- An `x` at least 10x shorter than the table is hashed instead, and the
+  table scanned in one chunk per thread, each holding a position per
+  element of `x`. One element against 1e7 takes 3ms (base 8ms: it scans
+  too, on one thread), where hashing the table took 30ms.
 - String tables need a scan of the shorter side for non-ASCII text, one
   cache miss per string, which the hash build does not. At 2 threads that
   is most of the time for a large string table.
