@@ -10,7 +10,8 @@
 #'   with the pipe and takes an `nthreads` argument, so you can fine-tune its
 #'   performance.
 #'
-#' @details Speedups result from a Rust implementation using rayon.
+#' @details Speedups result from a Rust implementation using
+#' [rayon](https://docs.rs/rayon/latest/rayon/).
 #'
 #'   These functions are computed in parallel when `x` or `table` has at least
 #'   1e4 elements and both sides are integer, double (in any mix), character,
@@ -18,10 +19,17 @@
 #'   to base [match()] unchanged. Strings are matched by their pointers, which
 #'   the threads read straight from R's memory, as data.table does.
 #'
+#'   `incomparables` has some quirks and is rarely used, so it gets no Rust
+#'   implementation: if it is anything other than `NULL` or `FALSE`, the call
+#'   goes to base [match()].
+#'
 #' @param x Values to look up.
 #' @param table Values to look them up in.
 #' @param nomatch The value returned where there is no match, coerced to
 #'   integer.
+#' @param incomparables Values that cannot be matched, as in base [match()].
+#'   `NULL` or `FALSE` means none. Note that using this argument makes the
+#'   function fall back to base R, so it gets no speedup.
 #' @param nthreads A whole number: the max number of threads to use. `0` means
 #'   the `RAYON_NUM_THREADS` environment variable, or else all cores. The
 #'   default is the `llutils.threads` option, or `0` if that isn't set. Inputs
@@ -45,10 +53,15 @@ par_match <- function(
   x,
   table,
   nomatch = NA_integer_,
+  incomparables = NULL,
   nthreads = getOption("llutils.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
   nomatch <- as.integer(nomatch)[1L]
+
+  if (!is.null(incomparables) && !isFALSE(incomparables)) {
+    return(match(x, table, nomatch, incomparables))
+  }
 
   if (is.factor(x) && length(x) >= RUST_MIN) {
     # Base converts all of `x` to strings; matching the levels is enough.

@@ -61,6 +61,18 @@ test_that("short and unsupported inputs go to base", {
   expect_base(big(list(1, "a")), list("a"))
 })
 
+test_that("incomparables goes to base, in base's position", {
+  x <- big(c(1:3, NA))
+  for (inc in list(2L, NA, TRUE, "1", FALSE)) {
+    expect_identical(
+      par_match(x, 3:1, 0L, inc),
+      match(x, 3:1, 0L, inc),
+      info = deparse(inc)
+    )
+  }
+  expect_identical(par_match(factor(c("a", "b")), "a", incomparables = "a"), c(NA_integer_, NA))
+})
+
 test_that("nthreads is validated", {
   x <- big(1L)
   expect_identical(par_match(x, 1L, nthreads = 1), x)

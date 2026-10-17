@@ -48,7 +48,6 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
 - Parallel `unique()` and distinct counts. `fnunique()` takes 102ms at 1e7
   single-threaded, but a hash table shared across threads is real work, so
   this goes last.
-- `match()`'s `incomparables` argument: not supported, rarely used.
 - `par_detect()` siblings: a vectorised `pattern`, extracting or
   replacing matches.
 

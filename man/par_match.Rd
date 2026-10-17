@@ -10,6 +10,7 @@ par_match(
   x,
   table,
   nomatch = NA_integer_,
+  incomparables = NULL,
   nthreads = getOption("llutils.threads", 0L)
 )
 
@@ -24,6 +25,10 @@ par_in(x, table, nthreads = getOption("llutils.threads", 0L))
 
 \item{nomatch}{The value returned where there is no match, coerced to
 integer.}
+
+\item{incomparables}{Values that cannot be matched, as in base \code{\link[=match]{match()}}.
+\code{NULL} or \code{FALSE} means none. Note that using this argument makes the
+function fall back to base R, so it gets no speedup.}
 
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
@@ -54,13 +59,18 @@ with the pipe and takes an \code{nthreads} argument, so you can fine-tune its
 performance.
 }
 \details{
-Speedups result from a Rust implementation using rayon.
+Speedups result from a Rust implementation using
+\href{https://docs.rs/rayon/latest/rayon/}{rayon}.
 
 These functions are computed in parallel when \code{x} or \code{table} has at least
 1e4 elements and both sides are integer, double (in any mix), character,
 Date, or POSIXct. Factors are matched by their levels. Anything else goes
 to base \code{\link[=match]{match()}} unchanged. Strings are matched by their pointers, which
 the threads read straight from R's memory, as data.table does.
+
+\code{incomparables} has some quirks and is rarely used, so it gets no Rust
+implementation: if it is anything other than \code{NULL} or \code{FALSE}, the call
+goes to base \code{\link[=match]{match()}}.
 }
 \examples{
 par_match(c(3, 1, 9), 1:5, nthreads = 2)
