@@ -5,3 +5,4 @@ docs
 
 /.quarto/
 **/*.quarto_ipynb
+man/figures/README-*
