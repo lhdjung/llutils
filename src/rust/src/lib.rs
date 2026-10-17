@@ -86,10 +86,14 @@ fn par_match<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
     let mut out = Integers::new(x.len());
     let slice: &mut [Rint] = &mut out; // threads may share this, not `out`
     pool.install(|| {
-        slice.par_iter_mut().zip(x).with_min_len(MATCH_PER_THREAD).for_each(|(o, v)| {
-            let k = xkey(v);
-            *o = (*maps[bucket(&k, maps.len())].get(&k).unwrap_or(&nomatch)).into();
-        })
+        slice
+            .par_iter_mut()
+            .zip(x)
+            .with_min_len(MATCH_PER_THREAD)
+            .for_each(|(o, v)| {
+                let k = xkey(v);
+                *o = (*maps[bucket(&k, maps.len())].get(&k).unwrap_or(&nomatch)).into();
+            })
     });
     out
 }
@@ -119,7 +123,10 @@ fn scan<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
         ids.insert(xkey(v), i);
     }
     let first = pool.install(|| {
-        let chunk = table.len().div_ceil(rayon::current_num_threads()).max(MATCH_PER_THREAD);
+        let chunk = table
+            .len()
+            .div_ceil(rayon::current_num_threads())
+            .max(MATCH_PER_THREAD);
         table
             .par_chunks(chunk)
             .enumerate()
@@ -226,14 +233,7 @@ fn bucket<K: Hash>(k: &K, nb: usize) -> usize {
 #[extendr]
 fn par_match_int(x: &[i32], table: &[i32], nomatch: Rint, nthreads: i32) -> Integers {
     let key = |v: &i32| *v;
-    par_match(
-        x,
-        table,
-        key,
-        key,
-        nomatch,
-        &pool(nthreads),
-    )
+    par_match(x, table, key, key, nomatch, &pool(nthreads))
 }
 
 /// `m[codes]` for factor codes, with `NA` codes taking `m`'s last element.
@@ -254,14 +254,23 @@ fn index_codes(codes: &[i32], m: Robj, nthreads: i32) -> extendr_api::Result<Rob
 }
 
 /// `index_codes()` for either type; `None` if a code is outside the levels.
-fn index<T: Copy + Send + Sync>(codes: &[i32], m: &[T], out: &mut [T], nthreads: i32) -> Option<()> {
+fn index<T: Copy + Send + Sync>(
+    codes: &[i32],
+    m: &[T],
+    out: &mut [T],
+    nthreads: i32,
+) -> Option<()> {
     let (&na, levels) = m.split_last().unwrap();
     pool(nthreads).install(|| {
         out.par_iter_mut()
             .zip(codes)
             .with_min_len(MATCH_PER_THREAD)
             .try_for_each(|(o, &c)| {
-                *o = if c == NA_INT { na } else { *levels.get((c as usize).wrapping_sub(1))? };
+                *o = if c == NA_INT {
+                    na
+                } else {
+                    *levels.get((c as usize).wrapping_sub(1))?
+                };
                 Some(())
             })
     })
@@ -349,7 +358,9 @@ fn par_match_chr(x: Robj, table: Robj, nomatch: Rint, nthreads: i32) -> Robj {
             .all(ascii)
             || {
                 // Encodings seen, as bits: 1 native, 2 UTF-8, 4 anything else.
-                let seen = both().map(|p| 1u8 << ce(p).min(2)).reduce(|| 0, |a, b| a | b);
+                let seen = both()
+                    .map(|p| 1u8 << ce(p).min(2))
+                    .reduce(|| 0, |a, b| a | b);
                 seen & 4 == 0 && (seen != 3 || both().all(|p| ce(p) == 1 || ascii(p)))
             }
     });
@@ -382,8 +393,17 @@ fn regex(pattern: &str) -> extendr_api::Result<regex::bytes::Regex> {
 /// `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
 #[extendr]
-fn par_detect_rs(x: Robj, pattern: &str, fixed: bool, nthreads: i32) -> extendr_api::Result<Logicals> {
-    let re = if fixed { regex(&regex::escape(pattern))? } else { regex(pattern)? };
+fn par_detect_rs(
+    x: Robj,
+    pattern: &str,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Logicals> {
+    let re = if fixed {
+        regex(&regex::escape(pattern))?
+    } else {
+        regex(pattern)?
+    };
     let x = unsafe { charsxps(&x) };
     let na = unsafe { R_NaString } as usize;
     // The threads read the strings themselves: R stores them scattered in
@@ -430,8 +450,15 @@ fn par_detect_rs(x: Robj, pattern: &str, fixed: bool, nthreads: i32) -> extendr_
 /// pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
 #[extendr]
-fn par_match_term_rs(x: Robj, terms: Robj, ignore_case: bool, nthreads: i32) -> extendr_api::Result<Integers> {
-    let terms = unsafe { charsxps(&terms) }.iter().map(|&p| unsafe { bytes(p) });
+fn par_match_term_rs(
+    x: Robj,
+    terms: Robj,
+    ignore_case: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Integers> {
+    let terms = unsafe { charsxps(&terms) }
+        .iter()
+        .map(|&p| unsafe { bytes(p) });
     let ac = aho_corasick::AhoCorasick::builder()
         .ascii_case_insensitive(ignore_case)
         .build(terms)
@@ -450,13 +477,21 @@ fn par_match_term_rs(x: Robj, terms: Robj, ignore_case: bool, nthreads: i32) -> 
                     break;
                 }
             }
-            if best == u32::MAX { Rint::na() } else { (best as i32 + 1).into() }
+            if best == u32::MAX {
+                Rint::na()
+            } else {
+                (best as i32 + 1).into()
+            }
         }
     };
     let mut out = Integers::new(x.len());
     let slice: &mut [Rint] = &mut out;
     pool(nthreads).install(|| {
-        slice.par_iter_mut().zip(x).with_min_len(REGEX_PER_THREAD).for_each(which)
+        slice
+            .par_iter_mut()
+            .zip(x)
+            .with_min_len(REGEX_PER_THREAD)
+            .for_each(which)
     });
     Ok(out)
 }
