@@ -1,0 +1,153 @@
+---
+title: "Use case examples"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(llutils)
+```
+
+The examples below are small so they run quickly. llutils pays off at
+100,000 elements or more, where its functions take milliseconds and base R
+takes seconds.
+
+## Coding free text with a keyword table
+
+Free text often has to be sorted into categories: bank transactions into
+spending categories, free-text medication fields into drugs, open survey
+answers into codes. A keyword table does this, and `par_match_term()` looks
+up the first keyword each string contains:
+
+```{r}
+transactions <- c(
+  "SUPERMART 0412 ZURICH",
+  "CITY FUEL STATION 22",
+  "Streamflix monthly plan",
+  "SUPERMART FUEL 0412",
+  "Transfer to savings",
+  "Mart & More 17",
+  NA
+)
+
+keywords <- data.frame(
+  keyword = c("supermart fuel", "fuel", "supermart", "streamflix", "mart"),
+  category = c("transport", "transport", "groceries", "subscriptions", "groceries")
+)
+
+i <- par_match_term(
+  transactions,
+  keywords$keyword,
+  ignore_case = TRUE,
+  whole_word = TRUE
+)
+data.frame(transactions, category = keywords$category[i])
+```
+
+Three arguments make this work:
+
+- **Order.** The first keyword in the table wins, wherever it occurs in the
+  string. `"supermart fuel"` comes before `"supermart"`, so the fuel station
+  at the supermarket counts as transport. Put specific keywords before
+  general ones.
+- **`whole_word = TRUE`.** Without it, `"mart"` would match inside
+  `"SUPERMART"`, and a short keyword would turn up inside many longer
+  words. With it, `"Mart & More"` still matches `"mart"`.
+- **`ignore_case = TRUE`.** Statements mix `"SUPERMART"` and `"Supermart"`.
+  This only folds ASCII letters; for other scripts, apply `tolower()` to
+  both sides.
+
+Rows with no keyword get `NA`, which shows what the table still misses:
+
+```{r}
+transactions[is.na(i) & !is.na(transactions)]
+```
+
+The same pattern works for:
+
+- **Medication fields.** `"Aspirin 100mg 1x daily"` is matched against a
+  list of drug names, longer names first (`"aspirin cardio"` before
+  `"aspirin"`).
+- **Open survey answers.** A codebook of keywords per code, such as
+  `"commute"` and `"traffic"` for a transport code.
+- **Literature screening.** Which drug, gene, or method from a list does each
+  title or abstract name first?
+- **Web logs.** User agents against a list of bot signatures. These are
+  substrings of longer tokens (`"Googlebot/2.1"`), so leave `whole_word`
+  off.
+
+`par_match_term()` returns one term per string. That suits coding, where each
+string gets one category. To keep only the strings that contain any term,
+use `!is.na(par_match_term(x, terms))`.
+
+## Filtering and validating with a regex
+
+`par_detect()` is `grepl()` on all cores. It suits large text columns:
+
+```{r}
+log <- c(
+  "2026-10-17 12:00:01 INFO request served",
+  "2026-10-17 12:00:02 ERROR timeout after 30s",
+  "2026-10-17 12:00:03 WARN slow query",
+  "2026-10-17 12:00:04 ERROR disk full"
+)
+log[par_detect(log, " (ERROR|WARN) ")]
+```
+
+Validating identifiers works the same way. Here, rows whose ID doesn't have
+two capital letters followed by six digits:
+
+```{r}
+id <- c("CH123456", "DE654321", "ch123456", "FR12345")
+id[!par_detect(id, "^[A-Z]{2}[0-9]{6}$")]
+```
+
+To find which of many literal terms appear, an alternation such as
+`"aspirin|ibuprofen|paracetamol"` is fast in `par_detect()`: Rust's regex
+engine searches all of its branches at once. For a case-insensitive search
+over many terms, use `par_match_term(ignore_case = TRUE)` instead: `(?i)`
+makes a large alternation slow.
+
+Factor columns are matched by their levels, so a factor of a million
+elements with 50 levels costs little more than matching 50 strings.
+
+## Lookups and joins
+
+`par_match()` and `%par_in%` return exactly what `match()` and `%in%`
+return, so they can replace them anywhere. Some common uses:
+
+```{r}
+orders <- data.frame(
+  customer = c(101L, 205L, 101L, 999L),
+  amount = c(20, 35, 12, 8)
+)
+customers <- data.frame(
+  id = c(101L, 205L, 307L),
+  region = c("north", "south", "east")
+)
+
+# Bring in a column from another table, as a left join would
+orders$region <- customers$region[par_match(orders$customer, customers$id)]
+orders
+
+# Keep the rows whose key is in a set
+orders[orders$customer %par_in% c(101L, 307L), ]
+
+# Check that every order has a known customer
+all(orders$customer %par_in% customers$id)
+```
+
+Matching a vector against itself gives the position of each element's first
+occurrence, so it also finds duplicates:
+
+```{r}
+x <- c("a", "b", "a", "c", "b")
+first <- par_match(x, x)
+first
+first != seq_along(x) # same as duplicated(x)
+```
