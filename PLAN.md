@@ -1,11 +1,15 @@
 # llutils: plan
 
-Multithreaded `match()`, `%in%`, and regex detection in Rust. Open work
+Multithreaded `match()`, `%in%`, regex detection, and dictionary lookup
+(`par_match_term()`) in Rust. Open work
 only. Started from exhaustive's Rust plan (`git show 1b2678c:PLAN.md` in
 exhaustive).
 Benchmarks are in `bench/`, run on 2026-10-17 with 8 cores. Measure after
 `pkgbuild::compile_dll(debug = FALSE)` or an install: `rextendr::document()`
 and `load_all()` build the Rust in debug mode, 5-20x slower.
+
+Note: Much of this plan was written before seeting how incredibly fast
+llutils functions got. Don't feel shackled by it! Revise it if needed.
 
 ## Positioning
 
@@ -33,6 +37,16 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
   just against base. Regex is the stronger case: it is limited by CPU, so
   threads scale, and at 1e6 strings `par_detect()` takes 7-16ms against
   53-247ms for `grepl(perl = TRUE)` and 221-378ms for stringi.
+- **Dictionary lookup is the widest margin.** `par_match_term()` is
+  `match()` for substrings: which of `terms` each string contains, earliest term winning.
+  At 1e5 strings and 1000 terms it takes 3.5ms (2 threads: 9ms). The only
+  exact R equivalent, a `stri_detect_fixed()` per term, takes 4.9s;
+  extracting the leftmost hit with one alternation takes 15s (PCRE) to 29s
+  (stringi), and AhoCorasickTrie 42s. It even beats `par_detect()` on the
+  same alternation (25ms), which only says whether a term is there.
+  `ignore_case = TRUE` keeps the speed (5.3ms), where `(?i)` sends
+  `par_detect()` to 3.4s and PCRE to 15s. At 1e6 strings it takes 14ms for
+  10 terms, 35ms for 1000, and 47ms for 1e4.
 - **"Lightweight" is not the selling point, but holds.** No R package
   dependencies: extendr is compiled into the package, so `Imports` is empty
   (collapse imports Rcpp). CRAN's Windows and macOS binaries need no Rust.
@@ -48,8 +62,11 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
 - Parallel `unique()` and distinct counts. `fnunique()` takes 102ms at 1e7
   single-threaded, but a hash table shared across threads is real work, so
   this goes last.
-- `par_detect()` siblings: a vectorised `pattern`, extracting or
-  replacing matches.
+- `par_detect()` siblings: `par_count()` first (it returns integers, so
+  it needs no strings built on R's thread), then extracting or replacing
+  matches, which do.
+- `par_match_term()` with regex terms, through `regex::RegexSet`. Literal
+  terms cover the dictionary case, so this waits for a request.
 
 ## Known limits
 
@@ -94,8 +111,27 @@ and `load_all()` build the Rust in debug mode, 5-20x slower.
 - `enc2utf8()` runs serially first, about 4ms per 1e6 strings, and is most
   of the remaining time for fast patterns. bytes-encoded strings are matched
   byte by byte.
+- A factor with fewer levels than elements is matched by its levels, and
+  the codes then index the result, as in `par_match()`: 50 levels in 1e7
+  elements take 5ms, against 84ms as strings. `par_match_term()` does the
+  same (11ms against 171ms).
 - The `regex` crate and its 4 dependencies add 5 of the package's 25
   crates, which adds to the vendored tarball.
+
+`par_match_term()`:
+
+- One `aho-corasick` automaton for all terms, shared by the threads: unlike
+  a regex it has no cache to contend for. The crate came with `regex`, so
+  it adds no crates.
+- It reports every overlapping hit and keeps the lowest term index,
+  stopping early only on the first term. So a string is always scanned to
+  its end, unlike `par_detect()`, which can stop at the first hit.
+- The automaton is built on every call, not kept like the last regex. For
+  1000 terms that takes about 0.9ms, most of the time below 1e4 strings
+  (100 strings: 0.9ms, 1e4: 1.5ms; stringi takes 27ms and 2.9s). Keep the
+  last automaton, as `regex()` does, if small repeated calls turn up.
+- `ignore_case` folds ASCII letters only, which is what aho-corasick offers.
+  Lowercasing both sides with `tolower()` covers the rest.
 - Rust 1.83 or later: `f64::from_bits` in a `const`, `div_ceil`, and the
   locked rayon need it. R 4.3 or later: base matches Dates by printed day only since
   `mtfrm()` arrived there.
