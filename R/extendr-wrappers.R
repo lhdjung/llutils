@@ -44,9 +44,10 @@ par_detect_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_detect_rs
 #' For each string, the 1-based index of the first of `terms` it contains,
 #' or `NA`. One automaton finds every occurrence of every term in a single
 #' pass, and the lowest index wins, so term order sets priority, not where
-#' in the string a term occurs. Strings are matched as bytes, so R should
-#' pass both sides through `enc2utf8()` first. `NA` gives `NA`.
+#' in the string a term occurs. With `whole_word`, a hit counts only if no
+#' word character touches it on either side. Strings are matched as bytes,
+#' so R should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 #' @noRd
-par_match_term_rs <- function(x, terms, ignore_case, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, nthreads)
+par_match_term_rs <- function(x, terms, ignore_case, whole_word, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, whole_word, nthreads)
 
 # nolint end

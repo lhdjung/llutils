@@ -80,3 +80,67 @@ test_that("factors are matched by their levels", {
   expect_identical(par_match_term(f, terms), par_match_term(as.character(f), terms))
   expect_identical(par_match_term(f[1:3], terms), c(2L, NA, 1L))
 })
+
+test_that("whole_word = TRUE agrees with PCRE lookarounds on ASCII", {
+  # The definition: no word character right before or after the term.
+  whole_word_base <- function(x, terms) {
+    patterns <- paste0("(?<!\\w)\\Q", terms, "\\E(?!\\w)")
+    vapply(
+      x,
+      function(s) {
+        if (is.na(s)) {
+          return(NA_integer_)
+        }
+        hit <- which(vapply(patterns, grepl, NA, s, perl = TRUE))
+        if (length(hit)) hit[1] else NA_integer_
+      },
+      1L,
+      USE.NAMES = FALSE
+    )
+  }
+  set.seed(2)
+  x <- vapply(
+    1:6000,
+    function(i) paste(sample(c("a", "b", "_", "1", " ", "-", "."), 8, TRUE), collapse = ""),
+    ""
+  )
+  x[7] <- NA
+  terms <- c("ab", "a", "b-", "-a", "1", "a.b", "_", "", "zz")
+  for (t in list(terms, rev(terms), terms[-8])) {
+    expect_identical(
+      par_match_term(x, t, whole_word = TRUE),
+      whole_word_base(x, t),
+      info = paste(t, collapse = ",")
+    )
+  }
+  expect_identical(
+    par_match_term(x[1:20], terms[-8], whole_word = TRUE),
+    whole_word_base(x[1:20], terms[-8])
+  )
+})
+
+test_that("whole_word = TRUE skips hits inside longer words, in any script", {
+  cities <- c("new york", "york")
+  x <- c("yorkshire", "york, uk", "in new york.", "newyork", "NEW YORK")
+  expect_identical(
+    par_match_term(x, cities, whole_word = TRUE),
+    c(NA, 2L, 1L, NA, NA)
+  )
+  expect_identical(
+    par_match_term(x, cities, ignore_case = TRUE, whole_word = TRUE),
+    c(NA, 2L, 1L, NA, 1L)
+  )
+  e <- intToUtf8(233)
+  expect_identical(
+    par_match_term(paste0(c("caf", "a caf ", "αcaf"), c(e, "", "")), "caf", whole_word = TRUE),
+    c(NA, 1L, NA)
+  )
+  expect_identical(par_match_term(c("c++ code", "abc++"), "c++", whole_word = TRUE), c(1L, NA))
+  # The 4 bytes before "caf" start inside the e-acute: the CJK letter still counts
+  expect_identical(par_match_term(paste0(e, "\u4e2dcaf"), "caf", whole_word = TRUE), NA_integer_)
+  # A later hit counts when an earlier one is inside a word
+  expect_identical(par_match_term("artist art", "art", whole_word = TRUE), 1L)
+  f <- factor(rep(c("yorkshire", "york"), 3))
+  expect_identical(par_match_term(f, "york", whole_word = TRUE), rep(c(NA, 1L), 3))
+  expect_error(par_match_term("a", "a", whole_word = NA), "whole_word")
+})

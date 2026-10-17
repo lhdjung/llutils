@@ -446,14 +446,16 @@ fn par_detect_rs(
 /// For each string, the 1-based index of the first of `terms` it contains,
 /// or `NA`. One automaton finds every occurrence of every term in a single
 /// pass, and the lowest index wins, so term order sets priority, not where
-/// in the string a term occurs. Strings are matched as bytes, so R should
-/// pass both sides through `enc2utf8()` first. `NA` gives `NA`.
+/// in the string a term occurs. With `whole_word`, a hit counts only if no
+/// word character touches it on either side. Strings are matched as bytes,
+/// so R should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
 #[extendr]
 fn par_match_term_rs(
     x: Robj,
     terms: Robj,
     ignore_case: bool,
+    whole_word: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
     let terms = unsafe { charsxps(&terms) }
@@ -470,8 +472,14 @@ fn par_match_term_rs(
         *out = if p == na {
             Rint::na()
         } else {
+            let s = unsafe { bytes(p) };
             let mut best = u32::MAX;
-            for m in ac.find_overlapping_iter(unsafe { bytes(p) }) {
+            for m in ac.find_overlapping_iter(s) {
+                if whole_word
+                    && (is_word(last_char(&s[..m.start()])) || is_word(first_char(&s[m.end()..])))
+                {
+                    continue;
+                }
                 best = best.min(m.pattern().as_u32());
                 if best == 0 {
                     break;
@@ -494,6 +502,25 @@ fn par_match_term_rs(
             .for_each(which)
     });
     Ok(out)
+}
+
+/// Whether a character counts as part of a word for `whole_word`: a letter
+/// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
+/// the string, or bytes that aren't UTF-8) doesn't.
+fn is_word(c: Option<char>) -> bool {
+    c.is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// The first character of UTF-8 bytes.
+fn first_char(s: &[u8]) -> Option<char> {
+    s.utf8_chunks().next()?.valid().chars().next()
+}
+
+/// The last character of UTF-8 bytes. A character takes at most 4 bytes, so
+/// only those are decoded; a cut-off character at their start is skipped.
+fn last_char(s: &[u8]) -> Option<char> {
+    let last = s[s.len().saturating_sub(4)..].utf8_chunks().last()?;
+    if last.invalid().is_empty() { last.valid().chars().next_back() } else { None }
 }
 
 /// A character vector's string pointers, as integers that threads can share.

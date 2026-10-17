@@ -18,6 +18,10 @@
 #' @param ignore_case If `TRUE`, ASCII letters match regardless of case.
 #'   Other letters, such as `"é"` and `"É"`, still match only
 #'   themselves.
+#' @param whole_word If `TRUE`, a term counts only where it isn't part of a
+#'   longer word: the characters right before and after it must not be
+#'   letters, digits, or `_`, in any script. `"york"` then matches
+#'   `"new york"` and `"york, uk"`, but not `"yorkshire"`.
 #' @inheritParams par_match
 #'
 #' @returns An integer vector as long as `x`: the position in `terms` of the
@@ -30,11 +34,13 @@
 #' cities <- c("new york", "york", "paris")
 #' par_match_term(c("york and new york", "paris, texas", "rome", NA), cities)
 #' par_match_term("NEW YORK", cities, ignore_case = TRUE)
+#' par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 #' par_match_term("1+1=2", c("+", "("))
 par_match_term <- function(
   x,
   terms,
   ignore_case = FALSE,
+  whole_word = FALSE,
   nthreads = getOption("llutils.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
@@ -46,16 +52,25 @@ par_match_term <- function(
   ) {
     stop("`ignore_case` must be `TRUE` or `FALSE`.")
   }
+  if (!isTRUE(whole_word) && !isFALSE(whole_word)) {
+    stop("`whole_word` must be `TRUE` or `FALSE`.")
+  }
   if (is.factor(x) && nlevels(x) < length(x)) {
     # Matching the levels is enough. The extra `NA` is for missing values.
     return(index_codes(
       x,
-      c(par_match_term(levels(x), terms, ignore_case, nthreads), NA),
+      c(par_match_term(levels(x), terms, ignore_case, whole_word, nthreads), NA),
       nthreads
     ))
   }
   if (!is.character(x)) {
     x <- as.character(x)
   }
-  par_match_term_rs(enc2utf8(x), enc2utf8(terms), ignore_case, nthreads)
+  par_match_term_rs(
+    enc2utf8(x),
+    enc2utf8(terms),
+    ignore_case,
+    whole_word,
+    nthreads
+  )
 }

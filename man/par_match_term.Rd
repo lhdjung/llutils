@@ -8,6 +8,7 @@ par_match_term(
   x,
   terms,
   ignore_case = FALSE,
+  whole_word = FALSE,
   nthreads = getOption("llutils.threads", 0L)
 )
 }
@@ -19,6 +20,11 @@ par_match_term(
 \item{ignore_case}{If \code{TRUE}, ASCII letters match regardless of case.
 Other letters, such as \code{"é"} and \code{"É"}, still match only
 themselves.}
+
+\item{whole_word}{If \code{TRUE}, a term counts only where it isn't part of a
+longer word: the characters right before and after it must not be
+letters, digits, or \verb{_}, in any script. \code{"york"} then matches
+\code{"new york"} and \code{"york, uk"}, but not \code{"yorkshire"}.}
 
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
@@ -49,5 +55,6 @@ memory, as data.table does.
 cities <- c("new york", "york", "paris")
 par_match_term(c("york and new york", "paris, texas", "rome", NA), cities)
 par_match_term("NEW YORK", cities, ignore_case = TRUE)
+par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 par_match_term("1+1=2", c("+", "("))
 }

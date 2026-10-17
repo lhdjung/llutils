@@ -81,6 +81,29 @@ for (k in c(10, 1000, 1e4)) {
   cat(k, "terms:", format(r$median), "\n")
 }
 
+cat("\nWhole words: half the terms are words, half prefixes of words\n")
+terms_ww <- c(sample(vocabulary, 500), substr(sample(vocabulary, 500), 1, 5))
+pattern_ww <- paste0("\\b(", paste(terms_ww, collapse = "|"), ")\\b")
+stringi_loop_ww <- function(x, terms) {
+  out <- rep(NA_integer_, length(x))
+  for (i in rev(seq_along(terms))) {
+    out[stringi::stri_detect_regex(x, paste0("\\b", terms[i], "\\b"))] <- i
+  }
+  out
+}
+stopifnot(identical(
+  par_match_term(x, terms_ww, whole_word = TRUE),
+  stringi_loop_ww(x, terms_ww)
+))
+print(bench::mark(
+  stringi_loop = stringi_loop_ww(x, terms_ww),
+  base_perl_detect = grepl(pattern_ww, x, perl = TRUE),
+  par_detect = par_detect(x, pattern_ww),
+  substring = par_match_term(x, terms_ww),
+  whole_word = par_match_term(x, terms_ww, whole_word = TRUE),
+  check = FALSE, min_iterations = 3, filter_gc = FALSE
+)[, c("expression", "median")])
+
 cat("\nSmall inputs, 1000 terms\n")
 for (m in c(100, 1000, 1e4)) {
   r <- bench::mark(

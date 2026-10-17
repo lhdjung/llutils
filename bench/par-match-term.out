@@ -25,6 +25,16 @@ Scaling with terms (1e6 strings, all threads)
 1000 terms: 34.8ms 
 10000 terms: 47ms 
 
+Whole words: half the terms are words, half prefixes of words
+# A tibble: 5 × 2
+  expression         median
+  <bch:expr>       <bch:tm>
+1 stringi_loop       14.79s
+2 base_perl_detect    1.83s
+3 par_detect        14.75ms
+4 substring          5.25ms
+5 whole_word         4.18ms
+
 Small inputs, 1000 terms
 n = 100 :  27.4ms 903.9µs 
 n = 1000 : 294.32ms   1.02ms 
