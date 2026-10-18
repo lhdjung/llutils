@@ -171,3 +171,20 @@ test_that("whole_word = TRUE skips hits inside longer words, in any script", {
   )
   expect_error(par_match_term("a", "a", whole_word = NA), "whole_word")
 })
+
+test_that("the kept automaton is rebuilt when terms or ignore_case change", {
+  expect_identical(par_match_term("A", "a"), NA_integer_)
+  expect_identical(par_match_term("A", "a", ignore_case = TRUE), 1L)
+  expect_identical(par_match_term("A", "a"), NA_integer_)
+  # Each term is freed after its iteration unless the kept copy holds it, so
+  # a new term could otherwise reuse an old one's address.
+  for (i in 1:50) {
+    t <- paste0("w", i)
+    expect_identical(par_match_term(c(t, "w0"), t), c(1L, NA))
+    gc(full = FALSE)
+  }
+  terms <- c("a", "b")
+  expect_identical(par_match_term("b", terms), 2L)
+  terms[2] <- "c"
+  expect_identical(par_match_term("b", terms), NA_integer_)
+})

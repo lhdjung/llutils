@@ -388,6 +388,46 @@ fn regex(pattern: &str) -> extendr_api::Result<regex::bytes::Regex> {
     Ok(re)
 }
 
+/// Runs `f` on each string of `x`, by its index and bytes, into `out`; `NA`
+/// gives `na`. The threads read the strings themselves: R stores them
+/// scattered in memory, so reading them on one thread would take most of
+/// the time. R_CHAR() and LENGTH() only read memory; R doesn't promise they
+/// are thread-safe, but data.table has read strings from threads for years.
+/// Each chunk gets its own state from `init`, such as regex clones: threads
+/// sharing one regex contend for its cache, and cloning per rayon task
+/// costs more than it saves.
+fn per_string<T: Copy + Send + Sync, S>(
+    out: &mut [T],
+    x: &[usize],
+    na: T,
+    nthreads: i32,
+    init: impl Fn() -> S + Sync,
+    f: impl Fn(&mut S, usize, &[u8]) -> T + Sync,
+) {
+    let na_ptr = unsafe { R_NaString } as usize;
+    let run = |start: usize, out: &mut [T], x: &[usize]| {
+        let mut s = init();
+        for (j, (o, &p)) in out.iter_mut().zip(x).enumerate() {
+            *o = if p == na_ptr {
+                na
+            } else {
+                f(&mut s, start + j, unsafe { bytes(p) })
+            };
+        }
+    };
+    if x.len() < 2 * REGEX_PER_THREAD {
+        return run(0, out, x);
+    }
+    pool(nthreads).install(|| {
+        let nt = rayon::current_num_threads().min(x.len() / REGEX_PER_THREAD);
+        let chunk = x.len().div_ceil(4 * nt);
+        out.par_chunks_mut(chunk)
+            .zip(x.par_chunks(chunk))
+            .enumerate()
+            .for_each(|(c, (out, x))| run(c * chunk, out, x))
+    });
+}
+
 /// `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
 /// `fixed`. Strings are matched as bytes, so R should pass them through
 /// `enc2utf8()` first. `NA` gives `NA`.
@@ -404,43 +444,58 @@ fn par_detect_rs(
     } else {
         regex(pattern)?
     };
-    let x = unsafe { charsxps(&x) };
-    let na = unsafe { R_NaString } as usize;
-    // The threads read the strings themselves: R stores them scattered in
-    // memory, so reading them on one thread would take most of the time.
-    // R_CHAR() and LENGTH() only read memory; R doesn't promise they are
-    // thread-safe, but data.table has read strings from threads for years.
-    let detect = |re: &mut regex::bytes::Regex, (out, &p): (&mut Rbool, &usize)| {
-        *out = if p == na {
-            Rbool::na_value()
-        } else {
-            re.is_match(unsafe { bytes(p) }).into()
-        }
-    };
     let mut out = Logicals::new(x.len());
-    let slice: &mut [Rbool] = &mut out; // threads may share this, not `out`
-    if x.len() < 2 * REGEX_PER_THREAD {
-        let mut re = re;
-        slice
-            .iter_mut()
-            .zip(x)
-            .for_each(|item| detect(&mut re, item));
-    } else {
-        // A clone per chunk: threads sharing one regex contend for its cache,
-        // and cloning per rayon task costs more than it saves.
-        pool(nthreads).install(|| {
-            let nt = rayon::current_num_threads().min(x.len() / REGEX_PER_THREAD);
-            let chunk = x.len().div_ceil(4 * nt);
-            slice
-                .par_chunks_mut(chunk)
-                .zip(x.par_chunks(chunk))
-                .for_each(|(out, x)| {
-                    let mut re = re.clone();
-                    out.iter_mut().zip(x).for_each(|item| detect(&mut re, item));
-                })
-        });
-    }
+    per_string(
+        &mut out,
+        unsafe { charsxps(&x) },
+        Rbool::na_value(),
+        nthreads,
+        || re.clone(),
+        |re, _, s| re.is_match(s).into(),
+    );
     Ok(out)
+}
+
+/// The automaton for `terms`. Building one takes about 0.9ms for 1000
+/// terms, most of a call below 1e4 strings, so the last one is kept for
+/// calls that repeat the terms. They are compared by their string pointers,
+/// as `par_match_chr()` compares strings, and a copy of the vector keeps
+/// those strings alive: otherwise R could free one and put another string
+/// at its address.
+fn automaton(terms: &Robj, ignore_case: bool) -> extendr_api::Result<aho_corasick::AhoCorasick> {
+    struct Last(Robj, bool, aho_corasick::AhoCorasick);
+    // Only R's thread ever touches it.
+    unsafe impl Send for Last {}
+    static LAST: Mutex<Option<Last>> = Mutex::new(None);
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    let p = unsafe { charsxps(terms) };
+    if let Some(Last(t, ic, ac)) = last.as_ref() {
+        if *ic == ignore_case && unsafe { charsxps(t) } == p {
+            return Ok(ac.clone());
+        }
+    }
+    let ac = aho_corasick::AhoCorasick::builder()
+        .ascii_case_insensitive(ignore_case)
+        .build(p.iter().map(|&p| unsafe { bytes(p) }))
+        .map_err(|e| Error::Other(e.to_string()))?;
+    *last = Some(Last(terms.duplicate(), ignore_case, ac.clone()));
+    Ok(ac)
+}
+
+/// The index of each term found in `s`, in the order the automaton finds
+/// them: every hit, also where hits overlap. With `whole_word`, a hit counts
+/// only if no word character touches it on either side.
+fn hits<'a>(
+    ac: &'a aho_corasick::AhoCorasick,
+    s: &'a [u8],
+    whole_word: bool,
+) -> impl Iterator<Item = u32> + 'a {
+    ac.find_overlapping_iter(s)
+        .filter(move |m| {
+            !whole_word
+                || !(is_word(last_char(&s[..m.start()])) || is_word(first_char(&s[m.end()..])))
+        })
+        .map(|m| m.pattern().as_u32())
 }
 
 /// For each string, the 1-based index of the first of `terms` it contains,
@@ -458,29 +513,19 @@ fn par_match_term_rs(
     whole_word: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
-    let terms = unsafe { charsxps(&terms) }
-        .iter()
-        .map(|&p| unsafe { bytes(p) });
-    let ac = aho_corasick::AhoCorasick::builder()
-        .ascii_case_insensitive(ignore_case)
-        .build(terms)
-        .map_err(|e| Error::Other(e.to_string()))?;
-    let x = unsafe { charsxps(&x) };
-    let na = unsafe { R_NaString } as usize;
+    let ac = automaton(&terms, ignore_case)?;
+    let mut out = Integers::new(x.len());
     // Unlike a regex, the automaton has no cache, so threads share one.
-    let which = |(out, &p): (&mut Rint, &usize)| {
-        *out = if p == na {
-            Rint::na()
-        } else {
-            let s = unsafe { bytes(p) };
+    per_string(
+        &mut out,
+        unsafe { charsxps(&x) },
+        Rint::na(),
+        nthreads,
+        || (),
+        |_, _, s| {
             let mut best = u32::MAX;
-            for m in ac.find_overlapping_iter(s) {
-                if whole_word
-                    && (is_word(last_char(&s[..m.start()])) || is_word(first_char(&s[m.end()..])))
-                {
-                    continue;
-                }
-                best = best.min(m.pattern().as_u32());
+            for t in hits(&ac, s, whole_word) {
+                best = best.min(t);
                 if best == 0 {
                     break;
                 }
@@ -490,17 +535,8 @@ fn par_match_term_rs(
             } else {
                 (best as i32 + 1).into()
             }
-        }
-    };
-    let mut out = Integers::new(x.len());
-    let slice: &mut [Rint] = &mut out;
-    pool(nthreads).install(|| {
-        slice
-            .par_iter_mut()
-            .zip(x)
-            .with_min_len(REGEX_PER_THREAD)
-            .for_each(which)
-    });
+        },
+    );
     Ok(out)
 }
 
@@ -520,7 +556,11 @@ fn first_char(s: &[u8]) -> Option<char> {
 /// only those are decoded; a cut-off character at their start is skipped.
 fn last_char(s: &[u8]) -> Option<char> {
     let last = s[s.len().saturating_sub(4)..].utf8_chunks().last()?;
-    if last.invalid().is_empty() { last.valid().chars().next_back() } else { None }
+    if last.invalid().is_empty() {
+        last.valid().chars().next_back()
+    } else {
+        None
+    }
 }
 
 /// A character vector's string pointers, as integers that threads can share.

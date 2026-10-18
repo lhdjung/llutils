@@ -11,7 +11,8 @@
 #' @details All terms are compiled into one Aho-Corasick automaton, which finds
 #'   every occurrence of every term in a single pass over each string, however
 #'   many terms there are. The threads read the strings straight from R's
-#'   memory, as data.table does.
+#'   memory, as data.table does. The last automaton is kept, so calls that
+#'   repeat the same `terms` don't build it again.
 #'
 #' @param x A character vector, or something [as.character()] converts.
 #' @param terms A character vector of literal strings to find, without `NA`.
