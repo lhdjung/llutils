@@ -70,7 +70,10 @@ test_that("incomparables goes to base, in base's position", {
       info = deparse(inc)
     )
   }
-  expect_identical(par_match(factor(c("a", "b")), "a", incomparables = "a"), c(NA_integer_, NA))
+  expect_identical(
+    par_match(factor(c("a", "b")), "a", incomparables = "a"),
+    c(NA_integer_, NA)
+  )
 })
 
 test_that("nthreads is validated", {

@@ -59,7 +59,10 @@ par_match_term <- function(
     # Matching the levels is enough. The extra `NA` is for missing values.
     return(index_codes(
       x,
-      c(par_match_term(levels(x), terms, ignore_case, whole_word, nthreads), NA),
+      c(
+        par_match_term(levels(x), terms, ignore_case, whole_word, nthreads),
+        NA
+      ),
       nthreads
     ))
   }

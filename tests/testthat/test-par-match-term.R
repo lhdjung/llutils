@@ -62,8 +62,14 @@ test_that("ignore_case folds ASCII only", {
 test_that("strings match by character, in any encoding", {
   e <- intToUtf8(233)
   latin1 <- iconv(e, "UTF-8", "latin1")
-  expect_identical(par_match_term(c(e, latin1, "e"), c("x", latin1)), c(2L, 2L, NA))
-  expect_identical(par_match_term(factor(c("ab", "cd")), c("d", "b")), c(2L, 1L))
+  expect_identical(
+    par_match_term(c(e, latin1, "e"), c("x", latin1)),
+    c(2L, 2L, NA)
+  )
+  expect_identical(
+    par_match_term(factor(c("ab", "cd")), c("d", "b")),
+    c(2L, 1L)
+  )
   expect_identical(par_match_term(c(10, 25), "2"), c(NA, 1L))
 })
 
@@ -77,7 +83,10 @@ test_that("bad arguments error", {
 test_that("factors are matched by their levels", {
   f <- factor(rep(c("ab", NA, "cd", "ab"), 5000), levels = c("cd", "ab", "zz"))
   terms <- c("d", "b")
-  expect_identical(par_match_term(f, terms), par_match_term(as.character(f), terms))
+  expect_identical(
+    par_match_term(f, terms),
+    par_match_term(as.character(f), terms)
+  )
   expect_identical(par_match_term(f[1:3], terms), c(2L, NA, 1L))
 })
 
@@ -101,7 +110,12 @@ test_that("whole_word = TRUE agrees with PCRE lookarounds on ASCII", {
   set.seed(2)
   x <- vapply(
     1:6000,
-    function(i) paste(sample(c("a", "b", "_", "1", " ", "-", "."), 8, TRUE), collapse = ""),
+    function(i) {
+      paste(
+        sample(c("a", "b", "_", "1", " ", "-", "."), 8, TRUE),
+        collapse = ""
+      )
+    },
     ""
   )
   x[7] <- NA
@@ -132,15 +146,28 @@ test_that("whole_word = TRUE skips hits inside longer words, in any script", {
   )
   e <- intToUtf8(233)
   expect_identical(
-    par_match_term(paste0(c("caf", "a caf ", "αcaf"), c(e, "", "")), "caf", whole_word = TRUE),
+    par_match_term(
+      paste0(c("caf", "a caf ", "αcaf"), c(e, "", "")),
+      "caf",
+      whole_word = TRUE
+    ),
     c(NA, 1L, NA)
   )
-  expect_identical(par_match_term(c("c++ code", "abc++"), "c++", whole_word = TRUE), c(1L, NA))
+  expect_identical(
+    par_match_term(c("c++ code", "abc++"), "c++", whole_word = TRUE),
+    c(1L, NA)
+  )
   # The 4 bytes before "caf" start inside the e-acute: the CJK letter still counts
-  expect_identical(par_match_term(paste0(e, "\u4e2dcaf"), "caf", whole_word = TRUE), NA_integer_)
+  expect_identical(
+    par_match_term(paste0(e, "\u4e2dcaf"), "caf", whole_word = TRUE),
+    NA_integer_
+  )
   # A later hit counts when an earlier one is inside a word
   expect_identical(par_match_term("artist art", "art", whole_word = TRUE), 1L)
   f <- factor(rep(c("yorkshire", "york"), 3))
-  expect_identical(par_match_term(f, "york", whole_word = TRUE), rep(c(NA, 1L), 3))
+  expect_identical(
+    par_match_term(f, "york", whole_word = TRUE),
+    rep(c(NA, 1L), 3)
+  )
   expect_error(par_match_term("a", "a", whole_word = NA), "whole_word")
 })

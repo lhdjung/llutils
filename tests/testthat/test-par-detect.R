@@ -2,8 +2,20 @@ withr::local_options(llutils.threads = 2) # CRAN allows at most 2 cores
 
 test_that("par_detect() agrees with grepl() where the syntaxes agree", {
   set.seed(1)
-  x <- vapply(1:6000, function(i) paste(sample(c(letters, " ", 0:9), 12, TRUE), collapse = ""), "")
-  for (p in c("abc", "^[a-f]+", "\\d{2}$", "a.c|x.z", "(ab)+", "[^a-z ]{3}", "")) {
+  x <- vapply(
+    1:6000,
+    function(i) paste(sample(c(letters, " ", 0:9), 12, TRUE), collapse = ""),
+    ""
+  )
+  for (p in c(
+    "abc",
+    "^[a-f]+",
+    "\\d{2}$",
+    "a.c|x.z",
+    "(ab)+",
+    "[^a-z ]{3}",
+    ""
+  )) {
     expect_identical(par_detect(x, p), grepl(p, x, perl = TRUE), info = p)
   }
   expect_identical(par_detect(x[1:10], "a"), grepl("a", x[1:10])) # serial path
@@ -30,10 +42,16 @@ test_that("NA gives NA, and other inputs are converted", {
 test_that("strings match by character, in any encoding", {
   e <- intToUtf8(233) # e with acute accent
   latin1 <- iconv(e, "UTF-8", "latin1")
-  expect_identical(par_detect(c(e, latin1, "e"), paste0("^", e, "$")), c(TRUE, TRUE, FALSE))
+  expect_identical(
+    par_detect(c(e, latin1, "e"), paste0("^", e, "$")),
+    c(TRUE, TRUE, FALSE)
+  )
   expect_identical(par_detect(c(e, latin1), "^.$"), c(TRUE, TRUE))
   big <- rep(c(e, latin1, "e", NA), 2000) # the parallel path
-  expect_identical(par_detect(big, paste0("^", e, "$")), rep(c(TRUE, TRUE, FALSE, NA), 2000))
+  expect_identical(
+    par_detect(big, paste0("^", e, "$")),
+    rep(c(TRUE, TRUE, FALSE, NA), 2000)
+  )
   expect_identical(par_detect(c("\u0663", "3"), "\\d"), c(TRUE, TRUE)) # Arabic-Indic 3
   expect_identical(par_detect("ABC", "(?i)b"), TRUE)
 })

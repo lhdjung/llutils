@@ -1,8 +1,16 @@
 # par_detect() against base and stringi; run after installing llutils.
 library(llutils)
 set.seed(1)
-words <- vapply(1:1e4, function(i) paste(sample(letters, 12, TRUE), collapse = ""), "")
-x <- paste(sample(words, 1e6, TRUE), sample(words, 1e6, TRUE), sample(1:999, 1e6, TRUE))
+words <- vapply(
+  1:1e4,
+  function(i) paste(sample(letters, 12, TRUE), collapse = ""),
+  ""
+)
+x <- paste(
+  sample(words, 1e6, TRUE),
+  sample(words, 1e6, TRUE),
+  sample(1:999, 1e6, TRUE)
+)
 for (pat in c("abc", "[aeiou]{3}[0-9]", "^q.*z\\s", "(?i)QU[a-z]+ ")) {
   cat("\npattern:", pat, "  n = 1e6\n")
   perl <- sub("(?i)", "", pat, fixed = TRUE)
@@ -12,15 +20,20 @@ for (pat in c("abc", "[aeiou]{3}[0-9]", "^q.*z\\s", "(?i)QU[a-z]+ ")) {
     stringi = stringi::stri_detect_regex(x, pat),
     llutils_2 = par_detect(x, pat, nthreads = 2),
     llutils_all = par_detect(x, pat),
-    min_iterations = 3, filter_gc = FALSE
+    min_iterations = 3,
+    filter_gc = FALSE
   )[, c("expression", "median")])
 }
 cat("\nSmall inputs, pattern repeated so llutils reuses the compiled regex\n")
 for (n in c(100, 1000, 3000, 1e4, 3e4)) {
   y <- x[1:n]
-  r <- bench::mark(base_perl = grepl("[aeiou]{3}[0-9]", y, perl = TRUE),
+  r <- bench::mark(
+    base_perl = grepl("[aeiou]{3}[0-9]", y, perl = TRUE),
     llutils_2 = par_detect(y, "[aeiou]{3}[0-9]", nthreads = 2),
-    llutils_all = par_detect(y, "[aeiou]{3}[0-9]"), check = FALSE)
+    llutils_all = par_detect(y, "[aeiou]{3}[0-9]"),
+    check = FALSE
+  )
   cat("n =", n, ":", format(r$median), "\n")
 }
-cat("\n"); print(sessionInfo())
+cat("\n")
+print(sessionInfo())

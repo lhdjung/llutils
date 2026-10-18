@@ -101,7 +101,9 @@ print(bench::mark(
   par_detect = par_detect(x, pattern_ww),
   substring = par_match_term(x, terms_ww),
   whole_word = par_match_term(x, terms_ww, whole_word = TRUE),
-  check = FALSE, min_iterations = 3, filter_gc = FALSE
+  check = FALSE,
+  min_iterations = 3,
+  filter_gc = FALSE
 )[, c("expression", "median")])
 
 cat("\nSmall inputs, 1000 terms\n")
