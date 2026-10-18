@@ -1,49 +1,124 @@
 collapse 2.1.8, see ?`collapse-package` or ?`collapse-documentation`
+
 Attaching package: ‘collapse’
+
 The following object is masked from ‘package:stats’:
+
     D
+
+
+## Phase 2: predicates, worst case (no hit), n = 1e7
+# A tibble: 2 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base        31.52ms   38.15MB
-2 collapse     4.58ms    2.32KB
+1 base         31.4ms   38.15MB
+2 collapse      4.6ms    2.32KB
+# A tibble: 2 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base        22.74ms    76.3MB
-2 collapse     4.57ms    38.1MB
+1 base         22.5ms    76.3MB
+2 collapse      4.6ms    38.1MB
+# A tibble: 2 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base         25.8ms    38.1MB
-2 collapse     4.58ms    38.1MB
+1 base        25.81ms    38.1MB
+2 collapse     4.59ms    38.1MB
+# A tibble: 2 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base         16.8ms   38.15MB
+1 base         16.7ms   38.15MB
 2 collapse      492ns    2.32KB
+# A tibble: 3 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base        137.4ms   114.6MB
-2 collapse     84.8ms    76.3MB
-3 vctrs         108ms    76.5MB
+1 base        138.2ms   114.6MB
+2 collapse     84.3ms    76.3MB
+3 vctrs       107.7ms    76.5MB
+# A tibble: 3 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base         66.7ms  114.44MB
-2 dt           17.8ms   39.46MB
-3 collapse     18.2ms    2.52KB
+1 base         64.7ms  114.44MB
+2 dt           19.1ms   39.46MB
+3 collapse     18.3ms    2.52KB
+
+## Phase 3: match, 1e7 lookups against 1e4 keys
+# A tibble: 3 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base        109.9ms    76.5MB
-2 vctrs        91.6ms    76.5MB
-3 collapse     77.4ms    38.1MB
+1 base        109.6ms    76.5MB
+2 vctrs        90.6ms    76.5MB
+3 collapse     77.7ms    38.1MB
+# A tibble: 3 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base        126.1ms   114.6MB
-2 vctrs          94ms    76.5MB
-3 collapse     81.3ms    76.3MB
+1 base        124.8ms   114.6MB
+2 vctrs        93.2ms    76.5MB
+3 collapse     84.5ms    76.3MB
+
+## Phase 4: single-pass summaries, n = 1e7
+# A tibble: 2 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base         40.1ms    76.3MB
+1 base         36.8ms    76.3MB
 2 collapse     18.2ms        0B
+# A tibble: 3 × 3
   expression   median mem_alloc
   <bch:expr> <bch:tm> <bch:byt>
-1 base          376ms  169.96MB
+1 base          382ms  169.96MB
 2 dt            155ms      42MB
-3 collapse      102ms    8.73KB
+3 collapse      103ms    8.73KB
+
+## duplicated(), n = 1e7: does a par_duplicated() pay off?
+# A tibble: 3 × 3
+  expression   median mem_alloc
+  <bch:expr> <bch:tm> <bch:byt>
+1 base        370.9ms   166.1MB
+2 collapse     90.4ms    80.1MB
+3 llutils     123.7ms   115.3MB
+# A tibble: 3 × 3
+  expression   median mem_alloc
+  <bch:expr> <bch:tm> <bch:byt>
+1 base          1.15s   249.4MB
+2 collapse   151.76ms    80.1MB
+3 llutils    246.41ms   114.4MB
+
+## Rows of two integer columns, 1e7 into 1e7
+The pieces a fold over par_match() would take: per column, x into
+table and table into itself, then one match of the combined keys.
+# A tibble: 6 × 3
+  expression           median mem_alloc
+  <bch:expr>         <bch:tm> <bch:byt>
+1 vctrs                 1.51s   242.4MB
+2 collapse           369.76ms    38.1MB
+3 data.table            1.67s   460.5MB
+4 one_column          60.13ms    38.1MB
+5 column_into_itself  41.87ms    38.1MB
+6 combined_keys      197.44ms    38.1MB
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] collapse_2.1.8
+
+loaded via a namespace (and not attached):
+ [1] utf8_1.2.6          magrittr_2.0.5      glue_1.8.1         
+ [4] tibble_3.3.1        parallel_4.5.2      pkgconfig_2.0.3    
+ [7] lifecycle_1.0.5     profmem_0.7.0       cli_3.6.6          
+[10] bench_1.1.4         vctrs_0.7.3         data.table_1.18.2.1
+[13] compiler_4.5.2      llutils_0.0.0.9000  tools_4.5.2        
+[16] pillar_1.11.1       Rcpp_1.1.2          rlang_1.3.0        

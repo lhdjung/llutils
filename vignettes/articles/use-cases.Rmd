@@ -85,6 +85,32 @@ The same pattern works for:
 string gets one category. To keep only the strings that contain any term,
 use `!is.na(par_match_term(x, terms))`.
 
+## Scoring text against a lexicon
+
+Sentiment and topic scores often count how many words from a list each
+text contains. `par_count_term()` counts every hit of every term:
+
+```{r}
+reviews <- c(
+  "Great food, friendly staff, great value",
+  "Cold food and rude staff",
+  "Good coffee, bad parking",
+  NA
+)
+positive <- c("great", "friendly", "good")
+negative <- c("cold", "rude", "bad")
+
+data.frame(
+  reviews,
+  positive = par_count_term(reviews, positive, ignore_case = TRUE, whole_word = TRUE),
+  negative = par_count_term(reviews, negative, ignore_case = TRUE, whole_word = TRUE)
+)
+```
+
+Hits are counted where they overlap, too: with `c("new york", "york")`,
+the string `"new york"` has two. A term listed twice counts twice, so pass
+`unique(terms)` if the list might repeat itself.
+
 ## Filtering and validating with a regex
 
 `par_detect()` is `grepl()` on all cores. It suits large text columns:
@@ -105,6 +131,26 @@ two capital letters followed by six digits:
 ```{r}
 id <- c("CH123456", "DE654321", "ch123456", "FR12345")
 id[!par_detect(id, "^[A-Z]{2}[0-9]{6}$")]
+```
+
+`pattern` can also give one pattern per string. Here, each ID is checked
+against the format of its own country:
+
+```{r}
+formats <- c(CH = "^CH[0-9]{6}$", DE = "^DE[0-9]{6}$", FR = "^FR[0-9]{5}$")
+country <- c("CH", "DE", "CH", "FR")
+par_detect(id, formats[country])
+```
+
+Each distinct pattern is compiled once, so a million rows with a few
+formats cost little more than one pattern.
+
+`par_count()` counts the matches instead, such as the words in each open
+survey answer:
+
+```{r}
+answers <- c("Too much traffic on my commute", "ok", "", NA)
+par_count(answers, "\\w+")
 ```
 
 To find which of many literal terms appear, an alternation such as
@@ -142,12 +188,55 @@ orders[orders$customer %par_in% c(101L, 307L), ]
 all(orders$customer %par_in% customers$id)
 ```
 
-Matching a vector against itself gives the position of each element's first
-occurrence, so it also finds duplicates:
+Joins often need several key columns, such as a customer and a year.
+`par_match_rows()` matches whole rows, without pasting the columns into
+strings:
 
 ```{r}
-x <- c("a", "b", "a", "c", "b")
-first <- par_match(x, x)
-first
-first != seq_along(x) # same as duplicated(x)
+orders$year <- c(2025, 2025, 2026, 2026)
+targets <- data.frame(
+  customer = c(101L, 101L, 205L),
+  year = c(2025, 2026, 2025),
+  goal = c(500, 400, 300)
+)
+i <- par_match_rows(orders[c("customer", "year")], targets[c("customer", "year")])
+orders$goal <- targets$goal[i]
+orders
 ```
+
+## Finding duplicates
+
+`par_duplicated()` returns what `duplicated()` returns, so it finds repeated
+keys and removes repeated rows:
+
+```{r}
+ids <- c("a", "b", "a", "c", "b")
+par_duplicated(ids)
+ids[!par_duplicated(ids)] # same as unique(ids)
+
+# Every row that has a twin, including the first one
+visits <- data.frame(
+  patient = c(1, 2, 1, 3),
+  day = as.Date(c("2026-01-05", "2026-01-05", "2026-01-05", "2026-01-06"))
+)
+visits[par_duplicated(visits) | par_duplicated(visits, fromLast = TRUE), ]
+```
+
+## Binning by sorted breaks
+
+`par_find_interval()` returns what `findInterval()` returns: for each value,
+how many of the sorted breaks are at or below it. That bins values, such as
+ages into age groups:
+
+```{r}
+age <- c(4, 17, 18, 45, 67, 90, NA)
+breaks <- c(0, 18, 65)
+groups <- c("child", "adult", "senior")
+data.frame(age, group = groups[par_find_interval(age, breaks)])
+```
+
+It also finds which of a set of sorted, non-overlapping ranges each value
+falls into, such as timestamps into shifts or prices into tax brackets:
+give the range starts as `vec`. With unsorted values, base searches each one
+from scratch, and the threads help most: 10 million values take tens of
+milliseconds, where base takes about a second.

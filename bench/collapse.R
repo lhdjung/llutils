@@ -50,3 +50,6 @@ b(
   dt = data.table::uniqueN(xi),
   collapse = fnunique(xi)
 )
+
+cat("\n")
+print(sessionInfo())

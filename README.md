@@ -9,12 +9,14 @@
 
 llutils provides ultra-fast replacements for common R utility functions.
 
-It features `match()` and `%in%` equivalents, regex detection, and
-dictionary lookup, on all your cores. It is written in Rust.
-`par_match()` and `%par_in%` behave exactly like base R, so they are
-drop-in replacements. `par_detect()` is `grepl()` with the syntax of
-Rust’s [regex crate](https://docs.rs/regex/latest/regex/#syntax), which
-never backtracks.
+It features `match()`, `%in%`, `duplicated()`, and `findInterval()`
+equivalents, row matching on several key columns, regex detection and
+counting, and dictionary lookup, on all your cores. It is written in
+Rust. `par_match()`, `%par_in%`, `par_duplicated()`, and
+`par_find_interval()` behave exactly like base R, so they are drop-in
+replacements. `par_detect()` is `grepl()` with the syntax of Rust’s
+[regex crate](https://docs.rs/regex/latest/regex/#syntax), which never
+backtracks.
 
 The gains are largest where base R is slow and the work is bound by CPU:
 matching text against a large dictionary of terms, and looking up
@@ -66,18 +68,19 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base         15.18s
-#> 2 stringi       8.35s
-#> 3 llutils     22.38ms
+#> 1 base         15.02s
+#> 2 stringi       8.45s
+#> 3 llutils     19.39ms
 plot(results)
 ```
 
 <img src="https://raw.githubusercontent.com/lhdjung/llutils/figures/man/figures/README-dictionary-1.png" alt="Timings on a log scale: llutils takes milliseconds, stringi and base R take seconds." width="100%" />
 
-Wrap the alternation in `\b(` and `)\b` to match whole words only. Terms
-that contain regex metacharacters such as `.` or `(` need a backslash in
-front of them. Avoid `(?i)` in front of a large alternation: it defeats
-the optimization above, and the same search takes over a hundred times
+Wrap the alternation in `\b(` and `)\b` to match whole words only, or
+use `par_match_term(whole_word = TRUE)` below. Terms that contain regex
+metacharacters such as `.` or `(` need a backslash in front of them.
+Avoid `(?i)` in front of a large alternation: it defeats the
+optimization above, and the same search takes over a hundred times
 longer. For a case-insensitive search, use `par_match_term()` below, or
 lowercase both the strings and the terms.
 
@@ -88,7 +91,8 @@ in `terms`: `match()` for substrings. If a string contains several
 terms, the one earliest in `terms` wins, so put specific terms such as
 `"new york"` before general ones such as `"york"`. The terms are
 literal, so they need no escaping, and `ignore_case = TRUE` ignores
-ASCII case at full speed.
+ASCII case at full speed. `whole_word = TRUE` skips hits inside longer
+words, so `"york"` matches `"york, uk"` but not `"yorkshire"`.
 
 ``` r
 found <- par_match_term(x, terms)
@@ -117,13 +121,17 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression            median
 #>   <bch:expr>          <bch:tm>
-#> 1 stringi                4.97s
-#> 2 llutils               3.58ms
-#> 3 llutils_ignore_case   5.77ms
+#> 1 stringi                4.86s
+#> 2 llutils               2.75ms
+#> 3 llutils_ignore_case   2.81ms
 plot(results)
 ```
 
 <img src="https://raw.githubusercontent.com/lhdjung/llutils/figures/man/figures/README-term-1.png" alt="Timings on a log scale: llutils takes milliseconds, a stringi loop over the terms takes seconds." width="100%" />
+
+To count hits instead, `par_count_term()` gives the number of term
+occurrences in each string, as for scoring text against a sentiment
+lexicon. `par_count()` counts regex matches per string.
 
 ## General matching
 
@@ -142,9 +150,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base        252.1ms
-#> 2 collapse    179.5ms
-#> 3 llutils      14.9ms
+#> 1 base        255.7ms
+#> 2 collapse    178.2ms
+#> 3 llutils      14.1ms
 plot(results)
 ```
 
@@ -159,6 +167,27 @@ Both sides are hashed in parallel, so a join-like lookup of 10 million
 keys into 10 million others takes 0.1 seconds for integers and 0.2 for
 strings. The numbers behind the comparison with collapse are in
 `bench/`.
+
+`par_duplicated()` is `duplicated()` on the same hash tables, built in
+parallel, and compares the rows of data frames as base does.
+`par_match_rows()` matches rows on several key columns at once, as in a
+join: it hashes whole rows in parallel, so a lookup of 10 million rows
+into 10 million others takes a fraction of a second, where pasting the
+columns into strings for `match()` takes seconds per million.
+
+`par_find_interval()` is `findInterval()` with a binary search per
+element on all cores, for binning values by sorted breaks: 10 million
+values into 10,000 breaks take a few dozen milliseconds, where base
+takes almost a second.
+
+## Use cases
+
+The [use-cases
+article](https://github.com/lhdjung/llutils/blob/main/vignettes/articles/use-cases.Rmd)
+shows each function at work: coding free text with a keyword table,
+scoring text against a lexicon, filtering logs, validating identifiers,
+lookups and joins on one or several keys, finding duplicates, and
+binning.
 
 ## Threads
 
