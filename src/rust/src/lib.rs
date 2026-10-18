@@ -3,7 +3,7 @@ use extendr_api::SEXP;
 use rayon::prelude::*;
 use rustc_hash::{FxBuildHasher, FxHashMap as HashMap};
 use std::hash::{BuildHasher, Hash};
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_char, c_int, c_uint};
 use std::sync::{Arc, Mutex};
 
 // Public R API that extendr doesn't wrap. SEXP is opaque, so the lint is moot.
@@ -13,6 +13,9 @@ extern "C" {
     fn Rf_getCharCE(x: SEXP) -> c_int;
     fn R_CHAR(x: SEXP) -> *const c_char;
     fn LENGTH(x: SEXP) -> c_int;
+    fn Rf_allocVector(t: c_uint, n: isize) -> SEXP;
+    fn INTEGER(x: SEXP) -> *mut c_int;
+    fn SET_VECTOR_ELT(x: SEXP, i: isize, v: SEXP) -> SEXP;
     static R_NaString: SEXP;
 }
 
@@ -648,7 +651,7 @@ fn regex(pattern: &str) -> extendr_api::Result<regex::bytes::Regex> {
 /// Each chunk gets its own state from `init`, such as regex clones: threads
 /// sharing one regex contend for its cache, and cloning per rayon task
 /// costs more than it saves.
-fn per_string<T: Copy + Send + Sync, S>(
+fn per_string<T: Clone + Send + Sync, S>(
     out: &mut [T],
     x: &[usize],
     na: T,
@@ -661,7 +664,7 @@ fn per_string<T: Copy + Send + Sync, S>(
         let mut s = init();
         for (j, (o, &p)) in out.iter_mut().zip(x).enumerate() {
             *o = if p == na_ptr {
-                na
+                na.clone()
             } else {
                 f(&mut s, start + j, unsafe { bytes(p) })
             };
@@ -932,6 +935,54 @@ fn par_count_term_rs(
     Ok(out)
 }
 
+/// For each string, the 1-based indices of every term it contains, in
+/// `terms` order, each once; `NA` for `NA`. Otherwise as
+/// `par_match_term_rs()`.
+/// @noRd
+#[extendr]
+fn par_which_term_rs(
+    x: Robj,
+    terms: Robj,
+    ignore_case: bool,
+    whole_word: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
+    let ac = automaton(&terms, ignore_case)?;
+    let x = unsafe { charsxps(&x) };
+    let mut out: Vec<Option<Vec<u32>>> = vec![None; x.len()];
+    per_string(
+        &mut out,
+        x,
+        None,
+        nthreads,
+        || (),
+        |_, _, s| {
+            let mut t: Vec<u32> = hits(&ac, s, whole_word).collect();
+            t.sort_unstable();
+            t.dedup();
+            Some(t)
+        },
+    );
+    // Only R's thread may make R vectors.
+    let res: Robj = List::new(out.len()).into();
+    for (i, t) in out.into_iter().enumerate() {
+        unsafe {
+            let v = Rf_allocVector(13, t.as_ref().map_or(1, |t| t.len()) as isize);
+            // No slice: R gives an empty vector the misaligned data pointer 1.
+            let ints = INTEGER(v);
+            match t {
+                None => *ints = NA_INT,
+                Some(t) => t
+                    .iter()
+                    .enumerate()
+                    .for_each(|(k, &t)| *ints.add(k) = t as i32 + 1),
+            }
+            SET_VECTOR_ELT(res.get(), i as isize, v);
+        }
+    }
+    Ok(res)
+}
+
 /// `findInterval(x, vec)`: how many of the sorted `vec` are at most each
 /// `x` (below it, if `left_open`), with base's adjustments at the ends.
 /// `NaN` gives `NA`. `vec` must not be empty.
@@ -1030,5 +1081,6 @@ extendr_module! {
     fn par_count_rs;
     fn par_match_term_rs;
     fn par_count_term_rs;
+    fn par_which_term_rs;
     fn par_find_interval_rs;
 }

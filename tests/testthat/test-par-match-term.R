@@ -252,3 +252,44 @@ test_that("an empty term matches only between characters", {
   )
   expect_identical(par_match_term(e, "", whole_word = TRUE), NA_integer_)
 })
+
+test_that("par_which_term() gives every term grepl(fixed = TRUE) finds", {
+  set.seed(2)
+  x <- vapply(
+    1:6000,
+    function(i) paste(sample(c(letters[1:6], " "), 10, TRUE), collapse = ""),
+    ""
+  )
+  x[c(5, 500)] <- NA
+  terms <- c("abc", "a", "fed", "bb", "ab", "a", "", "zz")
+  expected <- lapply(x, function(s) {
+    if (is.na(s)) {
+      return(NA_integer_)
+    }
+    which(vapply(terms, grepl, NA, s, fixed = TRUE, USE.NAMES = FALSE))
+  })
+  expect_identical(par_which_term(x, terms), expected)
+  expect_identical(par_which_term(x[1:10], terms), expected[1:10])
+  expect_identical(
+    par_which_term(c("york and new york", "rome", NA), c("new york", "york")),
+    list(1:2, integer(), NA_integer_)
+  )
+  expect_identical(
+    par_which_term(
+      c("yorkshire", "York"),
+      "york",
+      ignore_case = TRUE,
+      whole_word = TRUE
+    ),
+    list(integer(), 1L)
+  )
+  expect_identical(par_which_term(character(), "a"), list())
+})
+
+test_that("par_which_term() matches factors by their levels", {
+  f <- factor(rep(c("ab", NA, "cd", "ab"), 5000), levels = c("cd", "ab", "zz"))
+  expect_identical(
+    par_which_term(f, c("d", "b", "a")),
+    par_which_term(as.character(f), c("d", "b", "a"))
+  )
+})

@@ -3,6 +3,7 @@
 \name{par_match_term}
 \alias{par_match_term}
 \alias{par_count_term}
+\alias{par_which_term}
 \title{Find which term each string contains, in parallel}
 \usage{
 par_match_term(
@@ -14,6 +15,14 @@ par_match_term(
 )
 
 par_count_term(
+  x,
+  terms,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+)
+
+par_which_term(
   x,
   terms,
   ignore_case = FALSE,
@@ -52,6 +61,11 @@ occurrence of every term counts, also where they overlap: \code{"new york"}
 has two hits for \code{c("new york", "york")}, and a term listed twice counts
 twice.
 }
+
+\code{par_which_term()} returns a list as long as \code{x} instead: for each
+string, the positions in \code{terms} of every term found in it, in
+increasing order and each once, \code{integer(0)} if none, or \code{NA} where \code{x}
+is \code{NA}.
 }
 \description{
 For each string in \code{x}, the index of the first of \code{terms} it
@@ -64,6 +78,9 @@ before general ones, such as \code{"new york"} before \code{"york"}.
 
 \code{par_count_term()} counts every hit of every term instead, for scoring
 strings against a lexicon, such as positive and negative words.
+
+\code{par_which_term()} gives every term each string contains, not just the
+first, for tagging: an abstract with every drug it names.
 }
 \details{
 All terms are compiled into one Aho-Corasick automaton, which finds
@@ -79,4 +96,5 @@ par_match_term("NEW YORK", cities, ignore_case = TRUE)
 par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 par_match_term("1+1=2", c("+", "("))
 par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
+par_which_term(c("york and new york", "rome", NA), cities)
 }

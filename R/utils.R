@@ -32,3 +32,15 @@ as_columns <- function(x, arg) {
   }
   x
 }
+
+# `m[x]` for a factor `x`, with `NA` codes taking `m`'s last element: a result
+# per level, from a function that only had to run on the levels.
+# index_codes() does integer and logical ones in Rust.
+index_levels <- function(x, m, nthreads) {
+  if (is.integer(m) || is.logical(m)) {
+    return(index_codes(x, m, nthreads))
+  }
+  codes <- as.integer(x)
+  codes[is.na(codes)] <- length(m)
+  m[codes]
+}

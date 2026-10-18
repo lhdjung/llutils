@@ -11,6 +11,9 @@
 #'   `par_count_term()` counts every hit of every term instead, for scoring
 #'   strings against a lexicon, such as positive and negative words.
 #'
+#'   `par_which_term()` gives every term each string contains, not just the
+#'   first, for tagging: an abstract with every drug it names.
+#'
 #' @details All terms are compiled into one Aho-Corasick automaton, which finds
 #'   every occurrence of every term in a single pass over each string, however
 #'   many terms there are. The threads read the strings straight from R's
@@ -37,6 +40,11 @@
 #'   has two hits for `c("new york", "york")`, and a term listed twice counts
 #'   twice.
 #'
+#'   `par_which_term()` returns a list as long as `x` instead: for each
+#'   string, the positions in `terms` of every term found in it, in
+#'   increasing order and each once, `integer(0)` if none, or `NA` where `x`
+#'   is `NA`.
+#'
 #' @export
 #'
 #' @examples
@@ -46,6 +54,7 @@
 #' par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 #' par_match_term("1+1=2", c("+", "("))
 #' par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
+#' par_which_term(c("york and new york", "rome", NA), cities)
 par_match_term <- function(
   x,
   terms,
@@ -68,8 +77,19 @@ par_count_term <- function(
   run_terms(par_count_term_rs, x, terms, ignore_case, whole_word, nthreads)
 }
 
-# Checks the arguments of par_match_term() and par_count_term(), and calls
-# `rs`.
+#' @rdname par_match_term
+#' @export
+par_which_term <- function(
+  x,
+  terms,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+) {
+  run_terms(par_which_term_rs, x, terms, ignore_case, whole_word, nthreads)
+}
+
+# Checks the arguments of par_match_term() and the like, and calls `rs`.
 run_terms <- function(rs, x, terms, ignore_case, whole_word, nthreads) {
   nthreads <- check_nthreads(nthreads)
 
@@ -85,11 +105,9 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, nthreads) {
 
   if (is.factor(x) && nlevels(x) < length(x)) {
     # Matching the levels is enough. The extra `NA` is for missing values.
-    return(index_codes(
-      x,
-      c(run_terms(rs, levels(x), terms, ignore_case, whole_word, nthreads), NA),
-      nthreads
-    ))
+    m <- run_terms(rs, levels(x), terms, ignore_case, whole_word, nthreads)
+    na <- if (is.list(m)) list(NA_integer_) else NA
+    return(index_levels(x, c(m, na), nthreads))
   }
 
   if (!is.character(x)) {
