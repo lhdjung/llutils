@@ -35,6 +35,17 @@ par_match_mixed <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_m
 #' @noRd
 par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr, x, table, nomatch, nthreads)
 
+#' `pointers_suffice()` for R, which decides how to match each column of a
+#' row before calling `par_match_rows_rs()`.
+#' @noRd
+par_pointers_suffice <- function(x, table, nthreads) .Call(wrap__par_pointers_suffice, x, table, nthreads)
+
+#' `match()` on rows: for each row of `x`, the first row of `table` equal
+#' to it in every column, or `nomatch`. Both are lists of columns, which R
+#' prepares as `Col` describes; `day` marks columns of Dates.
+#' @noRd
+par_match_rows_rs <- function(x, table, day, nomatch, nthreads) .Call(wrap__par_match_rows_rs, x, table, day, nomatch, nthreads)
+
 #' `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
 #' `fixed`. `pattern` is one string, or one per string of `x`. Strings are
 #' matched as bytes, so R should pass both through `enc2utf8()` first. `NA`

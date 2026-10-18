@@ -19,3 +19,16 @@ check_nthreads <- function(nthreads) {
   }
   as.integer(nthreads)
 }
+
+# A data frame or list of columns as an unnamed list of equal-length
+# vectors.
+as_columns <- function(x, arg) {
+  if (!is.list(x) || length(x) == 0L) {
+    stop("`", arg, "` must be a data frame or a list of columns.")
+  }
+  x <- unname(as.list(x))
+  if (length(unique(lengths(x))) != 1L || !all(vapply(x, is.atomic, NA))) {
+    stop("The columns of `", arg, "` must be vectors of the same length.")
+  }
+  x
+}

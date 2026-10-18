@@ -345,12 +345,21 @@ fn dbl_key(v: f64) -> u64 {
 fn par_match_chr(x: Robj, table: Robj, nomatch: Rint, nthreads: i32) -> Robj {
     let (x, table) = unsafe { (charsxps(&x), charsxps(&table)) };
     let pool = pool(nthreads);
+    if !pointers_suffice(x, table, &pool) {
+        return ().into();
+    }
     let key = |p: &usize| *p;
+    par_match(x, table, key, key, nomatch, &pool).into()
+}
+
+/// Whether equal string pointers mean equal strings between `x` and
+/// `table`, as `par_match_chr()` explains.
+fn pointers_suffice(x: &[usize], table: &[usize], pool: &rayon::ThreadPool) -> bool {
     let ascii = |p: &usize| unsafe { bytes(*p).is_ascii() };
     let ce = |p: &usize| unsafe { Rf_getCharCE(*p as SEXP) };
     // The threads read the strings themselves, as par_detect_rs() does.
     // Reading each one is a cache miss, so this scans the shorter side.
-    let ok = pool.install(|| {
+    pool.install(|| {
         let both = || x.par_iter().chain(table).with_min_len(MATCH_PER_THREAD);
         if x.len() < table.len() { x } else { table }
             .par_iter()
@@ -363,11 +372,139 @@ fn par_match_chr(x: Robj, table: Robj, nomatch: Rint, nthreads: i32) -> Robj {
                     .reduce(|| 0, |a, b| a | b);
                 seen & 4 == 0 && (seen != 3 || both().all(|p| ce(p) == 1 || ascii(p)))
             }
-    });
-    if !ok {
-        return ().into();
+    })
+}
+
+/// `pointers_suffice()` for R, which decides how to match each column of a
+/// row before calling `par_match_rows_rs()`.
+/// @noRd
+#[extendr]
+fn par_pointers_suffice(x: Robj, table: Robj, nthreads: i32) -> bool {
+    let (x, table) = unsafe { (charsxps(&x), charsxps(&table)) };
+    pointers_suffice(x, table, &pool(nthreads))
+}
+
+/// One column of a row key, its keys equal exactly where `par_match()`
+/// would match. R passes each pair of columns as two integer, two double,
+/// or two string vectors whose pointers suffice; `Day` is a Date matched
+/// by day.
+enum Col<'a> {
+    Int(&'a [i32]),
+    Dbl(&'a [f64]),
+    Day(&'a [f64]),
+    Chr(&'a [usize]),
+}
+
+impl Col<'_> {
+    fn key(&self, i: usize) -> u64 {
+        match self {
+            Col::Int(v) => v[i] as u32 as u64,
+            Col::Dbl(v) => dbl_key(v[i]),
+            Col::Day(v) => dbl_key(v[i].floor()),
+            Col::Chr(v) => v[i] as u64,
+        }
     }
-    par_match(x, table, key, key, nomatch, &pool).into()
+}
+
+/// The columns of a list, `day` marking those that are Dates.
+fn columns<'a>(cols: &'a [Robj], day: &[Rbool]) -> Vec<Col<'a>> {
+    cols.iter()
+        .enumerate()
+        .map(|(j, c)| {
+            if let Some(v) = c.as_integer_slice() {
+                Col::Int(v)
+            } else if let Some(v) = c.as_real_slice() {
+                if day.get(j).is_some_and(|d| d.is_true()) {
+                    Col::Day(v)
+                } else {
+                    Col::Dbl(v)
+                }
+            } else {
+                assert!(
+                    c.is_string(),
+                    "columns must be integer, double, or character"
+                );
+                Col::Chr(unsafe { charsxps(c) })
+            }
+        })
+        .collect()
+}
+
+/// Row `i` of a list of columns, as a key: its hash is computed once, from
+/// every column, and rows compare equal if every column does. A row of `x`
+/// and a row of `table` compare by their own columns, which R made
+/// compatible.
+#[derive(Clone, Copy)]
+struct Row<'a> {
+    cols: &'a Vec<Col<'a>>,
+    i: u32,
+    h: u64,
+}
+
+fn row<'a>(cols: &'a Vec<Col<'a>>, i: u32) -> Row<'a> {
+    let h = cols.iter().fold(0u64, |h, c| {
+        (h.rotate_left(5) ^ c.key(i as usize)).wrapping_mul(0x517CC1B727220A95)
+    });
+    Row { cols, i, h }
+}
+
+impl Hash for Row<'_> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u64(self.h)
+    }
+}
+
+impl PartialEq for Row<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.h == other.h
+            && self
+                .cols
+                .iter()
+                .zip(other.cols)
+                .all(|(a, b)| a.key(self.i as usize) == b.key(other.i as usize))
+    }
+}
+
+impl Eq for Row<'_> {}
+
+/// A row's key from one column.
+fn key1<'a>(c: &'a [Col<'a>]) -> impl Fn(&u32) -> u64 + Sync + 'a {
+    move |&i| c[0].key(i as usize)
+}
+
+/// A row's key from two columns.
+fn key2<'a>(c: &'a [Col<'a>]) -> impl Fn(&u32) -> (u64, u64) + Sync + 'a {
+    move |&i| (c[0].key(i as usize), c[1].key(i as usize))
+}
+
+/// `match()` on rows: for each row of `x`, the first row of `table` equal
+/// to it in every column, or `nomatch`. Both are lists of columns, which R
+/// prepares as `Col` describes; `day` marks columns of Dates.
+/// @noRd
+#[extendr]
+fn par_match_rows_rs(
+    x: List,
+    table: List,
+    day: &[Rbool],
+    nomatch: Rint,
+    nthreads: i32,
+) -> Integers {
+    let (x, table): (Vec<Robj>, Vec<Robj>) = (x.values().collect(), table.values().collect());
+    let (xc, tc) = (columns(&x, day), columns(&table, day));
+    let (nx, nt) = (x[0].len(), table[0].len());
+    // Rows are passed around by index, so par_match() can take them as
+    // slices.
+    let rows: Vec<u32> = (0..nx.max(nt) as u32).collect();
+    let (xr, tr) = (&rows[..nx], &rows[..nt]);
+    let pool = pool(nthreads);
+    // Up to two columns, the keys themselves fit in the space a `Row`
+    // takes, and comparing them needs no read of the columns at random rows:
+    // with many repeated rows that halves the time.
+    match xc.len() {
+        1 => par_match(xr, tr, key1(&xc), key1(&tc), nomatch, &pool),
+        2 => par_match(xr, tr, key2(&xc), key2(&tc), nomatch, &pool),
+        _ => par_match(xr, tr, |&i| row(&xc, i), |&i| row(&tc, i), nomatch, &pool),
+    }
 }
 
 /// Strings per thread below which a regex gains nothing from another.
@@ -767,6 +904,8 @@ extendr_module! {
     fn par_match_dbl;
     fn par_match_mixed;
     fn par_match_chr;
+    fn par_pointers_suffice;
+    fn par_match_rows_rs;
     fn par_detect_rs;
     fn par_count_rs;
     fn par_match_term_rs;
