@@ -2,25 +2,25 @@ Regex matches per string, 1e6 strings
 # A tibble: 4 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base_perl      9.13s
-2 stringi     231.63ms
-3 llutils_2    66.53ms
-4 llutils_all  30.37ms
+1 base_perl      8.71s
+2 stringi     227.61ms
+3 llutils_2       55ms
+4 llutils_all  19.94ms
 # A tibble: 3 × 2
   expression      median
   <bch:expr>    <bch:tm>
-1 stringi_fixed   54.2ms
-2 llutils_2       27.1ms
-3 llutils_all     11.5ms
+1 stringi_fixed   55.7ms
+2 llutils_2       30.3ms
+3 llutils_all     11.8ms
 
 Dictionary hits per string, 1e5 strings, 1000 terms
 # A tibble: 4 × 2
   expression     median
   <bch:expr>   <bch:tm>
-1 stringi_loop    5.31s
-2 llutils_2      8.21ms
-3 llutils_all    3.12ms
-4 whole_word     3.39ms
+1 stringi_loop    5.55s
+2 llutils_2      8.28ms
+3 llutils_all    3.63ms
+4 whole_word     3.73ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
