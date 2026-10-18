@@ -754,7 +754,9 @@ fn patterns(pattern: &Robj, fixed: bool, nthreads: i32) -> extendr_api::Result<P
 }
 
 /// Runs `f` on each string of `x` with its regex from `p`. Each chunk clones
-/// a regex the first time it needs it; an `NA` pattern gives `na`.
+/// a regex the first time it needs it, and each clone builds its own cache;
+/// an `NA` pattern gives `na`. With many distinct patterns, the strings are
+/// sorted by pattern first, so each chunk meets only a few of them.
 fn per_pattern<T: Clone + Send + Sync>(
     out: &mut [T],
     x: &[usize],
@@ -763,25 +765,68 @@ fn per_pattern<T: Clone + Send + Sync>(
     nthreads: i32,
     f: impl Fn(&Re, &[u8]) -> T + Sync,
 ) {
-    per_string(
-        out,
-        x,
-        na.clone(),
-        nthreads,
-        || vec![None; p.res.len()],
-        // Each clone builds its own cache. Sorting the strings by pattern,
-        // so each regex would build its cache about once, was slower at
-        // every count measured: 1e4 distinct patterns in 1e6 strings take
-        // 80-90ms as it is, and 110ms sorted.
-        |cache: &mut Vec<Option<Re>>, i, s| {
-            let id = p.which.as_ref().map_or(0, |w| w[i] as usize);
-            match &p.res[id] {
-                None => na.clone(),
-                Some(re) => f(cache[id].get_or_insert_with(|| re.clone()), s),
-            }
-        },
-    );
+    // `ids[i]` is the pattern of string `i`, or empty for one pattern.
+    let run = |out: &mut [T], x: &[usize], ids: &[u32]| {
+        per_string(
+            out,
+            x,
+            na.clone(),
+            nthreads,
+            || vec![None; p.res.len()],
+            |cache: &mut Vec<Option<Re>>, i, s| {
+                let id = ids.get(i).map_or(0, |&id| id as usize);
+                match &p.res[id] {
+                    None => na.clone(),
+                    Some(re) => f(cache[id].get_or_insert_with(|| re.clone()), s),
+                }
+            },
+        )
+    };
+    let which = match &p.which {
+        Some(w) if p.res.len() >= GROUP_MIN => w,
+        w => return run(out, x, w.as_deref().unwrap_or(&[])),
+    };
+    // A counting sort: `order` lists the strings of the first pattern, then
+    // those of the second, and so on.
+    let mut start = vec![0usize; p.res.len() + 1];
+    for &w in which {
+        start[w as usize + 1] += 1;
+    }
+    for k in 1..start.len() {
+        start[k] += start[k - 1];
+    }
+    let mut order = vec![0u32; x.len()];
+    for (i, &w) in which.iter().enumerate() {
+        order[start[w as usize]] = i as u32;
+        start[w as usize] += 1;
+    }
+    let pool = pool(nthreads);
+    let (xs, ids): (Vec<usize>, Vec<u32>) = pool.install(|| {
+        order
+            .par_iter()
+            .map(|&i| (x[i as usize], which[i as usize]))
+            .unzip()
+    });
+    let mut sorted = vec![na.clone(); x.len()];
+    run(&mut sorted, &xs, &ids);
+    let dst = Shared(out.as_mut_ptr());
+    pool.install(|| {
+        sorted
+            .into_par_iter()
+            .zip(order)
+            .with_min_len(MATCH_PER_THREAD)
+            // `order` holds each position once, so no two threads write the
+            // same element.
+            .for_each(|(v, i)| unsafe { *dst.get().add(i as usize) = v })
+    });
 }
+
+/// Distinct patterns from which `per_pattern()` sorts the strings by
+/// pattern. Sorting costs about 15ms per 1e6 strings and saves building
+/// the regexes' caches again in every chunk: with 1e4 patterns in 1e6
+/// strings, 0.63s become 0.1s, but with 10 it doubles the time, 14ms to
+/// 29ms. The two tie near 300.
+const GROUP_MIN: usize = 256;
 
 /// `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
 /// `fixed`. `pattern` is one string, or one per string of `x`. Strings are

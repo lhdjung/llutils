@@ -142,16 +142,19 @@ Use cases for every function are collected in
   same (11ms against 171ms).
 - `pattern` can hold one pattern per string. The distinct ones are found
   by hashing their string pointers, serially, then compiled on the threads,
-  and each chunk clones a regex the first time it meets it. With 10
-  distinct patterns in 1e6 strings that takes 14ms (stringi 2.1s); with
-  1e4, 76-92ms on 8 threads and 183ms on 2 (stringi 2.7s), though each of
-  the 32 chunks clones most of the regexes. An earlier measurement of
-  0.6-0.7s for 1e4 no longer holds. Sorting the strings by pattern first,
-  so each regex builds its cache in about one chunk, was slower at every
-  count from 10 to 1e4 distinct patterns (10: 34ms, 1e4: 110ms): the
-  serial sort, gather, and scatter cost more than the clones. Sharing the
-  regexes across threads took 410ms for 1e4 and doubled the time for 10,
-  from contention on their caches.
+  and each chunk clones a regex the first time it meets it. Each clone
+  builds its own cache, so with many distinct patterns most of the time
+  went into caches: 1e4 patterns in 1e6 strings took 0.63s on 8 threads
+  (stringi 2.7s), slower than 0.53s on 2, which have fewer chunks. From 256
+  distinct patterns, the strings are now sorted by pattern first (a
+  counting sort, then a parallel gather and scatter), so each chunk meets
+  only a few: 1e4 patterns take 0.1s on 8 threads and 0.24s on 2. Sorting
+  costs about 15ms per 1e6 strings, which doubles the time for 10 patterns
+  (14ms to 29ms); the two tie near 300. An earlier measurement that found
+  sorting slower at every count was wrong: its unsorted path gave every
+  string the first pattern. Sharing the regexes across threads instead
+  took 410ms for 1e4 and doubled the time for 10, from contention on their
+  caches.
 - `par_count()` uses the same machinery and counts with `find_iter()`.
   Empty matches follow Rust, not `gregexpr()`, and the docs spell out
   the two differences: Rust counts one at the end of a non-empty string
@@ -166,12 +169,12 @@ Use cases for every function are collected in
   about 0.4s on its own (`paste0(x, "_")`), which bounds both. Strings
   `par_replace()` leaves unchanged are reused, not made again, and so are
   matches that span the whole string in `par_extract()`. At 1e6 strings:
-  extracting a match that 1 in 10 strings has takes 32ms (PCRE 380ms,
+  extracting a match that 1 in 10 strings has takes 28ms (PCRE 300ms,
   stringi 520ms); extracting a group from every string, 0.2s (stringi
-  4.8s, PCRE `regexec()` 16s); replacing in the 11% of strings that
-  match, 55ms (PCRE 445ms, stringi 1.5s); replacing in all of them,
-  0.23-0.4s (PCRE 460ms); swapping two groups in every string, 450ms,
-  tied with PCRE (stringi 1.3s). Where every string changes, threads
+  4.8s, PCRE `regexec()` 15s); replacing in the 11% of strings that
+  match, 48ms (PCRE 345ms, stringi 1.1s); replacing in all of them,
+  0.23-0.4s (PCRE 445ms); swapping two groups in every string, 0.45-0.6s,
+  about tied with PCRE (460ms; stringi 1.2s). Where every string changes, threads
   barely help.
 - Results are marked UTF-8, as R passes `x` through `enc2utf8()`, except
   those made from bytes-encoded strings. `par_extract()` gives `NA` where
@@ -204,10 +207,10 @@ Use cases for every function are collected in
 - `par_which_term()` collects each string's hits on the threads, sorted
   and deduplicated, into a `Vec` per string, then makes one integer vector
   per string on R's thread. At 1e5 strings of four words and 1000 terms it
-  takes 7.6ms (2 threads: 20ms), against 7.9s for a `stri_detect_fixed()`
-  per term and 61s for `stri_extract_all_regex()` on the alternation. At
-  1e6 strings it takes 186ms, where `par_match_term()` takes 46ms: most of
-  the difference is making the 1e6 vectors.
+  takes 7.6ms (2 threads: 18ms), against 7.8s for a `stri_detect_fixed()`
+  per term and 60s for `stri_extract_all_regex()` on the alternation. At
+  1e6 strings it takes 120-190ms, where `par_match_term()` takes 45-70ms:
+  most of the difference is making the 1e6 vectors.
 - `ignore_case` folds ASCII letters only, which is what aho-corasick offers.
   Lowercasing both sides with `tolower()` covers the rest.
 - `whole_word` drops a hit if the character right before or after it is a

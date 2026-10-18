@@ -139,3 +139,29 @@ test_that("par_count() treats empty matches as Rust does, unlike gregexpr()", {
   expect_identical(par_count(x, ""), c(4L, 7L, 1L))
   expect_identical(par_count(x, "a*"), c(3L, 4L, 1L))
 })
+
+test_that("many distinct patterns, sorted by pattern, give the same results", {
+  skip_if_not_installed("stringi")
+  set.seed(9)
+  x <- vapply(
+    1:2e4,
+    function(i) paste(sample(c(letters[1:4], 0:2), 8, TRUE), collapse = ""),
+    ""
+  )
+  x[3] <- NA
+  combos <- apply(
+    expand.grid(letters[1:4], letters[1:4], 0:2, 0:5),
+    1,
+    paste0,
+    collapse = ""
+  )
+  p <- sample(c(combos, NA), length(x), TRUE) # 289 distinct
+  expect_gte(length(unique(p)), 256)
+  expect_identical(par_detect(x, p), stringi::stri_detect_regex(x, p))
+  expect_identical(par_count(x, p), stringi::stri_count_regex(x, p))
+  expect_identical(par_extract(x, p), stringi::stri_extract_first_regex(x, p))
+  expect_identical(
+    par_replace(x, p, "_"),
+    stringi::stri_replace_all_regex(x, p, "_")
+  )
+})
