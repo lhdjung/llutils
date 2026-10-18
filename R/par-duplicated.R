@@ -2,7 +2,9 @@
 #'
 #' @description Same results as base [duplicated()], but much faster for
 #'   large inputs. For a data frame, rows are compared, as in base.
-#'   `x[!par_duplicated(x)]` is `unique(x)`.
+#'
+#'   `par_unique()` is base [unique()] on the same machinery, and
+#'   `sum(!par_duplicated(x))` counts the distinct elements.
 #'
 #' @details Computed in Rust when `x` has at least 1e4 elements (or rows)
 #'   and is an integer, double, or character vector, a factor, a Date, or a
@@ -20,9 +22,12 @@
 #'   later, rather than earlier.
 #' @inheritParams par_match
 #'
-#' @returns A logical vector as long as `x` (or with one element per row of
-#'   a data frame): `TRUE` where an equal element (or row) comes earlier, or
-#'   later if `fromLast = TRUE`.
+#' @returns
+#'   - `par_duplicated()`: a logical vector as long as `x` (or with one
+#'   element per row of a data frame): `TRUE` where an equal element (or row)
+#'   comes earlier, or later if `fromLast = TRUE`.
+#'   - `par_unique()`: `x` without those elements (or rows), as [unique()]
+#'   returns it.
 #'
 #' @export
 #'
@@ -30,7 +35,8 @@
 #' x <- c(3, 1, 3, NA, 1, NA)
 #' par_duplicated(x)
 #' par_duplicated(x, fromLast = TRUE)
-#' x[!par_duplicated(x)] # unique(x)
+#' par_unique(x)
+#' sum(!par_duplicated(x)) # number of distinct values
 #'
 #' df <- data.frame(id = c(1, 2, 1), day = c("mon", "mon", "mon"))
 #' par_duplicated(df)
@@ -68,6 +74,32 @@ par_duplicated <- function(
   } else {
     out
   }
+}
+
+#' @rdname par_duplicated
+#' @export
+par_unique <- function(
+  x,
+  incomparables = FALSE,
+  fromLast = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+) {
+  if (is.data.frame(x)) {
+    # As unique.data.frame() does.
+    return(x[
+      !par_duplicated(x, incomparables, fromLast, nthreads),
+      ,
+      drop = FALSE
+    ])
+  }
+  if (!is.null(dim(x)) || !is_dup_class(x)) {
+    return(unique(x, incomparables, fromLast = fromLast))
+  }
+  # unique() keeps a factor's levels, and the class and time zone of Dates
+  # and POSIXct, which `[` keeps too, but drops names.
+  x <- x[!par_duplicated(x, incomparables, fromLast, nthreads)]
+  names(x) <- NULL
+  x
 }
 
 # Classes whose duplicated() method compares the underlying values, as Rust

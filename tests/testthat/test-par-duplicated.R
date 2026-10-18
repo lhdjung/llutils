@@ -67,3 +67,27 @@ test_that("other inputs go to duplicated()", {
   expect_identical(par_duplicated(c(1, 2, 1)), c(FALSE, FALSE, TRUE))
   expect_error(par_duplicated(x, nthreads = -1), "nthreads")
 })
+
+test_that("par_unique() agrees with unique()", {
+  set.seed(3)
+  n <- 3e4
+  xs <- list(
+    sample.int(1000, n, TRUE),
+    c(sample(c(-0, 0, NA, NaN, 1.5), n, TRUE)),
+    as.character(sample.int(1000, n, TRUE)),
+    factor(sample(c(letters, NA), n, TRUE)),
+    factor(sample(letters, n, TRUE), ordered = TRUE),
+    as.Date("2026-01-01") + sample(0:30, n, TRUE),
+    as.POSIXct("2026-01-01", tz = "UTC") + sample(1e3, n, TRUE),
+    setNames(sample(5, n, TRUE), rep("a", n)), # names dropped
+    c(3, 1, 3), # base
+    matrix(c(1, 1, 2, 2), 2), # unique() by rows
+    list(1, 1, "a"),
+    data.frame(a = sample(3, n, TRUE), b = sample(letters[1:3], n, TRUE))
+  )
+  for (x in xs) {
+    for (fl in c(FALSE, TRUE)) {
+      expect_identical(par_unique(x, fromLast = fl), unique(x, fromLast = fl))
+    }
+  }
+})
