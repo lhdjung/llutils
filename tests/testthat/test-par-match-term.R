@@ -188,3 +188,8 @@ test_that("the kept automaton is rebuilt when terms or ignore_case change", {
   terms[2] <- "c"
   expect_identical(par_match_term("b", terms), NA_integer_)
 })
+
+test_that("an empty term matches only between characters", {
+  e <- intToUtf8(233)
+  expect_identical(par_match_term(e, "", whole_word = TRUE), NA_integer_)
+})

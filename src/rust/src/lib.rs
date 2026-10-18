@@ -491,6 +491,8 @@ fn hits<'a>(
     whole_word: bool,
 ) -> impl Iterator<Item = u32> + 'a {
     ac.find_overlapping_iter(s)
+        // An empty term also matches between the bytes of one character.
+        .filter(move |m| !(m.is_empty() && s.get(m.start()).is_some_and(|b| b & 0xC0 == 0x80)))
         .filter(move |m| {
             !whole_word
                 || !(is_word(last_char(&s[..m.start()])) || is_word(first_char(&s[m.end()..])))
