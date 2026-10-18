@@ -9,7 +9,9 @@
 #'   are handled in Rust when `x` has at least 1e4 elements. Anything else,
 #'   including a `vec` that is unsorted or contains `NA`, goes to base
 #'   [findInterval()], which also gives its errors. Base is already fast for
-#'   sorted `x`, where it doesn't need to search from scratch.
+#'   sorted `x`, where it doesn't need to search from scratch. `checkSorted`
+#'   and `checkNA` are passed to base, from R 4.5.0, which added them; Rust
+#'   always checks.
 #'
 #' @inheritParams base::findInterval
 #' @inheritParams par_match
@@ -48,15 +50,22 @@ par_find_interval <- function(
       anyNA(vec) ||
       is.unsorted(vec)
   ) {
-    findInterval(
-      x,
-      vec,
-      rightmost.closed,
-      all.inside,
-      left.open,
-      checkSorted,
-      checkNA
-    )
+    # checkSorted and checkNA arrived in R 4.5.0. A local copy keeps R CMD
+    # check on older R from flagging them, and errors still name it.
+    findInterval <- base::findInterval
+    if (getRversion() < "4.5.0") {
+      findInterval(x, vec, rightmost.closed, all.inside, left.open)
+    } else {
+      findInterval(
+        x,
+        vec,
+        rightmost.closed,
+        all.inside,
+        left.open,
+        checkSorted,
+        checkNA
+      )
+    }
   } else {
     par_find_interval_rs(
       as_dbl(x),

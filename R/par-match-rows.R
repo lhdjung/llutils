@@ -63,8 +63,9 @@ par_match_rows <- function(
     b <- table[[j]]
 
     if (identical(class(a), "Date") && identical(class(b), "Date")) {
-      # Base matches Dates by their printed day; Rust floors them.
-      day[j] <- TRUE
+      # Before R 4.6.0, base matches Dates by their printed day; Rust floors
+      # them.
+      day[j] <- dates_by_day()
       a <- as_dbl(a)
       b <- as_dbl(b)
     } else {

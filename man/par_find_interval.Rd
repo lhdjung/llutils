@@ -66,7 +66,9 @@ Integer and double \code{x} and \code{vec} (including Dates and POSIXct)
 are handled in Rust when \code{x} has at least 1e4 elements. Anything else,
 including a \code{vec} that is unsorted or contains \code{NA}, goes to base
 \code{\link[=findInterval]{findInterval()}}, which also gives its errors. Base is already fast for
-sorted \code{x}, where it doesn't need to search from scratch.
+sorted \code{x}, where it doesn't need to search from scratch. \code{checkSorted}
+and \code{checkNA} are passed to base, from R 4.5.0, which added them; Rust
+always checks.
 }
 \examples{
 par_find_interval(c(1.5, 3.2, 0, 4), vec = 1:4, nthreads = 2)

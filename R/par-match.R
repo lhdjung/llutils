@@ -104,7 +104,7 @@ par_match_fast <- function(x, table, nomatch, nthreads) {
       as_dbl(table),
       nomatch,
       nthreads,
-      TRUE
+      dates_by_day()
     ))
   }
 

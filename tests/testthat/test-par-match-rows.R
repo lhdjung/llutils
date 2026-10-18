@@ -47,7 +47,7 @@ test_that("columns pair as par_match() pairs vectors", {
   d <- as.Date(c(1.5, 2, 1))
   expect_identical(
     par_match_rows(list(d), list(as.Date(c(1, 2)))),
-    c(1L, 2L, 1L)
+    match(d, as.Date(c(1, 2))) # by day before R 4.6.0, by number since
   )
   # Mixed or unhandled types go through par_match() first
   expect_identical(par_match_rows(list(c("1", "2")), list(1:2)), c(1L, 2L))
@@ -76,8 +76,11 @@ test_that("bad arguments error", {
 })
 
 test_that("par_match_rows() matches Dates beyond 1e10 days as base does", {
-  # Base matches these by their printed numbers: 1e15 and 1e15 + 1 are equal.
+  # Before R 4.6.0, base matches these by their printed numbers, so 1e15 and
+  # 1e15 + 1 are equal; since, by the numbers themselves.
   x <- list(.Date(c(1e15, rep(1, 2e4))), 1:20001)
   table <- list(.Date(c(1e15 + 1, rep(2, 2e4))), 1:20001)
-  expect_identical(par_match_rows(x, table)[1:2], c(1L, NA))
+  # Rows are equal where each column's first match in `table` is.
+  key <- function(l) paste(match(l[[1]], table[[1]]), l[[2]])
+  expect_identical(par_match_rows(x, table), match(key(x), key(table)))
 })

@@ -117,8 +117,9 @@ Use cases for every function are collected in
   strings), so small inputs use fewer than `nthreads`. A forked child gets
   fresh pools.
 - Other classes (difftime, integer64, POSIXlt, subclasses of Date) go to
-  base. So do tables longer than 2^31 - 1, Dates beyond 1e10 days (base
-  matches those by their printed numbers), and string tables with non-ASCII
+  base. So do tables longer than 2^31 - 1, Dates beyond 1e10 days before
+  R 4.6.0 (base matches those by their printed numbers), and string tables
+  with non-ASCII
   text in mixed or latin1/bytes encodings.
 
 `par_detect()`:
@@ -236,7 +237,7 @@ Use cases for every function are collected in
   from busy cores. Rows of an integer, a double, and a string column take
   170-330ms (collapse 370-480ms).
 - Dates and POSIXct compare by their numbers, as in base, not by printed
-  day as in `match()`. A one-column data frame goes to the vector path, as
+  day as in `match()` before R 4.6.0. A one-column data frame goes to the vector path, as
   base does; for more columns, rows are hashed as in `par_match_rows()`.
   Any class outside factor, Date, and POSIXct goes to base, since it may
   have its own `duplicated()` method; so do matrices.
@@ -271,8 +272,9 @@ Use cases for every function are collected in
 - Row indices are a `u32` vector as long as the longer side, 40MB for 1e7
   rows, so `par_match()` can take rows as slices. More than 2^31 - 1 rows
   is an error.
-- A pair of Date columns with a value beyond 1e10 days is matched as
-  positions from `par_match()`, as base matches those by printed number.
+- Before R 4.6.0, a pair of Date columns with a value beyond 1e10 days is
+  matched as positions from `par_match()`, as base matches those by
+  printed number.
 
 `par_find_interval()`:
 
@@ -288,7 +290,12 @@ Versions:
 
 - Rust 1.83 or later: `f64::from_bits` in a `const`, `div_ceil`, and the
   locked rayon need it. R 4.3 or later: base matches Dates by printed day
-  only since `mtfrm()` arrived there.
+  only since `mtfrm()` arrived there. R 4.6.0 added `mtfrm.Date()`, which
+  matches them by number, so `par_match()` and `par_match_rows()` check
+  the R version when called (`dates_by_day()`). `findInterval()` has
+  `checkSorted` and `checkNA` only from R 4.5.0, so the fallback to base
+  passes them only from there. CI runs R 4.3 and the current release;
+  locally, check both rules when R changes how it matches a class.
 
 ## Release 0.1.0 (later)
 
