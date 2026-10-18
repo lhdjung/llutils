@@ -826,9 +826,21 @@ fn par_count_rs(
         &p,
         Rint::na(),
         nthreads,
-        |re, s| count(re.find_iter(s)),
+        |re, s| {
+            count(
+                re.find_iter(s)
+                    .filter(|m| !splits_char(s, m.start(), m.end())),
+            )
+        },
     );
     Ok(out)
+}
+
+/// Whether a match from `start` to `end` is an empty one between the bytes
+/// of one UTF-8 character. Regexes on bytes and the automaton report those,
+/// and R's functions, which match by character, don't.
+fn splits_char(s: &[u8], start: usize, end: usize) -> bool {
+    start == end && s.get(start).is_some_and(|b| b & 0xC0 == 0x80)
 }
 
 /// The length of an iterator as an R integer, capped at R's largest.
@@ -850,23 +862,28 @@ enum Piece {
 /// The strings `out` describes, each made from the string of `x` at its
 /// position. They are UTF-8, as R passes `x` through `enc2utf8()`, except
 /// those made from bytes-encoded strings, which stay bytes.
-fn strings(x: &[usize], out: Vec<Piece>) -> Robj {
+fn strings(x: &[usize], out: Vec<Piece>) -> extendr_api::Result<Robj> {
     let res: Robj = Strings::new(out.len()).into();
     for (i, (piece, &p)) in out.into_iter().zip(x).enumerate() {
         unsafe {
             let ce = if Rf_getCharCE(p as SEXP) == 3 { 3 } else { 1 };
-            let make = |s: &[u8]| Rf_mkCharLenCE(s.as_ptr() as *const c_char, s.len() as c_int, ce);
+            let make = |s: &[u8]| -> extendr_api::Result<SEXP> {
+                let n = c_int::try_from(s.len()).map_err(|_| {
+                    Error::Other("A result is longer than R's limit of 2^31 - 1 bytes.".into())
+                })?;
+                Ok(Rf_mkCharLenCE(s.as_ptr() as *const c_char, n, ce))
+            };
             let s = match piece {
                 Piece::Na => R_NaString,
                 Piece::Same => p as SEXP,
                 Piece::Span(a, b) if a == 0 && b == bytes(p).len() => p as SEXP,
-                Piece::Span(a, b) => make(&bytes(p)[a..b]),
-                Piece::New(v) => make(&v),
+                Piece::Span(a, b) => make(&bytes(p)[a..b])?,
+                Piece::New(v) => make(&v)?,
             };
             SET_STRING_ELT(res.get(), i as isize, s);
         }
     }
-    res
+    Ok(res)
 }
 
 /// The first match of `pattern` in each string, or its capture group
@@ -896,7 +913,7 @@ fn par_extract_rs(
         };
         m.map_or(Piece::Na, |m| Piece::Span(m.start(), m.end()))
     });
-    Ok(strings(x, out))
+    strings(x, out)
 }
 
 /// Every match of `pattern` in each string replaced by `replacement`, in
@@ -915,18 +932,43 @@ fn par_replace_rs(
     let rep = unsafe { bytes(charsxps(&replacement)[0]) };
     let x = unsafe { charsxps(&x) };
     let mut out = vec![Piece::Na; x.len()];
+    // As `regex::bytes::Regex::replace_all()`, which expands groups only if
+    // the replacement has a `$`, but without the empty matches inside a
+    // character that it would also replace.
+    let expand = !fixed && rep.contains(&b'$');
     per_pattern(&mut out, x, &p, Piece::Na, nthreads, |re, s| {
-        let r = if fixed {
-            re.replace_all(s, regex::bytes::NoExpand(rep))
-        } else {
-            re.replace_all(s, rep)
+        let mut new = Vec::new();
+        let mut last = None;
+        let mut put = |new: &mut Vec<u8>, m: regex::bytes::Match| -> bool {
+            if splits_char(s, m.start(), m.end()) {
+                return false;
+            }
+            new.extend_from_slice(&s[last.unwrap_or(0)..m.start()]);
+            last = Some(m.end());
+            true
         };
-        match r {
-            std::borrow::Cow::Borrowed(_) => Piece::Same,
-            std::borrow::Cow::Owned(v) => Piece::New(v),
+        if expand {
+            for c in re.captures_iter(s) {
+                if put(&mut new, c.get(0).unwrap()) {
+                    c.expand(rep, &mut new);
+                }
+            }
+        } else {
+            for m in re.find_iter(s) {
+                if put(&mut new, m) {
+                    new.extend_from_slice(rep);
+                }
+            }
+        }
+        match last {
+            None => Piece::Same,
+            Some(last) => {
+                new.extend_from_slice(&s[last..]);
+                Piece::New(new)
+            }
         }
     });
-    Ok(strings(x, out))
+    strings(x, out)
 }
 
 /// The automaton for `terms`. Building one takes about 0.9ms for 1000
@@ -967,8 +1009,7 @@ fn hits<'a>(
     whole_word: bool,
 ) -> impl Iterator<Item = u32> + 'a {
     ac.find_overlapping_iter(s)
-        // An empty term also matches between the bytes of one character.
-        .filter(move |m| !(m.is_empty() && s.get(m.start()).is_some_and(|b| b & 0xC0 == 0x80)))
+        .filter(move |m| !splits_char(s, m.start(), m.end()))
         .filter(move |m| {
             !whole_word
                 || !(is_word(last_char(&s[..m.start()])) || is_word(first_char(&s[m.end()..])))

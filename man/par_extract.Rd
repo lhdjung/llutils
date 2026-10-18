@@ -48,7 +48,8 @@ group named \verb{1a}. R's \verb{\\\\1} is not a group here.}
 \value{
 A character vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern}
 is \code{NA}, and for \code{par_extract()}, also where nothing matches, or the
-group took no part in the match.
+group took no part in the match. \code{par_replace()} keeps the names of
+\code{x}, as \code{\link[=gsub]{gsub()}} does.
 }
 \description{
 \code{par_extract()} gives the first match of \code{pattern} in each

@@ -21,7 +21,8 @@
 #'
 #' @returns A character vector as long as `x`, `NA` where `x` or `pattern`
 #'   is `NA`, and for `par_extract()`, also where nothing matches, or the
-#'   group took no part in the match.
+#'   group took no part in the match. `par_replace()` keeps the names of
+#'   `x`, as [gsub()] does.
 #'
 #' @export
 #'
@@ -75,5 +76,7 @@ par_replace <- function(
   rs <- function(x, pattern, fixed, nthreads) {
     par_replace_rs(x, pattern, replacement, fixed, nthreads)
   }
-  run_pattern(rs, x, pattern, fixed, nthreads)
+  out <- run_pattern(rs, x, pattern, fixed, nthreads)
+  names(out) <- names(x) # as gsub() keeps them
+  out
 }

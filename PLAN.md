@@ -68,7 +68,14 @@ Use cases for every function are collected in
    on the Rust path (NA/NaN, -0, encodings, factors, Dates, POSIXct, data
    frame columns, zero-length inputs) and found them identical. It fixed
    unbounded `nthreads`, inputs past 2^31 - 1 in `par_duplicated()` and
-   `par_match_rows()`, and far Dates in `par_match_rows()`.
+   `par_match_rows()`, and far Dates in `par_match_rows()`. A second review
+   the same day, of `par_unique()`, `par_which_term()`, `par_extract()`,
+   and `par_replace()`, compared about 90 more cases (bytes and mixed
+   encodings, empty matches, groups, replacement syntax, factor and data
+   frame classes). It fixed empty matches between the bytes of one
+   character in `par_replace()` and `par_count()` (`""` in `"é"` gave
+   invalid UTF-8), subclassed factors and `contrasts` in `par_unique()`,
+   and names in `par_replace()`, which `gsub()` keeps.
 
 ## Open (start each when there's a concrete use)
 

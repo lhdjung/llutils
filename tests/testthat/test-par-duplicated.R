@@ -83,6 +83,8 @@ test_that("par_unique() agrees with unique()", {
     c(3, 1, 3), # base
     matrix(c(1, 1, 2, 2), 2), # unique() by rows
     list(1, 1, "a"),
+    structure(factor(sample(letters, n, TRUE)), class = c("myf", "factor")),
+    `contrasts<-`(factor(sample(letters[1:3], n, TRUE)), value = contr.sum(3)),
     data.frame(a = sample(3, n, TRUE), b = sample(letters[1:3], n, TRUE))
   )
   for (x in xs) {

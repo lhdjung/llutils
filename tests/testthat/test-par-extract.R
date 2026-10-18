@@ -105,3 +105,20 @@ test_that("empty inputs give empty results", {
   expect_identical(par_extract(character(), character()), character())
   expect_identical(par_replace(character(), "a", "b"), character())
 })
+
+test_that("empty matches never split a character", {
+  e <- intToUtf8(233)
+  expect_identical(par_replace(e, "", "-"), gsub("", "-", e))
+  expect_identical(
+    par_replace(paste0(e, "x", e), "x*", "-"),
+    paste0("-", e, "-", e, "-")
+  )
+  expect_identical(par_replace(e, "", "-", fixed = TRUE), paste0("-", e, "-"))
+  expect_identical(par_count(e, ""), 2L)
+  expect_identical(par_count(rep(e, 6000), "x*"), rep(2L, 6000)) # parallel
+})
+
+test_that("par_replace() keeps names, as gsub() does", {
+  x <- c(a = "x1", b = "y")
+  expect_identical(par_replace(x, "[0-9]", "#"), gsub("[0-9]", "#", x))
+})

@@ -92,14 +92,21 @@ par_unique <- function(
       drop = FALSE
     ])
   }
-  if (!is.null(dim(x)) || !is_dup_class(x)) {
+  # A subclass of factor may have its own unique() method.
+  plain_factor <- identical(class(x), "factor") ||
+    identical(class(x), c("ordered", "factor"))
+  if (!is.null(dim(x)) || !is_dup_class(x) || (is.factor(x) && !plain_factor)) {
     return(unique(x, incomparables, fromLast = fromLast))
   }
-  # unique() keeps a factor's levels, and the class and time zone of Dates
-  # and POSIXct, which `[` keeps too, but drops names.
-  x <- x[!par_duplicated(x, incomparables, fromLast, nthreads)]
-  names(x) <- NULL
-  x
+  # unique() keeps the class and time zone of Dates and POSIXct, which `[`
+  # keeps too, but drops names, and a factor keeps only its levels and class.
+  out <- x[!par_duplicated(x, incomparables, fromLast, nthreads)]
+  if (is.factor(x)) {
+    attributes(out) <- list(levels = levels(x), class = class(x))
+  } else {
+    names(out) <- NULL
+  }
+  out
 }
 
 # Classes whose duplicated() method compares the underlying values, as Rust
