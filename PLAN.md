@@ -1,8 +1,9 @@
 # llutils: plan
 
-Multithreaded `match()`, `%in%`, `duplicated()`, `findInterval()`, row
-matching, regex detection and counting, and dictionary lookup
-(`par_match_term()`, `par_count_term()`) in Rust. Open work
+Multithreaded `match()`, `%in%`, `duplicated()`, `unique()`,
+`findInterval()`, row matching, regex detection, counting, extraction, and
+replacement, and dictionary lookup (`par_match_term()`, `par_count_term()`,
+`par_which_term()`) in Rust. Open work
 only. Started from exhaustive's Rust plan (`git show 1b2678c:PLAN.md` in
 exhaustive).
 Benchmarks are in `bench/`, run on 2026-10-17 with 8 cores. Measure after
@@ -71,19 +72,16 @@ Use cases for every function are collected in
 
 ## Open (start each when there's a concrete use)
 
-- All terms per string, not just the first: a list of integer vectors, for
-  tagging (an abstract with every drug it names). Wait for a request; the
-  first-term contract covers coding, which assigns one category.
-- Parallel `unique()` and distinct counts. `fnunique()` takes 102ms at 1e7
-  single-threaded, but a hash table shared across threads is real work, so
-  this goes last.
-- Extracting or replacing regex matches. Both build strings, which only
-  R's thread can do, so measure how much of the regex speedup survives.
 - `par_match_term()` with regex terms, through `regex::RegexSet`. Literal
-  terms cover the dictionary case, so this waits for a request.
-- `par_detect()` with many distinct patterns: group the strings by pattern,
-  so each regex builds its cache about once instead of once per chunk (see
-  Known limits). Wait for a case with thousands of distinct patterns.
+  terms cover the dictionary case, and `ignore_case` (ASCII folding in
+  aho-corasick, Unicode in regex) and `whole_word` would mean different
+  things for regex terms, so this waits for a request.
+- `par_unique()` in Rust, to catch collapse: collect each bucket's first
+  occurrences while partitioning, instead of `x[!par_duplicated(x)]` (see
+  Known limits).
+- `sub()` (first match only) and all matches per string (a list, as
+  `stri_extract_all_regex()`). Both fit what `par_replace()` and
+  `par_which_term()` already do; wait for a use.
 
 ## Known limits
 
@@ -139,11 +137,14 @@ Use cases for every function are collected in
   by hashing their string pointers, serially, then compiled on the threads,
   and each chunk clones a regex the first time it meets it. With 10
   distinct patterns in 1e6 strings that takes 14ms (stringi 2.1s); with
-  1e4, 0.6-0.7s (stringi 2.7s), because each of the 32 chunks clones most
-  of the regexes, and each clone builds its own cache: 2 threads, with
-  fewer chunks, are faster than 8 here. Sharing the regexes across
-  threads instead took 410ms for 1e4 but doubled the time for 10, from
-  contention on their caches.
+  1e4, 76-92ms on 8 threads and 183ms on 2 (stringi 2.7s), though each of
+  the 32 chunks clones most of the regexes. An earlier measurement of
+  0.6-0.7s for 1e4 no longer holds. Sorting the strings by pattern first,
+  so each regex builds its cache in about one chunk, was slower at every
+  count from 10 to 1e4 distinct patterns (10: 34ms, 1e4: 110ms): the
+  serial sort, gather, and scatter cost more than the clones. Sharing the
+  regexes across threads took 410ms for 1e4 and doubled the time for 10,
+  from contention on their caches.
 - `par_count()` uses the same machinery and counts with `find_iter()`.
   Empty matches follow Rust, not `gregexpr()`, and the docs spell out
   the two differences: Rust counts one at the end of a non-empty string
@@ -151,6 +152,24 @@ Use cases for every function are collected in
   non-empty match (`"a*"` in `"banana"`: 4, `gregexpr()` 6). stringi
   counts both (7). Copying `gregexpr()` isn't worth the code. At 1e6
   strings it takes 30ms against 232ms for `stri_count_regex()`.
+- `par_extract()` and `par_replace()` find matches on the threads, and
+  `par_replace()` builds the new strings there too, but only R's thread
+  may make R strings (`Rf_mkCharLenCE()`, which hashes each into R's
+  global string cache), so that part is serial. Making 1e6 strings takes
+  about 0.4s on its own (`paste0(x, "_")`), which bounds both. Strings
+  `par_replace()` leaves unchanged are reused, not made again, and so are
+  matches that span the whole string in `par_extract()`. At 1e6 strings:
+  extracting a match that 1 in 10 strings has takes 32ms (PCRE 380ms,
+  stringi 520ms); extracting a group from every string, 0.2s (stringi
+  4.8s, PCRE `regexec()` 16s); replacing in the 11% of strings that
+  match, 55ms (PCRE 445ms, stringi 1.5s); replacing in all of them,
+  0.23-0.4s (PCRE 460ms); swapping two groups in every string, 450ms,
+  tied with PCRE (stringi 1.3s). Where every string changes, threads
+  barely help.
+- Results are marked UTF-8, as R passes `x` through `enc2utf8()`, except
+  those made from bytes-encoded strings. `par_extract()` gives `NA` where
+  nothing matches, as stringi does, not a shorter vector, as `regmatches()`
+  does. A `group` beyond the pattern's groups is an error.
 - The `regex` crate and its 4 dependencies add 5 of the package's 25
   crates, which adds to the vendored tarball.
 
@@ -175,6 +194,13 @@ Use cases for every function are collected in
   overlapping ones included, so a term listed twice counts twice. At 1e5
   strings and 1000 terms it takes 3.1ms, against 4.9s for a
   `stri_count_fixed()` per term.
+- `par_which_term()` collects each string's hits on the threads, sorted
+  and deduplicated, into a `Vec` per string, then makes one integer vector
+  per string on R's thread. At 1e5 strings of four words and 1000 terms it
+  takes 7.6ms (2 threads: 20ms), against 7.9s for a `stri_detect_fixed()`
+  per term and 61s for `stri_extract_all_regex()` on the alternation. At
+  1e6 strings it takes 186ms, where `par_match_term()` takes 46ms: most of
+  the difference is making the 1e6 vectors.
 - `ignore_case` folds ASCII letters only, which is what aho-corasick offers.
   Lowercasing both sides with `tolower()` covers the rest.
 - `whole_word` drops a hit if the character right before or after it is a
@@ -204,7 +230,15 @@ Use cases for every function are collected in
   base does; for more columns, rows are hashed as in `par_match_rows()`.
   Any class outside factor, Date, and POSIXct goes to base, since it may
   have its own `duplicated()` method; so do matrices.
-- `unique()` is `x[!par_duplicated(x)]`; no `par_unique()` until asked.
+- `par_unique()` is `x[!par_duplicated(x)]`, without names, as
+  `unique()` returns it; data frames take rows as `unique.data.frame()`
+  does, and matrices and other classes go to base. At 1e7 elements with
+  1e6 distinct it takes 66ms for integers, 74ms for doubles, and 189ms
+  for strings (base 0.44s, 0.70s, 1.7s; collapse `funique()` 35ms,
+  163ms, 99ms): collapse wins for integers and strings by about 2x, where
+  the subset after `par_duplicated()` is a third of the time.
+  `sum(!par_duplicated(x))` counts distinct integers in 63ms (collapse
+  `fnunique()` 105ms, data.table `uniqueN()` 184ms).
 - Inputs longer than 2^31 - 1 go to base: positions are 32-bit.
 
 `par_match_rows()`:

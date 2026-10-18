@@ -3,12 +3,13 @@ Title: Multithreaded Matching and Regex Detection for Large Vectors
 Version: 0.0.0.9000
 Authors@R: person("Lukas", "Jung", , "jung-lukas@gmx.net", role = c("aut", "cre"))
 Description: Multithreaded versions of match(), %in%, duplicated(),
-    findInterval(), and grepl(), written in Rust, and matching on several
-    key columns at once. match(), %in%, duplicated(), and findInterval()
-    give the same results as base R, and fall back to it below the size
-    where threads pay off. Regex detection and counting use the syntax of
-    Rust's regex crate. Dictionary lookup finds which of many literal terms
-    each string contains, or how many hits it has, in one pass per string.
+    unique(), findInterval(), grepl(), and gsub(), written in Rust, and
+    matching on several key columns at once. match(), %in%, duplicated(),
+    unique(), and findInterval() give the same results as base R, and fall
+    back to it below the size where threads pay off. Regex detection,
+    counting, extraction, and replacement use the syntax of Rust's regex
+    crate. Dictionary lookup finds which of many literal terms each string
+    contains, or how many hits it has, in one pass per string.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

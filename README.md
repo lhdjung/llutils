@@ -9,12 +9,12 @@
 
 llutils provides ultra-fast replacements for common R utility functions.
 
-It features `match()`, `%in%`, `duplicated()`, and `findInterval()`
-equivalents, row matching on several key columns, regex detection and
-counting, and dictionary lookup, on all your cores. It is written in
-Rust. `par_match()`, `%par_in%`, `par_duplicated()`, and
-`par_find_interval()` behave exactly like base R, so they are drop-in
-replacements. `par_detect()` is `grepl()` with the syntax of Rust’s
+It features `match()`, `%in%`, `duplicated()`, `unique()`, and
+`findInterval()` equivalents, row matching on several key columns, regex
+detection, counting, extraction, and replacement, and dictionary lookup,
+on all your cores. It is written in Rust. `par_match()`, `%par_in%`,
+`par_duplicated()`, `par_unique()`, and `par_find_interval()` behave
+exactly like base R, so they are drop-in replacements. `par_detect()` is `grepl()` with the syntax of Rust’s
 [regex crate](https://docs.rs/regex/latest/regex/#syntax), which never
 backtracks.
 
@@ -131,7 +131,8 @@ plot(results)
 
 To count hits instead, `par_count_term()` gives the number of term
 occurrences in each string, as for scoring text against a sentiment
-lexicon. `par_count()` counts regex matches per string.
+lexicon, and `par_which_term()` gives every term each string contains,
+for tagging. `par_count()` counts regex matches per string.
 
 ## General matching
 
@@ -169,7 +170,8 @@ strings. The numbers behind the comparison with collapse are in
 `bench/`.
 
 `par_duplicated()` is `duplicated()` on the same hash tables, built in
-parallel, and compares the rows of data frames as base does.
+parallel, and compares the rows of data frames as base does;
+`par_unique()` is `unique()` on top of it.
 `par_match_rows()` matches rows on several key columns at once, as in a
 join: it hashes whole rows in parallel, so a lookup of 10 million rows
 into 10 million others takes a fraction of a second, where pasting the
@@ -186,8 +188,8 @@ The [use-cases
 article](https://github.com/lhdjung/llutils/blob/main/vignettes/articles/use-cases.Rmd)
 shows each function at work: coding free text with a keyword table,
 scoring text against a lexicon, filtering logs, validating identifiers,
-lookups and joins on one or several keys, finding duplicates, and
-binning.
+extracting and rewriting parts of strings, lookups and joins on one or
+several keys, finding duplicates, and binning.
 
 ## Threads
 
@@ -207,6 +209,14 @@ differences:
   `(?-u:\d)` for ASCII.
 - Flags go in the pattern: `(?i)` ignores case.
 - `NA` gives `NA`, where `grepl()` gives `FALSE`.
+
+`par_extract()` gives the first match in each string, or a capture group
+of it, which takes the place of lookaround. `par_replace()` replaces
+every match, as `gsub()` does, with `$1` instead of `\\1` for a group.
+Only R’s own thread can make R strings, so the more strings change, the
+more of the time that takes: where a tenth of a million strings change,
+it is about 8 times faster than `gsub(perl = TRUE)`, and where all of
+them do, about twice as fast.
 
 ## Installation
 

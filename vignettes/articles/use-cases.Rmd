@@ -85,6 +85,31 @@ The same pattern works for:
 string gets one category. To keep only the strings that contain any term,
 use `!is.na(par_match_term(x, terms))`.
 
+## Tagging text with every term it names
+
+For tagging rather than coding, `par_which_term()` gives every term a
+string contains, as positions in `terms`, each once:
+
+```{r}
+drugs <- c("aspirin", "ibuprofen", "paracetamol", "codeine")
+abstracts <- c(
+  "Ibuprofen versus paracetamol for pain after surgery",
+  "Aspirin in primary prevention",
+  "Physiotherapy for back pain"
+)
+tags <- par_which_term(abstracts, drugs, ignore_case = TRUE, whole_word = TRUE)
+vapply(tags, function(i) paste(drugs[i], collapse = ", "), "")
+```
+
+A long table of every pair of string and term is one step away:
+
+```{r}
+data.frame(
+  abstract = rep(seq_along(tags), lengths(tags)),
+  drug = drugs[unlist(tags)]
+)
+```
+
 ## Scoring text against a lexicon
 
 Sentiment and topic scores often count how many words from a list each
@@ -162,6 +187,30 @@ makes a large alternation slow.
 Factor columns are matched by their levels, so a factor of a million
 elements with 50 levels costs little more than matching 50 strings.
 
+## Extracting and rewriting parts of strings
+
+`par_extract()` pulls the first match out of each string, or `NA` where
+there is none. Rust's regex has no lookaround, so to take part of a match,
+give it a capture group and say which one:
+
+```{r}
+notes <- c("BP 120/80, HR 72", "HR 95", "no vitals", NA)
+par_extract(notes, "HR ([0-9]+)", group = 1)
+as.integer(par_extract(notes, "HR ([0-9]+)", group = 1))
+```
+
+`par_replace()` replaces every match, as `gsub()` does. In the replacement,
+`$1` stands for the first group, where `gsub()` takes `\\1`:
+
+```{r}
+people <- c("Smith, Jane", "Doe, John", "Prince")
+par_replace(people, "^(\\w+), (\\w+)$", "$2 $1")
+par_replace(c("phone: 044 123 45 67", NA), "[^0-9]", "")
+```
+
+Only R's own thread can make R strings, so both run fastest where few
+strings change, such as redacting the few that hold an email address.
+
 ## Lookups and joins
 
 `par_match()` and `%par_in%` return exactly what `match()` and `%in%`
@@ -207,12 +256,14 @@ orders
 ## Finding duplicates
 
 `par_duplicated()` returns what `duplicated()` returns, so it finds repeated
-keys and removes repeated rows:
+keys and removes repeated rows. `par_unique()` returns what `unique()`
+returns:
 
 ```{r}
 ids <- c("a", "b", "a", "c", "b")
 par_duplicated(ids)
-ids[!par_duplicated(ids)] # same as unique(ids)
+par_unique(ids)
+sum(!par_duplicated(ids)) # number of distinct IDs
 
 # Every row that has a twin, including the first one
 visits <- data.frame(
