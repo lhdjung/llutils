@@ -158,29 +158,53 @@ fn scan<X: Sync, T: Sync, K: Copy + Hash + Eq + Send + Sync>(
     out
 }
 
-/// Below this many table elements, one map built on one thread is fastest.
-const PARTITION_MIN: usize = 1 << 16;
-
 /// Table position (1-based) by key, first position winning. A large table
 /// is split by hash into one map per bucket, so the build runs in parallel
-/// too: each chunk of the table is sorted into per-bucket runs, then each
-/// bucket's map is filled from its runs in table order.
+/// too: each bucket's map is filled from its runs in table order.
 fn build<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
     table: &[T],
     key: &(impl Fn(&T) -> K + Sync),
 ) -> Vec<HashMap<K, i32>> {
-    let nt = rayon::current_num_threads().min(table.len() / MATCH_PER_THREAD);
-    if table.len() < PARTITION_MIN || nt <= 1 {
+    let Some((nb, runs)) = partition(table, key) else {
         let mut m = map(table.len(), table.len());
         // Reverse so earlier positions overwrite later ones.
         for (i, v) in table.iter().enumerate().rev() {
             m.insert(key(v), i as i32 + 1);
         }
         return vec![m];
+    };
+    (0..nb)
+        .into_par_iter()
+        .map(|b| {
+            let n = runs.iter().map(|r| r[b].len()).sum();
+            let mut m = map(n, table.len());
+            for (k, i) in runs.iter().flat_map(|r| &r[b]) {
+                m.entry(*k).or_insert(*i);
+            }
+            m
+        })
+        .collect()
+}
+
+/// Below this many table elements, one map built on one thread is fastest.
+const PARTITION_MIN: usize = 1 << 16;
+
+/// A large table split by hash into `nb` buckets, a power of two: each
+/// chunk of the table, 4 per thread, is sorted into one run per bucket of
+/// (key, 1-based position), in table order. `None` for a table below
+/// `PARTITION_MIN`, or too small for two threads.
+#[allow(clippy::type_complexity)]
+fn partition<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
+    table: &[T],
+    key: &(impl Fn(&T) -> K + Sync),
+) -> Option<(usize, Vec<Vec<Vec<(K, i32)>>>)> {
+    let nt = rayon::current_num_threads().min(table.len() / MATCH_PER_THREAD);
+    if table.len() < PARTITION_MIN || nt <= 1 {
+        return None;
     }
     let nb = (nt * 4).next_power_of_two().min(256);
     let chunk = table.len().div_ceil(nt * 4);
-    let runs: Vec<Vec<Vec<(K, i32)>>> = table
+    let runs = table
         .par_chunks(chunk)
         .enumerate()
         .map(|(c, t)| {
@@ -193,17 +217,62 @@ fn build<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
             runs
         })
         .collect();
-    (0..nb)
-        .into_par_iter()
-        .map(|b| {
-            let n = runs.iter().map(|r| r[b].len()).sum();
-            let mut m = map(n, table.len());
-            for (k, i) in runs.iter().flat_map(|r| &r[b]) {
-                m.entry(*k).or_insert(*i);
+    Some((nb, runs))
+}
+
+/// `duplicated(x)`: whether an equal element comes earlier, or later if
+/// `from_last`. A large `x` is split by hash as in `build()`, and each
+/// bucket marks the duplicates among its own keys, so no second pass over
+/// `x` looks them up, as `par_match(x, x)` would.
+fn duplicated<X: Sync, K: Copy + Hash + Eq + Send + Sync>(
+    x: &[X],
+    key: impl Fn(&X) -> K + Sync,
+    from_last: bool,
+    pool: &rayon::ThreadPool,
+) -> Logicals {
+    let mut out = Logicals::new(x.len()); // all FALSE
+    let slice: &mut [Rbool] = &mut out;
+    pool.install(|| {
+        let Some((nb, runs)) = partition(x, &key) else {
+            let mut seen = map(x.len(), x.len());
+            let mut mark = |(o, v): (&mut Rbool, &X)| *o = seen.insert(key(v), ()).is_some().into();
+            if from_last {
+                slice.iter_mut().zip(x).rev().for_each(&mut mark)
+            } else {
+                slice.iter_mut().zip(x).for_each(&mut mark)
             }
-            m
+            return;
+        };
+        let out = Shared(slice.as_mut_ptr());
+        (0..nb).into_par_iter().for_each(|b| {
+            let n = runs.iter().map(|r| r[b].len()).sum();
+            let mut seen = map(n, x.len());
+            let mut mark = |&(k, i): &(K, i32)| {
+                if seen.insert(k, ()).is_some() {
+                    // Each position is in one bucket only, so no two
+                    // threads write the same element.
+                    unsafe { *out.get().add(i as usize - 1) = Rbool::true_value() }
+                }
+            };
+            let run = runs.iter().flat_map(|r| &r[b]);
+            if from_last {
+                run.rev().for_each(&mut mark)
+            } else {
+                run.for_each(&mut mark)
+            }
         })
-        .collect()
+    });
+    out
+}
+
+/// A pointer that threads may share, for writes to disjoint elements.
+struct Shared<T>(*mut T);
+unsafe impl<T> Sync for Shared<T> {}
+impl<T> Shared<T> {
+    // A method, so closures capture the whole struct, not the raw pointer.
+    fn get(&self) -> *mut T {
+        self.0
+    }
 }
 
 /// A map for `n` keys, one of the maps for `total` keys. hashbrown rounds
@@ -384,6 +453,25 @@ fn par_pointers_suffice(x: Robj, table: Robj, nthreads: i32) -> bool {
     pointers_suffice(x, table, &pool(nthreads))
 }
 
+/// `duplicated(x)` for an integer, double, or string vector; `NULL` for
+/// strings that `par_match_chr()` would leave to base.
+/// @noRd
+#[extendr]
+fn par_duplicated_rs(x: Robj, from_last: bool, nthreads: i32) -> Robj {
+    let pool = pool(nthreads);
+    if let Some(v) = x.as_integer_slice() {
+        duplicated(v, |v| *v, from_last, &pool).into()
+    } else if let Some(v) = x.as_real_slice() {
+        duplicated(v, |v| dbl_key(*v), from_last, &pool).into()
+    } else {
+        let v = unsafe { charsxps(&x) };
+        if !pointers_suffice(v, v, &pool) {
+            return ().into();
+        }
+        duplicated(v, |p| *p, from_last, &pool).into()
+    }
+}
+
 /// One column of a row key, its keys equal exactly where `par_match()`
 /// would match. R passes each pair of columns as two integer, two double,
 /// or two string vectors whose pointers suffice; `Day` is a Date matched
@@ -505,6 +593,22 @@ fn par_match_rows_rs(
         2 => par_match(xr, tr, key2(&xc), key2(&tc), nomatch, &pool),
         _ => par_match(xr, tr, |&i| row(&xc, i), |&i| row(&tc, i), nomatch, &pool),
     }
+}
+
+/// `duplicated()` on rows of a list of columns, prepared as for
+/// `par_match_rows_rs()`, with no Dates matched by day.
+/// @noRd
+#[extendr]
+fn par_duplicated_rows_rs(x: List, from_last: bool, nthreads: i32) -> Logicals {
+    let x: Vec<Robj> = x.values().collect();
+    let xc = columns(&x, &[]);
+    let rows: Vec<u32> = (0..x[0].len() as u32).collect();
+    let pool = pool(nthreads);
+    // As in par_match_rows_rs(); R sends one column as a vector instead.
+    if xc.len() == 2 {
+        return duplicated(&rows, key2(&xc), from_last, &pool);
+    }
+    duplicated(&rows, |&i| row(&xc, i), from_last, &pool)
 }
 
 /// Strings per thread below which a regex gains nothing from another.
@@ -905,7 +1009,9 @@ extendr_module! {
     fn par_match_mixed;
     fn par_match_chr;
     fn par_pointers_suffice;
+    fn par_duplicated_rs;
     fn par_match_rows_rs;
+    fn par_duplicated_rows_rs;
     fn par_detect_rs;
     fn par_count_rs;
     fn par_match_term_rs;

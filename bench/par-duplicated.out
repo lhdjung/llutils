@@ -1,0 +1,67 @@
+
+1e7 elements, 1e6 distinct: integer 
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         488.2ms
+2 collapse      85.2ms
+3 data.table   167.3ms
+4 llutils_2     66.5ms
+5 llutils_all   41.6ms
+
+1e7 elements, 1e6 distinct: double 
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base         741.4ms
+2 collapse     181.5ms
+3 data.table     443ms
+4 llutils_2    126.4ms
+5 llutils_all   47.3ms
+
+1e7 elements, 1e6 distinct: character 
+# A tibble: 5 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base           1.74s
+2 collapse    149.95ms
+3 data.table  631.12ms
+4 llutils_2      380ms
+5 llutils_all 274.85ms
+
+Rows of a data frame: integer, double, and string columns, 1e7 rows
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 collapse       477ms
+2 data.table     590ms
+3 llutils_2      513ms
+4 llutils_all    332ms
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] llutils_0.0.0.9000
+
+loaded via a namespace (and not attached):
+ [1] utf8_1.2.6          collapse_2.1.8      magrittr_2.0.5     
+ [4] glue_1.8.1          tibble_3.3.1        parallel_4.5.2     
+ [7] pkgconfig_2.0.3     lifecycle_1.0.5     profmem_0.7.0      
+[10] cli_3.6.6           bench_1.1.4         vctrs_0.7.3        
+[13] data.table_1.18.2.1 compiler_4.5.2      tools_4.5.2        
+[16] pillar_1.11.1       Rcpp_1.1.2          rlang_1.3.0        

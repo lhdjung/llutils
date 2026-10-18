@@ -40,11 +40,21 @@ par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr
 #' @noRd
 par_pointers_suffice <- function(x, table, nthreads) .Call(wrap__par_pointers_suffice, x, table, nthreads)
 
+#' `duplicated(x)` for an integer, double, or string vector; `NULL` for
+#' strings that `par_match_chr()` would leave to base.
+#' @noRd
+par_duplicated_rs <- function(x, from_last, nthreads) .Call(wrap__par_duplicated_rs, x, from_last, nthreads)
+
 #' `match()` on rows: for each row of `x`, the first row of `table` equal
 #' to it in every column, or `nomatch`. Both are lists of columns, which R
 #' prepares as `Col` describes; `day` marks columns of Dates.
 #' @noRd
 par_match_rows_rs <- function(x, table, day, nomatch, nthreads) .Call(wrap__par_match_rows_rs, x, table, day, nomatch, nthreads)
+
+#' `duplicated()` on rows of a list of columns, prepared as for
+#' `par_match_rows_rs()`, with no Dates matched by day.
+#' @noRd
+par_duplicated_rows_rs <- function(x, from_last, nthreads) .Call(wrap__par_duplicated_rows_rs, x, from_last, nthreads)
 
 #' `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
 #' `fixed`. `pattern` is one string, or one per string of `x`. Strings are
