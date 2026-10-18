@@ -14,8 +14,9 @@ It features `match()`, `%in%`, `duplicated()`, `unique()`, and
 detection, counting, extraction, and replacement, and dictionary lookup,
 on all your cores. It is written in Rust. `par_match()`, `%par_in%`,
 `par_duplicated()`, `par_unique()`, and `par_find_interval()` behave
-exactly like base R, so they are drop-in replacements. `par_detect()` is `grepl()` with the syntax of Rust’s
-[regex crate](https://docs.rs/regex/latest/regex/#syntax), which never
+exactly like base R, so they are drop-in replacements. `par_detect()` is
+`grepl()` with the syntax of Rust’s [regex
+crate](https://docs.rs/regex/latest/regex/#syntax), which never
 backtracks.
 
 The gains are largest where base R is slow and the work is bound by CPU:
@@ -68,9 +69,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base         15.02s
-#> 2 stringi       8.45s
-#> 3 llutils     19.39ms
+#> 1 base         15.09s
+#> 2 stringi       8.44s
+#> 3 llutils     20.61ms
 plot(results)
 ```
 
@@ -121,9 +122,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression            median
 #>   <bch:expr>          <bch:tm>
-#> 1 stringi                4.86s
-#> 2 llutils               2.75ms
-#> 3 llutils_ignore_case   2.81ms
+#> 1 stringi                4.93s
+#> 2 llutils               2.87ms
+#> 3 llutils_ignore_case   2.83ms
 plot(results)
 ```
 
@@ -151,9 +152,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base        255.7ms
-#> 2 collapse    178.2ms
-#> 3 llutils      14.1ms
+#> 1 base        250.9ms
+#> 2 collapse    179.4ms
+#> 3 llutils      15.4ms
 plot(results)
 ```
 
@@ -171,11 +172,11 @@ strings. The numbers behind the comparison with collapse are in
 
 `par_duplicated()` is `duplicated()` on the same hash tables, built in
 parallel, and compares the rows of data frames as base does;
-`par_unique()` is `unique()` on top of it.
-`par_match_rows()` matches rows on several key columns at once, as in a
-join: it hashes whole rows in parallel, so a lookup of 10 million rows
-into 10 million others takes a fraction of a second, where pasting the
-columns into strings for `match()` takes seconds per million.
+`par_unique()` is `unique()` on top of it. `par_match_rows()` matches
+rows on several key columns at once, as in a join: it hashes whole rows
+in parallel, so a lookup of 10 million rows into 10 million others takes
+a fraction of a second, where pasting the columns into strings for
+`match()` takes seconds per million.
 
 `par_find_interval()` is `findInterval()` with a binary search per
 element on all cores, for binning values by sorted breaks: 10 million
