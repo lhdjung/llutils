@@ -677,6 +677,52 @@ fn par_count_term_rs(
     Ok(out)
 }
 
+/// `findInterval(x, vec)`: how many of the sorted `vec` are at most each
+/// `x` (below it, if `left_open`), with base's adjustments at the ends.
+/// `NaN` gives `NA`. `vec` must not be empty.
+/// @noRd
+#[extendr]
+fn par_find_interval_rs(
+    x: &[f64],
+    vec: &[f64],
+    rightmost_closed: bool,
+    all_inside: bool,
+    left_open: bool,
+    nthreads: i32,
+) -> Integers {
+    let n = vec.len();
+    let find = |x: f64| -> Rint {
+        if x.is_nan() {
+            return Rint::na();
+        }
+        let closed = |edge: f64| rightmost_closed && x == edge;
+        let i = if left_open {
+            match vec.partition_point(|&v| v < x) {
+                0 if all_inside || closed(vec[0]) => 1,
+                i if i == n && all_inside => n - 1,
+                i => i,
+            }
+        } else {
+            match vec.partition_point(|&v| v <= x) {
+                i if i == n && (all_inside || closed(vec[n - 1])) => n - 1,
+                0 if all_inside => 1,
+                i => i,
+            }
+        };
+        (i as i32).into()
+    };
+    let mut out = Integers::new(x.len());
+    let slice: &mut [Rint] = &mut out;
+    pool(nthreads).install(|| {
+        slice
+            .par_iter_mut()
+            .zip(x)
+            .with_min_len(MATCH_PER_THREAD)
+            .for_each(|(o, &v)| *o = find(v))
+    });
+    out
+}
+
 /// Whether a character counts as part of a word for `whole_word`: a letter
 /// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
 /// the string, or bytes that aren't UTF-8) doesn't.
@@ -725,4 +771,5 @@ extendr_module! {
     fn par_count_rs;
     fn par_match_term_rs;
     fn par_count_term_rs;
+    fn par_find_interval_rs;
 }

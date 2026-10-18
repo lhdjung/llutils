@@ -1,0 +1,61 @@
+
+1e7 values into 100 breaks
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base        421.74ms
+2 data.table     1.82s
+3 llutils_2    45.54ms
+4 llutils_all  18.02ms
+
+1e7 values into 10000 breaks
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base        915.68ms
+2 data.table     1.83s
+3 llutils_2   103.73ms
+4 llutils_all  34.43ms
+
+1e7 values into 1e+06 breaks
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base           2.92s
+2 data.table     2.02s
+3 llutils_2   290.69ms
+4 llutils_all   96.4ms
+
+Sorted x, 1e4 breaks: base needs no search from scratch
+# A tibble: 2 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base          24.8ms
+2 llutils_all   27.9ms
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] llutils_0.0.0.9000
+
+loaded via a namespace (and not attached):
+ [1] compiler_4.5.2      magrittr_2.0.5      bench_1.1.4        
+ [4] cli_3.6.6           pillar_1.11.1       glue_1.8.1         
+ [7] tibble_3.3.1        utf8_1.2.6          vctrs_0.7.3        
+[10] data.table_1.18.2.1 lifecycle_1.0.5     pkgconfig_2.0.3    
+[13] rlang_1.3.0         profmem_0.7.0      

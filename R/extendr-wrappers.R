@@ -62,4 +62,10 @@ par_match_term_rs <- function(x, terms, ignore_case, whole_word, nthreads) .Call
 #' @noRd
 par_count_term_rs <- function(x, terms, ignore_case, whole_word, nthreads) .Call(wrap__par_count_term_rs, x, terms, ignore_case, whole_word, nthreads)
 
+#' `findInterval(x, vec)`: how many of the sorted `vec` are at most each
+#' `x` (below it, if `left_open`), with base's adjustments at the ends.
+#' `NaN` gives `NA`. `vec` must not be empty.
+#' @noRd
+par_find_interval_rs <- function(x, vec, rightmost_closed, all_inside, left_open, nthreads) .Call(wrap__par_find_interval_rs, x, vec, rightmost_closed, all_inside, left_open, nthreads)
+
 # nolint end
