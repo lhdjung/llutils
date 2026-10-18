@@ -1,0 +1,49 @@
+Regex matches per string, 1e6 strings
+# A tibble: 4 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 base_perl      9.13s
+2 stringi     231.63ms
+3 llutils_2    66.53ms
+4 llutils_all  30.37ms
+# A tibble: 3 × 2
+  expression      median
+  <bch:expr>    <bch:tm>
+1 stringi_fixed   54.2ms
+2 llutils_2       27.1ms
+3 llutils_all     11.5ms
+
+Dictionary hits per string, 1e5 strings, 1000 terms
+# A tibble: 4 × 2
+  expression     median
+  <bch:expr>   <bch:tm>
+1 stringi_loop    5.31s
+2 llutils_2      8.21ms
+3 llutils_all    3.12ms
+4 whole_word     3.39ms
+
+R version 4.5.2 (2025-10-31)
+Platform: aarch64-apple-darwin20
+Running under: macOS Tahoe 26.5.2
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] llutils_0.0.0.9000
+
+loaded via a namespace (and not attached):
+ [1] compiler_4.5.2  magrittr_2.0.5  bench_1.1.4     cli_3.6.6      
+ [5] tools_4.5.2     pillar_1.11.1   glue_1.8.1      tibble_3.3.1   
+ [9] utf8_1.2.6      vctrs_0.7.3     stringi_1.8.9   lifecycle_1.0.5
+[13] pkgconfig_2.0.3 rlang_1.3.0     profmem_0.7.0  

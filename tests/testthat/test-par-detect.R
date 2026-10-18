@@ -100,3 +100,42 @@ test_that("pattern can have one element per string", {
   f <- factor(c("ab", "cd", "ab"))
   expect_identical(par_detect(f, c("a", "a", "b")), c(TRUE, FALSE, TRUE))
 })
+
+test_that("par_count() counts non-overlapping matches, as gregexpr() does", {
+  count_base <- function(x, p, ...) {
+    out <- vapply(gregexpr(p, x, ...), function(m) sum(m > 0), 1L)
+    out[is.na(x)] <- NA
+    out
+  }
+  set.seed(4)
+  x <- vapply(
+    1:6000,
+    function(i) {
+      paste(sample(c(letters[1:3], " ", 0:2), 12, TRUE), collapse = "")
+    },
+    ""
+  )
+  x[c(3, 3000)] <- NA
+  for (p in c("a", "ab|ba", "[0-9]+", "\\bc", "aa")) {
+    expect_identical(par_count(x, p), count_base(x, p, perl = TRUE), info = p)
+  }
+  expect_identical(
+    par_count(x, ".", fixed = TRUE),
+    count_base(x, ".", fixed = TRUE)
+  )
+  expect_identical(
+    par_count(c("aaaa", "banana", NA), c("aa", "an", "a")),
+    c(2L, 2L, NA)
+  )
+  f <- factor(rep(c("banana", NA, "kiwi"), 4000))
+  expect_identical(par_count(f, "an"), par_count(as.character(f), "an"))
+  expect_identical(par_count(character(), "a"), integer())
+})
+
+test_that("par_count() treats empty matches as Rust does, unlike gregexpr()", {
+  # Rust counts one at the end of a non-empty string, but not one right
+  # after a non-empty match; gregexpr() does the opposite.
+  x <- c("abc", "banana", "")
+  expect_identical(par_count(x, ""), c(4L, 7L, 1L))
+  expect_identical(par_count(x, "a*"), c(3L, 4L, 1L))
+})

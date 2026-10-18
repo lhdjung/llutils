@@ -2,9 +2,18 @@
 % Please edit documentation in R/par-match-term.R
 \name{par_match_term}
 \alias{par_match_term}
+\alias{par_count_term}
 \title{Find which term each string contains, in parallel}
 \usage{
 par_match_term(
+  x,
+  terms,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+)
+
+par_count_term(
   x,
   terms,
   ignore_case = FALSE,
@@ -32,9 +41,16 @@ default is the \code{llutils.threads} option, or \code{0} if that isn't set. Inp
 too small to keep that many threads busy get fewer.}
 }
 \value{
-An integer vector as long as \code{x}: the position in \code{terms} of the
-first term found in each string, or \code{NA} if none is found or \code{x} is \code{NA}.
-Use \code{terms[par_match_term(x, terms)]} to get the terms themselves.
+An integer vector as long as \code{x}, \code{NA} where \code{x} is \code{NA}:
+\itemize{
+\item \code{par_match_term()}: the position in \code{terms} of the first term found in
+each string, or \code{NA} if none is found. Use
+\code{terms[par_match_term(x, terms)]} to get the terms themselves.
+\item \code{par_count_term()}: the number of hits in each string. Every
+occurrence of every term counts, also where they overlap: \code{"new york"}
+has two hits for \code{c("new york", "york")}, and a term listed twice counts
+twice.
+}
 }
 \description{
 For each string in \code{x}, the index of the first of \code{terms} it
@@ -44,6 +60,9 @@ contains, like \code{match()} for substrings. Terms are literal, as in
 Order sets priority: if a string contains several terms, the one earliest
 in \code{terms} wins, wherever it occurs in the string. Put specific terms
 before general ones, such as \code{"new york"} before \code{"york"}.
+
+\code{par_count_term()} counts every hit of every term instead, for scoring
+strings against a lexicon, such as positive and negative words.
 }
 \details{
 All terms are compiled into one Aho-Corasick automaton, which finds
@@ -58,4 +77,5 @@ par_match_term(c("york and new york", "paris, texas", "rome", NA), cities)
 par_match_term("NEW YORK", cities, ignore_case = TRUE)
 par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 par_match_term("1+1=2", c("+", "("))
+par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
 }

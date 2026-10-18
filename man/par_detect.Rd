@@ -2,9 +2,17 @@
 % Please edit documentation in R/par-detect.R
 \name{par_detect}
 \alias{par_detect}
+\alias{par_count}
 \title{Detect regex matches, in parallel}
 \usage{
 par_detect(
+  x,
+  pattern,
+  fixed = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+)
+
+par_count(
   x,
   pattern,
   fixed = FALSE,
@@ -27,8 +35,12 @@ default is the \code{llutils.threads} option, or \code{0} if that isn't set. Inp
 too small to keep that many threads busy get fewer.}
 }
 \value{
-A logical vector as long as \code{x}: \code{TRUE} where \code{pattern} matches,
-\code{FALSE} where it doesn't, and \code{NA} where \code{x} or \code{pattern} is \code{NA}.
+A vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern} is \code{NA}:
+\itemize{
+\item \code{par_detect()}: logical, \code{TRUE} where \code{pattern} matches and \code{FALSE}
+where it doesn't.
+\item \code{par_count()}: integer, the number of non-overlapping matches.
+}
 }
 \description{
 Like \code{grepl(pattern, x)}, run over several threads, but with
@@ -46,6 +58,20 @@ word, or space character. Write \verb{[0-9]} or \verb{(?-u:\\\\d)} for ASCII onl
 \item Flags go in the pattern: \code{(?i)} ignores case.
 \item \code{NA} gives \code{NA}, where \code{\link[=grepl]{grepl()}} gives \code{FALSE}.
 }
+
+\code{par_count()} counts the matches instead: how many \code{\link[=gregexpr]{gregexpr()}} would
+find, without building them. The counts differ only for patterns that
+can match the empty string, such as \code{""}, \code{"a*"}, or \code{"\\\\b"}, because
+the two engines treat empty matches in opposite ways:
+\itemize{
+\item At the end of a string, \code{par_count()} counts an empty match and
+\code{\link[=gregexpr]{gregexpr()}} doesn't (unless the string itself is empty): \code{""} has 4
+matches in \code{"abc"}, where \code{\link[=gregexpr]{gregexpr()}} finds 3.
+\item Right after a non-empty match, \code{\link[=gregexpr]{gregexpr()}} counts an empty match and
+\code{par_count()} doesn't: \code{"a*"} has 4 matches in \code{"banana"}, an empty one
+before the \code{"b"} and the three \code{"a"}s. \code{\link[=gregexpr]{gregexpr()}} also finds an empty
+one after each of the first two \code{"a"}s, so 6.
+}
 }
 \details{
 The threads read the strings straight from R's memory, as
@@ -56,4 +82,5 @@ par_detect(c("apple", "banana", NA), "an+a", nthreads = 2)
 par_detect("ABC", "(?i)b")
 par_detect(c("a.c", "abc"), ".", fixed = TRUE)
 par_detect(c("apple", "banana", "cherry"), c("^a", "an", "z")) # one each
+par_count(c("banana", "kiwi", NA), "an")
 }

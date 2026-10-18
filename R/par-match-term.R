@@ -8,6 +8,9 @@
 #'   in `terms` wins, wherever it occurs in the string. Put specific terms
 #'   before general ones, such as `"new york"` before `"york"`.
 #'
+#'   `par_count_term()` counts every hit of every term instead, for scoring
+#'   strings against a lexicon, such as positive and negative words.
+#'
 #' @details All terms are compiled into one Aho-Corasick automaton, which finds
 #'   every occurrence of every term in a single pass over each string, however
 #'   many terms there are. The threads read the strings straight from R's
@@ -25,9 +28,14 @@
 #'   `"new york"` and `"york, uk"`, but not `"yorkshire"`.
 #' @inheritParams par_match
 #'
-#' @returns An integer vector as long as `x`: the position in `terms` of the
-#'   first term found in each string, or `NA` if none is found or `x` is `NA`.
-#'   Use `terms[par_match_term(x, terms)]` to get the terms themselves.
+#' @returns An integer vector as long as `x`, `NA` where `x` is `NA`:
+#'   - `par_match_term()`: the position in `terms` of the first term found in
+#'   each string, or `NA` if none is found. Use
+#'   `terms[par_match_term(x, terms)]` to get the terms themselves.
+#'   - `par_count_term()`: the number of hits in each string. Every
+#'   occurrence of every term counts, also where they overlap: `"new york"`
+#'   has two hits for `c("new york", "york")`, and a term listed twice counts
+#'   twice.
 #'
 #' @export
 #'
@@ -37,6 +45,7 @@
 #' par_match_term("NEW YORK", cities, ignore_case = TRUE)
 #' par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 #' par_match_term("1+1=2", c("+", "("))
+#' par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
 par_match_term <- function(
   x,
   terms,
@@ -44,7 +53,26 @@ par_match_term <- function(
   whole_word = FALSE,
   nthreads = getOption("llutils.threads", 0L)
 ) {
+  run_terms(par_match_term_rs, x, terms, ignore_case, whole_word, nthreads)
+}
+
+#' @rdname par_match_term
+#' @export
+par_count_term <- function(
+  x,
+  terms,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+) {
+  run_terms(par_count_term_rs, x, terms, ignore_case, whole_word, nthreads)
+}
+
+# Checks the arguments of par_match_term() and par_count_term(), and calls
+# `rs`.
+run_terms <- function(rs, x, terms, ignore_case, whole_word, nthreads) {
   nthreads <- check_nthreads(nthreads)
+
   if (!is.character(terms) || anyNA(terms)) {
     stop("`terms` must be a character vector without `NA`.")
   }
@@ -54,25 +82,19 @@ par_match_term <- function(
   if (!is_bool(whole_word)) {
     stop("`whole_word` must be `TRUE` or `FALSE`.")
   }
+
   if (is.factor(x) && nlevels(x) < length(x)) {
     # Matching the levels is enough. The extra `NA` is for missing values.
     return(index_codes(
       x,
-      c(
-        par_match_term(levels(x), terms, ignore_case, whole_word, nthreads),
-        NA
-      ),
+      c(run_terms(rs, levels(x), terms, ignore_case, whole_word, nthreads), NA),
       nthreads
     ))
   }
+
   if (!is.character(x)) {
     x <- as.character(x)
   }
-  par_match_term_rs(
-    enc2utf8(x),
-    enc2utf8(terms),
-    ignore_case,
-    whole_word,
-    nthreads
-  )
+
+  rs(enc2utf8(x), enc2utf8(terms), ignore_case, whole_word, nthreads)
 }

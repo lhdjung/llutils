@@ -172,6 +172,61 @@ test_that("whole_word = TRUE skips hits inside longer words, in any script", {
   expect_error(par_match_term("a", "a", whole_word = NA), "whole_word")
 })
 
+test_that("par_count_term() counts every hit of every term", {
+  # The definition: for each term, the positions where it starts, summed.
+  count_term_base <- function(x, terms, whole_word = FALSE) {
+    out <- integer(length(x))
+    for (t in terms) {
+      p <- paste0("\\Q", t, "\\E")
+      if (whole_word) {
+        p <- paste0("(?<!\\w)", p, "(?!\\w)")
+      }
+      m <- gregexpr(paste0("(?=", p, ")"), x, perl = TRUE)
+      out <- out + vapply(m, function(m) sum(m > 0), 1L)
+    }
+    out[is.na(x)] <- NA
+    out
+  }
+  set.seed(5)
+  x <- vapply(
+    1:6000,
+    function(i) paste(sample(c("a", "b", " ", "-"), 10, TRUE), collapse = ""),
+    ""
+  )
+  x[c(2, 4000)] <- NA
+  terms <- c("ab", "a", "b-", "aa", "ab", "zz")
+  for (ww in c(FALSE, TRUE)) {
+    expect_identical(
+      par_count_term(x, terms, whole_word = ww),
+      count_term_base(x, terms, ww),
+      info = ww
+    )
+  }
+  expect_identical(
+    par_count_term(
+      c("new york", "NEW YORK", NA),
+      c("new york", "york"),
+      ignore_case = TRUE
+    ),
+    c(2L, 2L, NA)
+  )
+  expect_identical(
+    par_count_term(
+      "good food, not bad",
+      c("good", "bad", "foo"),
+      whole_word = TRUE
+    ),
+    2L
+  )
+  f <- factor(rep(c("ab ab", NA, "b"), 4000))
+  expect_identical(
+    par_count_term(f, "ab"),
+    par_count_term(as.character(f), "ab")
+  )
+  expect_identical(par_count_term(character(), "a"), integer())
+  expect_error(par_count_term("a", NA_character_), "without `NA`")
+})
+
 test_that("the kept automaton is rebuilt when terms or ignore_case change", {
   expect_identical(par_match_term("A", "a"), NA_integer_)
   expect_identical(par_match_term("A", "a", ignore_case = TRUE), 1L)
@@ -191,5 +246,9 @@ test_that("the kept automaton is rebuilt when terms or ignore_case change", {
 
 test_that("an empty term matches only between characters", {
   e <- intToUtf8(233)
+  expect_identical(
+    par_count_term(c("ab", e, paste0(e, "\u4e2d"), ""), ""),
+    c(3L, 2L, 3L, 1L)
+  )
   expect_identical(par_match_term(e, "", whole_word = TRUE), NA_integer_)
 })

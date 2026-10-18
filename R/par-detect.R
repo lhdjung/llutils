@@ -15,6 +15,19 @@
 #'   - Flags go in the pattern: `(?i)` ignores case.
 #'   - `NA` gives `NA`, where [grepl()] gives `FALSE`.
 #'
+#'   `par_count()` counts the matches instead: how many [gregexpr()] would
+#'   find, without building them. The counts differ only for patterns that
+#'   can match the empty string, such as `""`, `"a*"`, or `"\\b"`, because
+#'   the two engines treat empty matches in opposite ways:
+#'
+#'   - At the end of a string, `par_count()` counts an empty match and
+#'   [gregexpr()] doesn't (unless the string itself is empty): `""` has 4
+#'   matches in `"abc"`, where [gregexpr()] finds 3.
+#'   - Right after a non-empty match, [gregexpr()] counts an empty match and
+#'   `par_count()` doesn't: `"a*"` has 4 matches in `"banana"`, an empty one
+#'   before the `"b"` and the three `"a"`s. [gregexpr()] also finds an empty
+#'   one after each of the first two `"a"`s, so 6.
+#'
 #' @details The threads read the strings straight from R's memory, as
 #'   data.table does.
 #'
@@ -26,8 +39,10 @@
 #'   `grepl(fixed = TRUE)`: no character has a special meaning.
 #' @inheritParams par_match
 #'
-#' @returns A logical vector as long as `x`: `TRUE` where `pattern` matches,
-#'   `FALSE` where it doesn't, and `NA` where `x` or `pattern` is `NA`.
+#' @returns A vector as long as `x`, `NA` where `x` or `pattern` is `NA`:
+#'   - `par_detect()`: logical, `TRUE` where `pattern` matches and `FALSE`
+#'   where it doesn't.
+#'   - `par_count()`: integer, the number of non-overlapping matches.
 #'
 #' @export
 #'
@@ -36,12 +51,29 @@
 #' par_detect("ABC", "(?i)b")
 #' par_detect(c("a.c", "abc"), ".", fixed = TRUE)
 #' par_detect(c("apple", "banana", "cherry"), c("^a", "an", "z")) # one each
+#' par_count(c("banana", "kiwi", NA), "an")
 par_detect <- function(
   x,
   pattern,
   fixed = FALSE,
   nthreads = getOption("llutils.threads", 0L)
 ) {
+  run_pattern(par_detect_rs, x, pattern, fixed, nthreads)
+}
+
+#' @rdname par_detect
+#' @export
+par_count <- function(
+  x,
+  pattern,
+  fixed = FALSE,
+  nthreads = getOption("llutils.threads", 0L)
+) {
+  run_pattern(par_count_rs, x, pattern, fixed, nthreads)
+}
+
+# Checks the arguments of par_detect() and par_count(), and calls `rs`.
+run_pattern <- function(rs, x, pattern, fixed, nthreads) {
   nthreads <- check_nthreads(nthreads)
 
   if (
@@ -59,7 +91,7 @@ par_detect <- function(
     # Matching the levels is enough. The extra `NA` is for missing values.
     return(index_codes(
       x,
-      c(par_detect(levels(x), pattern, fixed, nthreads), NA),
+      c(run_pattern(rs, levels(x), pattern, fixed, nthreads), NA),
       nthreads
     ))
   }
@@ -70,5 +102,5 @@ par_detect <- function(
 
   # Rust reads the bytes; this makes them UTF-8, without copying strings that
   # are ASCII or UTF-8 already.
-  par_detect_rs(enc2utf8(x), enc2utf8(pattern), fixed, nthreads)
+  rs(enc2utf8(x), enc2utf8(pattern), fixed, nthreads)
 }

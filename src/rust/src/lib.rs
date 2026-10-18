@@ -538,6 +538,34 @@ fn par_detect_rs(
     Ok(out)
 }
 
+/// The number of non-overlapping matches of `pattern` in each string, as
+/// `gregexpr()` finds them; otherwise as `par_detect_rs()`.
+/// @noRd
+#[extendr]
+fn par_count_rs(
+    x: Robj,
+    pattern: Robj,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Integers> {
+    let mut out = Integers::new(x.len());
+    per_pattern(
+        &mut out,
+        &x,
+        &pattern,
+        fixed,
+        Rint::na(),
+        nthreads,
+        |re, s| count(re.find_iter(s)),
+    )?;
+    Ok(out)
+}
+
+/// The length of an iterator as an R integer, capped at R's largest.
+fn count(it: impl Iterator) -> Rint {
+    (it.count().min(i32::MAX as usize) as i32).into()
+}
+
 /// The automaton for `terms`. Building one takes about 0.9ms for 1000
 /// terms, most of a call below 1e4 strings, so the last one is kept for
 /// calls that repeat the terms. They are compared by their string pointers,
@@ -624,6 +652,31 @@ fn par_match_term_rs(
     Ok(out)
 }
 
+/// For each string, how many hits of `terms` it contains: every occurrence
+/// of every term, also where they overlap; otherwise as
+/// `par_match_term_rs()`.
+/// @noRd
+#[extendr]
+fn par_count_term_rs(
+    x: Robj,
+    terms: Robj,
+    ignore_case: bool,
+    whole_word: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Integers> {
+    let ac = automaton(&terms, ignore_case)?;
+    let mut out = Integers::new(x.len());
+    per_string(
+        &mut out,
+        unsafe { charsxps(&x) },
+        Rint::na(),
+        nthreads,
+        || (),
+        |_, _, s| count(hits(&ac, s, whole_word)),
+    );
+    Ok(out)
+}
+
 /// Whether a character counts as part of a word for `whole_word`: a letter
 /// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
 /// the string, or bytes that aren't UTF-8) doesn't.
@@ -669,5 +722,7 @@ extendr_module! {
     fn par_match_mixed;
     fn par_match_chr;
     fn par_detect_rs;
+    fn par_count_rs;
     fn par_match_term_rs;
+    fn par_count_term_rs;
 }
