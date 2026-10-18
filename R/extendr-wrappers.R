@@ -47,7 +47,9 @@ par_duplicated_rs <- function(x, from_last, nthreads) .Call(wrap__par_duplicated
 
 #' `match()` on rows: for each row of `x`, the first row of `table` equal
 #' to it in every column, or `nomatch`. Both are lists of columns, which R
-#' prepares as `Col` describes; `day` marks columns of Dates.
+#' prepares as `Col` describes; `day` marks columns of Dates. Returns
+#' `NULL` if one of those holds a Date beyond 1e10 days, as
+#' `par_match_dbl()` does.
 #' @noRd
 par_match_rows_rs <- function(x, table, day, nomatch, nthreads) .Call(wrap__par_match_rows_rs, x, table, day, nomatch, nthreads)
 

@@ -30,6 +30,9 @@ const NA_REAL: f64 = f64::from_bits(NA_BITS);
 /// them.
 fn pool(nthreads: i32) -> Arc<rayon::ThreadPool> {
     static POOLS: Mutex<Option<(u32, Vec<(usize, Arc<rayon::ThreadPool>)>)>> = Mutex::new(None);
+    // More threads than cores only add overhead, and capping them keeps
+    // the pools from piling up past the system's limit on threads.
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
     let n = if nthreads > 0 {
         nthreads as usize
     } else {
@@ -37,8 +40,9 @@ fn pool(nthreads: i32) -> Arc<rayon::ThreadPool> {
             .ok()
             .and_then(|s| s.parse().ok())
             .filter(|&n| n > 0)
-            .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
-    };
+            .unwrap_or(cores)
+    }
+    .min(cores);
     let mut cache = POOLS.lock().unwrap_or_else(|e| e.into_inner());
     let pid = std::process::id();
     let pools = match cache.as_mut() {
@@ -567,32 +571,39 @@ fn key2<'a>(c: &'a [Col<'a>]) -> impl Fn(&u32) -> (u64, u64) + Sync + 'a {
 
 /// `match()` on rows: for each row of `x`, the first row of `table` equal
 /// to it in every column, or `nomatch`. Both are lists of columns, which R
-/// prepares as `Col` describes; `day` marks columns of Dates.
+/// prepares as `Col` describes; `day` marks columns of Dates. Returns
+/// `NULL` if one of those holds a Date beyond 1e10 days, as
+/// `par_match_dbl()` does.
 /// @noRd
 #[extendr]
-fn par_match_rows_rs(
-    x: List,
-    table: List,
-    day: &[Rbool],
-    nomatch: Rint,
-    nthreads: i32,
-) -> Integers {
+fn par_match_rows_rs(x: List, table: List, day: &[Rbool], nomatch: Rint, nthreads: i32) -> Robj {
     let (x, table): (Vec<Robj>, Vec<Robj>) = (x.values().collect(), table.values().collect());
     let (xc, tc) = (columns(&x, day), columns(&table, day));
+    let pool = pool(nthreads);
+    let far = |c: &Col| match c {
+        Col::Day(v) => v
+            .par_iter()
+            .with_min_len(MATCH_PER_THREAD)
+            .any(|v| v.is_finite() && v.abs() > 1e10),
+        _ => false,
+    };
+    if pool.install(|| xc.iter().chain(&tc).any(far)) {
+        return ().into();
+    }
     let (nx, nt) = (x[0].len(), table[0].len());
     // Rows are passed around by index, so par_match() can take them as
     // slices.
     let rows: Vec<u32> = (0..nx.max(nt) as u32).collect();
     let (xr, tr) = (&rows[..nx], &rows[..nt]);
-    let pool = pool(nthreads);
     // Up to two columns, the keys themselves fit in the space a `Row`
     // takes, and comparing them needs no read of the columns at random rows:
     // with many repeated rows that halves the time.
-    match xc.len() {
+    let out = match xc.len() {
         1 => par_match(xr, tr, key1(&xc), key1(&tc), nomatch, &pool),
         2 => par_match(xr, tr, key2(&xc), key2(&tc), nomatch, &pool),
         _ => par_match(xr, tr, |&i| row(&xc, i), |&i| row(&tc, i), nomatch, &pool),
-    }
+    };
+    out.into()
 }
 
 /// `duplicated()` on rows of a list of columns, prepared as for
@@ -818,8 +829,11 @@ fn automaton(terms: &Robj, ignore_case: bool) -> extendr_api::Result<aho_corasic
     // Only R's thread ever touches it.
     unsafe impl Send for Last {}
     static LAST: Mutex<Option<Last>> = Mutex::new(None);
-    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    // R calls can jump past Rust's cleanup on an error, so none run while
+    // the lock is held, or it would never be released.
     let p = unsafe { charsxps(terms) };
+    let copy = terms.duplicate();
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(Last(t, ic, ac)) = last.as_ref() {
         if *ic == ignore_case && unsafe { charsxps(t) } == p {
             return Ok(ac.clone());
@@ -829,7 +843,7 @@ fn automaton(terms: &Robj, ignore_case: bool) -> extendr_api::Result<aho_corasic
         .ascii_case_insensitive(ignore_case)
         .build(p.iter().map(|&p| unsafe { bytes(p) }))
         .map_err(|e| Error::Other(e.to_string()))?;
-    *last = Some(Last(terms.duplicate(), ignore_case, ac.clone()));
+    *last = Some(Last(copy, ignore_case, ac.clone()));
     Ok(ac)
 }
 

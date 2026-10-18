@@ -33,7 +33,8 @@
 #' @param nthreads A whole number: the max number of threads to use. `0` means
 #'   the `RAYON_NUM_THREADS` environment variable, or else all cores. The
 #'   default is the `llutils.threads` option, or `0` if that isn't set. Inputs
-#'   too small to keep that many threads busy get fewer.
+#'   too small to keep that many threads busy get fewer, and more threads than
+#'   cores count as all cores.
 #'
 #' @returns Just like base `match()` and `%in%`:
 #'   - `par_match()` returns an integer vector containing the first positions of
@@ -73,10 +74,11 @@ par_match <- function(
     ))
   }
 
-  # Rust returns 32-bit positions, so longer tables go to base.
+  # Rust returns 32-bit positions, and uses the largest as "no match", so
+  # longer tables go to base.
   out <- if (
     max(length(x), length(table)) >= RUST_MIN &&
-      length(table) <= .Machine$integer.max
+      length(table) < .Machine$integer.max
   ) {
     par_match_fast(x, table, nomatch, nthreads)
   }

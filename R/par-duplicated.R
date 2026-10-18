@@ -42,7 +42,12 @@ par_duplicated <- function(
 ) {
   nthreads <- check_nthreads(nthreads)
 
-  out <- if (isFALSE(incomparables) && is_bool(fromLast)) {
+  # Rust marks duplicates by 32-bit positions, so longer inputs go to base.
+  out <- if (
+    isFALSE(incomparables) &&
+      is_bool(fromLast) &&
+      NROW(x) <= .Machine$integer.max
+  ) {
     if (is.data.frame(x) && length(x) == 1L) {
       # Base compares a single column as a vector.
       return(par_duplicated(x[[1L]], fromLast = fromLast, nthreads = nthreads))

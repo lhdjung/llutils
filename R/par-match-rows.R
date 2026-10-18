@@ -49,6 +49,12 @@ par_match_rows <- function(
   if (length(x) != length(table)) {
     stop("`x` and `table` must have the same number of columns.")
   }
+  if (max(length(x[[1L]]), length(table[[1L]])) > .Machine$integer.max) {
+    stop("`x` and `table` can have at most 2^31 - 1 rows.")
+  }
+
+  x0 <- x
+  table0 <- table
 
   day <- logical(length(x))
 
@@ -83,5 +89,16 @@ par_match_rows <- function(
     table[[j]] <- b
   }
 
-  par_match_rows_rs(x, table, day, nomatch, nthreads)
+  out <- par_match_rows_rs(x, table, day, nomatch, nthreads)
+
+  if (is.null(out)) {
+    # Base matches Dates beyond 1e10 days by their printed numbers.
+    for (j in which(day)) {
+      x[[j]] <- par_match(x0[[j]], table0[[j]], nthreads = nthreads)
+      table[[j]] <- par_match(table0[[j]], table0[[j]], nthreads = nthreads)
+    }
+    out <- par_match_rows_rs(x, table, logical(length(x)), nomatch, nthreads)
+  }
+
+  out
 }

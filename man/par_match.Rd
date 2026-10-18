@@ -33,7 +33,8 @@ function fall back to base R, so it gets no speedup.}
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
 default is the \code{llutils.threads} option, or \code{0} if that isn't set. Inputs
-too small to keep that many threads busy get fewer.}
+too small to keep that many threads busy get fewer, and more threads than
+cores count as all cores.}
 }
 \value{
 Just like base \code{match()} and \code{\%in\%}:

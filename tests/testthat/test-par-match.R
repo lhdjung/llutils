@@ -124,3 +124,8 @@ test_that("a forked child works after the parent has used a pool", {
   )
   expect_identical(r, rep(list(match(x, 2:3)), 2))
 })
+
+test_that("more threads than cores count as all cores", {
+  x <- sample.int(100L, 1e5, TRUE)
+  expect_identical(par_match(x, 1:50, nthreads = 1e4), match(x, 1:50))
+})

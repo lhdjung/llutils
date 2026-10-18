@@ -74,3 +74,10 @@ test_that("bad arguments error", {
   expect_error(par_match_rows(1:3, list(1)), "data frame")
   expect_error(par_match_rows(list(1), list(1), nthreads = -1), "nthreads")
 })
+
+test_that("par_match_rows() matches Dates beyond 1e10 days as base does", {
+  # Base matches these by their printed numbers: 1e15 and 1e15 + 1 are equal.
+  x <- list(.Date(c(1e15, rep(1, 2e4))), 1:20001)
+  table <- list(.Date(c(1e15 + 1, rep(2, 2e4))), 1:20001)
+  expect_identical(par_match_rows(x, table)[1:2], c(1L, NA))
+})

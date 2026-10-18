@@ -63,6 +63,11 @@ Use cases for every function are collected in
 `vignettes/articles/use-cases.Rmd`; add to it as new ones turn up.
 
 1. **Experiment and review** what is here, then the release steps below.
+   A first review on 2026-10-18 compared about 150 edge cases against base
+   on the Rust path (NA/NaN, -0, encodings, factors, Dates, POSIXct, data
+   frame columns, zero-length inputs) and found them identical. It fixed
+   unbounded `nthreads`, inputs past 2^31 - 1 in `par_duplicated()` and
+   `par_match_rows()`, and far Dates in `par_match_rows()`.
 
 ## Open (start each when there's a concrete use)
 
@@ -100,6 +105,8 @@ Use cases for every function are collected in
 - String tables need a scan of the shorter side for non-ASCII text, one
   cache miss per string, which the hash build does not. At 2 threads that
   is most of the time for a large string table.
+- `nthreads` is capped at the number of cores: each value keeps a pool,
+  and uncapped values piled up threads until the system refused more.
 - Thread pools are kept between calls, one per `nthreads` value. Work is
   split so each thread gets at least 1e4 elements (`par_detect()`: 2500
   strings), so small inputs use fewer than `nthreads`. A forked child gets
@@ -111,7 +118,8 @@ Use cases for every function are collected in
 
 `par_detect()`:
 
-- Threads read string bytes through `R_CHAR()` and `LENGTH()`. Those only
+- Threads read string bytes through `R_CHAR()` and `LENGTH()` (and
+  encodings through `Rf_getCharCE()`). Those only
   read memory, but R doesn't promise they are thread-safe; data.table relies
   on the same. Reading on R's thread instead made it 2-3x slower, because
   strings are scattered in memory.
@@ -160,7 +168,9 @@ Use cases for every function are collected in
   key is `terms`'s string pointers and `ignore_case`; `whole_word` filters
   hits afterwards, so it needs no automaton of its own. The cache holds a
   copy of the `terms` vector, which keeps its strings alive: otherwise R
-  could free one and put a different string at its address.
+  could free one and put a different string at its address. The R calls
+  run before the cache's lock is taken, since an R error would skip its
+  release and hang the next call.
 - `par_count_term()` counts every hit `par_match_term()` loops over,
   overlapping ones included, so a term listed twice counts twice. At 1e5
   strings and 1000 terms it takes 3.1ms, against 4.9s for a
@@ -195,6 +205,7 @@ Use cases for every function are collected in
   Any class outside factor, Date, and POSIXct goes to base, since it may
   have its own `duplicated()` method; so do matrices.
 - `unique()` is `x[!par_duplicated(x)]`; no `par_unique()` until asked.
+- Inputs longer than 2^31 - 1 go to base: positions are 32-bit.
 
 `par_match_rows()`:
 
@@ -214,7 +225,10 @@ Use cases for every function are collected in
   is first turned into positions of first occurrences in `table` by two
   `par_match()` calls, which keeps `match()`'s semantics for every type.
 - Row indices are a `u32` vector as long as the longer side, 40MB for 1e7
-  rows, so `par_match()` can take rows as slices.
+  rows, so `par_match()` can take rows as slices. More than 2^31 - 1 rows
+  is an error.
+- A pair of Date columns with a value beyond 1e10 days is matched as
+  positions from `par_match()`, as base matches those by printed number.
 
 `par_find_interval()`:
 
@@ -236,9 +250,12 @@ Versions:
 
 Not before experimenting with and reviewing what is here.
 
-- `rextendr::vendor_pkgs()`, so the build doesn't download crates. It is the
-  only warning `R CMD check` gives today.
-- CI as in exhaustive, then `R CMD check --as-cran` and submit.
+- Before each build for CRAN, `rextendr::vendor_crates()` writes
+  `src/rust/vendor.tar.xz` (1.7MB, ignored by git), so the build needs no
+  network. With it, `R CMD check --as-cran` gives only the NOTE on the
+  development version number.
+- CI (Linux, macOS, Windows, and R 4.3 with Rust 1.83) is in place; check
+  that it passes once pushed, then set the version to 0.1.0 and submit.
 
 ## Skipped
 
