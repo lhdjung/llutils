@@ -3,48 +3,64 @@ pattern: abc   n = 1e6
 # A tibble: 5 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base        331.59ms
-2 base_perl    76.66ms
-3 stringi     247.33ms
-4 llutils_2    13.51ms
-5 llutils_all   7.21ms
+1 base         331.4ms
+2 base_perl     74.7ms
+3 stringi      244.2ms
+4 llutils_2     13.3ms
+5 llutils_all    8.7ms
 
 pattern: [aeiou]{3}[0-9]   n = 1e6
 # A tibble: 5 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         994.1ms
-2 base_perl    247.3ms
-3 stringi      377.6ms
-4 llutils_2     33.3ms
-5 llutils_all   15.6ms
+1 base         986.7ms
+2 base_perl    252.6ms
+3 stringi      373.2ms
+4 llutils_2     30.6ms
+5 llutils_all   19.2ms
 
 pattern: ^q.*z\s   n = 1e6
 # A tibble: 5 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base        259.98ms
-2 base_perl    53.17ms
-3 stringi     220.71ms
-4 llutils_2    17.61ms
-5 llutils_all   8.04ms
+1 base        259.54ms
+2 base_perl    53.65ms
+3 stringi      218.8ms
+4 llutils_2    13.98ms
+5 llutils_all   8.33ms
 
 pattern: (?i)QU[a-z]+    n = 1e6
 # A tibble: 5 × 2
   expression    median
   <bch:expr>  <bch:tm>
-1 base         563.7ms
-2 base_perl    107.4ms
+1 base           556ms
+2 base_perl    105.2ms
 3 stringi      269.9ms
-4 llutils_2     31.6ms
-5 llutils_all   14.2ms
+4 llutils_2     29.7ms
+5 llutils_all   16.6ms
 
 Small inputs, pattern repeated so llutils reuses the compiled regex
-n = 100 : 32.2µs 17µs 17.8µs 
-n = 1000 : 244.4µs  66.6µs  68.1µs 
-n = 3000 : 734µs 175µs 176µs 
-n = 10000 :   2.48ms 335.42µs 231.94µs 
-n = 30000 :   7.46ms 894.83µs 431.65µs 
+n = 100 : 32.3µs 20.4µs 21.6µs 
+n = 1000 : 244.6µs  69.5µs  70.6µs 
+n = 3000 : 737µs 176µs 178µs 
+n = 10000 :   2.45ms 345.55µs 289.75µs 
+n = 30000 :   7.33ms 902.43µs 589.01µs 
+
+One pattern per string, n = 1e6
+10 distinct patterns
+# A tibble: 3 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 stringi        2.06s
+2 llutils_2    18.91ms
+3 llutils_all  13.92ms
+9996 distinct patterns
+# A tibble: 3 × 2
+  expression    median
+  <bch:expr>  <bch:tm>
+1 stringi        2.67s
+2 llutils_2   569.59ms
+3 llutils_all 742.39ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20

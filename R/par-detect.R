@@ -19,14 +19,15 @@
 #'   data.table does.
 #'
 #' @param x A character vector, or something [as.character()] converts.
-#' @param pattern A single string: the regex, or the literal string to find
-#'   if `fixed = TRUE`.
+#' @param pattern The regex, or the literal string to find if `fixed = TRUE`:
+#'   one string, or one per string of `x`, as in
+#'   [stringi::stri_detect_regex()]. Each distinct pattern is compiled once.
 #' @param fixed If `TRUE`, `pattern` is found as it is, as in
 #'   `grepl(fixed = TRUE)`: no character has a special meaning.
 #' @inheritParams par_match
 #'
 #' @returns A logical vector as long as `x`: `TRUE` where `pattern` matches,
-#'   `FALSE` where it doesn't, and `NA` where `x` is `NA`.
+#'   `FALSE` where it doesn't, and `NA` where `x` or `pattern` is `NA`.
 #'
 #' @export
 #'
@@ -34,6 +35,7 @@
 #' par_detect(c("apple", "banana", NA), "an+a", nthreads = 2)
 #' par_detect("ABC", "(?i)b")
 #' par_detect(c("a.c", "abc"), ".", fixed = TRUE)
+#' par_detect(c("apple", "banana", "cherry"), c("^a", "an", "z")) # one each
 par_detect <- function(
   x,
   pattern,
@@ -41,13 +43,19 @@ par_detect <- function(
   nthreads = getOption("llutils.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
-  if (!is.character(pattern) || length(pattern) != 1 || is.na(pattern)) {
-    stop("`pattern` must be a single string.")
+
+  if (
+    !is.character(pattern) ||
+      (length(pattern) != 1L && length(pattern) != length(x))
+  ) {
+    stop("`pattern` must be a string, or a character vector as long as `x`.")
   }
+
   if (!is_bool(fixed)) {
     stop("`fixed` must be `TRUE` or `FALSE`.")
   }
-  if (is.factor(x) && nlevels(x) < length(x)) {
+
+  if (is.factor(x) && nlevels(x) < length(x) && length(pattern) == 1L) {
     # Matching the levels is enough. The extra `NA` is for missing values.
     return(index_codes(
       x,
@@ -55,10 +63,12 @@ par_detect <- function(
       nthreads
     ))
   }
+
   if (!is.character(x)) {
     x <- as.character(x)
   }
-  # Rust reads the bytes; this makes them UTF-8, without copying strings
-  # that are ASCII or UTF-8 already.
+
+  # Rust reads the bytes; this makes them UTF-8, without copying strings that
+  # are ASCII or UTF-8 already.
   par_detect_rs(enc2utf8(x), enc2utf8(pattern), fixed, nthreads)
 }

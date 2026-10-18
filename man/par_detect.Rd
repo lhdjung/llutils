@@ -14,8 +14,9 @@ par_detect(
 \arguments{
 \item{x}{A character vector, or something \code{\link[=as.character]{as.character()}} converts.}
 
-\item{pattern}{A single string: the regex, or the literal string to find
-if \code{fixed = TRUE}.}
+\item{pattern}{The regex, or the literal string to find if \code{fixed = TRUE}:
+one string, or one per string of \code{x}, as in
+\code{\link[stringi:stri_detect]{stringi::stri_detect_regex()}}. Each distinct pattern is compiled once.}
 
 \item{fixed}{If \code{TRUE}, \code{pattern} is found as it is, as in
 \code{grepl(fixed = TRUE)}: no character has a special meaning.}
@@ -27,7 +28,7 @@ too small to keep that many threads busy get fewer.}
 }
 \value{
 A logical vector as long as \code{x}: \code{TRUE} where \code{pattern} matches,
-\code{FALSE} where it doesn't, and \code{NA} where \code{x} is \code{NA}.
+\code{FALSE} where it doesn't, and \code{NA} where \code{x} or \code{pattern} is \code{NA}.
 }
 \description{
 Like \code{grepl(pattern, x)}, run over several threads, but with
@@ -54,4 +55,5 @@ data.table does.
 par_detect(c("apple", "banana", NA), "an+a", nthreads = 2)
 par_detect("ABC", "(?i)b")
 par_detect(c("a.c", "abc"), ".", fixed = TRUE)
+par_detect(c("apple", "banana", "cherry"), c("^a", "an", "z")) # one each
 }

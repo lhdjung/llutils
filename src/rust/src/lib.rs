@@ -428,31 +428,113 @@ fn per_string<T: Copy + Send + Sync, S>(
     });
 }
 
+/// Runs `f` on each string of `x` with its regex: `pattern` holds one for
+/// all strings, or one per string. Each distinct pattern is compiled once,
+/// on the threads if there are several, and cloned into a chunk the first
+/// time the chunk needs it. An `NA` pattern gives `na`.
+fn per_pattern<T: Copy + Send + Sync>(
+    out: &mut [T],
+    x: &Robj,
+    pattern: &Robj,
+    fixed: bool,
+    na: T,
+    nthreads: i32,
+    f: impl Fn(&regex::bytes::Regex, &[u8]) -> T + Sync,
+) -> extendr_api::Result<()> {
+    type Re = regex::bytes::Regex;
+    let (x, pattern) = unsafe { (charsxps(x), charsxps(pattern)) };
+    if x.is_empty() {
+        return Ok(());
+    }
+    // Which distinct pattern each string takes, if there are several.
+    let mut distinct = Vec::new();
+    let which: Option<Vec<u32>> = (pattern.len() > 1).then(|| {
+        let mut ids = HashMap::default();
+        pattern
+            .iter()
+            .map(|&p| {
+                *ids.entry(p).or_insert_with(|| {
+                    distinct.push(p);
+                    distinct.len() as u32 - 1
+                })
+            })
+            .collect()
+    });
+    if which.is_none() {
+        distinct.push(pattern[0]);
+    }
+    let na_ptr = unsafe { R_NaString } as usize;
+    let source = |p: usize| -> std::result::Result<Option<String>, String> {
+        if p == na_ptr {
+            return Ok(None);
+        }
+        let p = std::str::from_utf8(unsafe { bytes(p) }).map_err(|e| e.to_string())?;
+        Ok(Some(if fixed {
+            regex::escape(p)
+        } else {
+            p.to_string()
+        }))
+    };
+    let res: Vec<Option<Re>> = if distinct.len() == 1 {
+        let p = source(distinct[0]).map_err(Error::Other)?;
+        vec![p.map(|p| regex(&p)).transpose()?]
+    } else {
+        pool(nthreads)
+            .install(|| {
+                distinct
+                    .par_iter()
+                    .map(|&p| {
+                        source(p)?
+                            .map(|p| Re::new(&p).map_err(|e| e.to_string()))
+                            .transpose()
+                    })
+                    .collect::<std::result::Result<_, _>>()
+            })
+            .map_err(Error::Other)?
+    };
+    per_string(
+        out,
+        x,
+        na,
+        nthreads,
+        || vec![None; res.len()],
+        // ponytail: each chunk clones every regex it meets, and each clone
+        // builds its own cache: 1e4 distinct patterns in 1e6 strings take
+        // 0.7s (stringi 2.7s), against 14ms for 10. Grouping the strings by
+        // pattern would build each cache about once, if that case matters.
+        |cache: &mut Vec<Option<Re>>, i, s| {
+            let id = which.as_ref().map_or(0, |w| w[i] as usize);
+            match &res[id] {
+                None => na,
+                Some(re) => f(cache[id].get_or_insert_with(|| re.clone()), s),
+            }
+        },
+    );
+    Ok(())
+}
+
 /// `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
-/// `fixed`. Strings are matched as bytes, so R should pass them through
-/// `enc2utf8()` first. `NA` gives `NA`.
+/// `fixed`. `pattern` is one string, or one per string of `x`. Strings are
+/// matched as bytes, so R should pass both through `enc2utf8()` first. `NA`
+/// in either gives `NA`.
 /// @noRd
 #[extendr]
 fn par_detect_rs(
     x: Robj,
-    pattern: &str,
+    pattern: Robj,
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Logicals> {
-    let re = if fixed {
-        regex(&regex::escape(pattern))?
-    } else {
-        regex(pattern)?
-    };
     let mut out = Logicals::new(x.len());
-    per_string(
+    per_pattern(
         &mut out,
-        unsafe { charsxps(&x) },
+        &x,
+        &pattern,
+        fixed,
         Rbool::na_value(),
         nthreads,
-        || re.clone(),
-        |re, _, s| re.is_match(s).into(),
-    );
+        |re, s| re.is_match(s).into(),
+    )?;
     Ok(out)
 }
 

@@ -35,5 +35,23 @@ for (n in c(100, 1000, 3000, 1e4, 3e4)) {
   )
   cat("n =", n, ":", format(r$median), "\n")
 }
+cat("\nOne pattern per string, n = 1e6\n")
+p10 <- sample(paste0("^", letters[1:10]), 1e6, TRUE)
+p1e4 <- sample(
+  paste0(substr(words, 1, 3), "$|", substr(words, 4, 5)),
+  1e6,
+  TRUE
+)
+stopifnot(identical(par_detect(x, p10), stringi::stri_detect_regex(x, p10)))
+for (p in list(p10, p1e4)) {
+  cat(length(unique(p)), "distinct patterns\n")
+  print(bench::mark(
+    stringi = stringi::stri_detect_regex(x, p),
+    llutils_2 = par_detect(x, p, nthreads = 2),
+    llutils_all = par_detect(x, p),
+    min_iterations = 3,
+    filter_gc = FALSE
+  )[, c("expression", "median")])
+}
 cat("\n")
 print(sessionInfo())

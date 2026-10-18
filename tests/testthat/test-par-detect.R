@@ -59,8 +59,9 @@ test_that("strings match by character, in any encoding", {
 test_that("bad patterns and arguments error", {
   expect_error(par_detect("a", "("), "regex parse error")
   expect_error(par_detect("a", "(a)\\1"), "backreferences")
-  expect_error(par_detect("a", c("a", "b")), "single string")
-  expect_error(par_detect("a", NA_character_), "single string")
+  expect_error(par_detect("a", c("a", "b")), "as long as `x`")
+  expect_error(par_detect("a", 1), "as long as `x`")
+  expect_error(par_detect(c("a", "b"), c("a", "(")), "regex parse error")
   expect_error(par_detect("a", "a", nthreads = -1), "nthreads")
 })
 
@@ -68,4 +69,34 @@ test_that("factors are matched by their levels", {
   f <- factor(rep(c("ab", NA, "cd", "ab"), 5000), levels = c("cd", "ab", "zz"))
   expect_identical(par_detect(f, "b"), par_detect(as.character(f), "b"))
   expect_identical(par_detect(f[1:3], "b"), c(TRUE, NA, FALSE))
+})
+
+test_that("pattern can have one element per string", {
+  set.seed(3)
+  x <- vapply(
+    1:6000,
+    function(i) paste(sample(c(letters[1:4], " "), 6, TRUE), collapse = ""),
+    ""
+  )
+  x[9] <- NA
+  p <- sample(c("ab", "^c", "d$", "a.b", " "), 6000, TRUE)
+  p[c(1, 9, 10)] <- NA
+  expected <- mapply(
+    grepl,
+    p,
+    x,
+    MoreArgs = list(perl = TRUE),
+    USE.NAMES = FALSE
+  )
+  expected[is.na(x) | is.na(p)] <- NA
+  expect_identical(par_detect(x, p), expected)
+  expect_identical(par_detect(x[1:20], p[1:20]), expected[1:20]) # serial path
+  expect_identical(par_detect(x, rep("ab", 6000)), par_detect(x, "ab"))
+  expect_identical(
+    par_detect(c("a.c", "abc"), c(".", "."), fixed = TRUE),
+    c(TRUE, FALSE)
+  )
+  expect_identical(par_detect(c("a", "b"), NA_character_), c(NA, NA))
+  f <- factor(c("ab", "cd", "ab"))
+  expect_identical(par_detect(f, c("a", "a", "b")), c(TRUE, FALSE, TRUE))
 })

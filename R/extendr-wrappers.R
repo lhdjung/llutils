@@ -36,8 +36,9 @@ par_match_mixed <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_m
 par_match_chr <- function(x, table, nomatch, nthreads) .Call(wrap__par_match_chr, x, table, nomatch, nthreads)
 
 #' `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
-#' `fixed`. Strings are matched as bytes, so R should pass them through
-#' `enc2utf8()` first. `NA` gives `NA`.
+#' `fixed`. `pattern` is one string, or one per string of `x`. Strings are
+#' matched as bytes, so R should pass both through `enc2utf8()` first. `NA`
+#' in either gives `NA`.
 #' @noRd
 par_detect_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_detect_rs, x, pattern, fixed, nthreads)
 
