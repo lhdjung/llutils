@@ -13,8 +13,10 @@ extern "C" {
     fn Rf_getCharCE(x: SEXP) -> c_int;
     fn R_CHAR(x: SEXP) -> *const c_char;
     fn LENGTH(x: SEXP) -> c_int;
+    fn Rf_mkCharLenCE(s: *const c_char, len: c_int, enc: c_uint) -> SEXP;
     fn Rf_allocVector(t: c_uint, n: isize) -> SEXP;
     fn INTEGER(x: SEXP) -> *mut c_int;
+    fn SET_STRING_ELT(x: SEXP, i: isize, v: SEXP);
     fn SET_VECTOR_ELT(x: SEXP, i: isize, v: SEXP) -> SEXP;
     static R_NaString: SEXP;
 }
@@ -683,25 +685,26 @@ fn per_string<T: Clone + Send + Sync, S>(
     });
 }
 
-/// Runs `f` on each string of `x` with its regex: `pattern` holds one for
-/// all strings, or one per string. Each distinct pattern is compiled once,
-/// on the threads if there are several, and cloned into a chunk the first
-/// time the chunk needs it. An `NA` pattern gives `na`.
-fn per_pattern<T: Copy + Send + Sync>(
-    out: &mut [T],
-    x: &Robj,
-    pattern: &Robj,
-    fixed: bool,
-    na: T,
-    nthreads: i32,
-    f: impl Fn(&regex::bytes::Regex, &[u8]) -> T + Sync,
-) -> extendr_api::Result<()> {
-    type Re = regex::bytes::Regex;
-    let (x, pattern) = unsafe { (charsxps(x), charsxps(pattern)) };
-    if x.is_empty() {
-        return Ok(());
+type Re = regex::bytes::Regex;
+
+/// The regexes of a `pattern` that holds one for all strings, or one per
+/// string: `res` holds each distinct pattern once, compiled on the threads
+/// if there are several (`None` for `NA`), and `which` the one each string
+/// takes, if there are several.
+struct Patterns {
+    res: Vec<Option<Re>>,
+    which: Option<Vec<u32>>,
+}
+
+fn patterns(pattern: &Robj, fixed: bool, nthreads: i32) -> extendr_api::Result<Patterns> {
+    let pattern = unsafe { charsxps(pattern) };
+    if pattern.is_empty() {
+        // As long as `x`, so there is nothing to match.
+        return Ok(Patterns {
+            res: Vec::new(),
+            which: None,
+        });
     }
-    // Which distinct pattern each string takes, if there are several.
     let mut distinct = Vec::new();
     let which: Option<Vec<u32>> = (pattern.len() > 1).then(|| {
         let mut ids = HashMap::default();
@@ -747,25 +750,37 @@ fn per_pattern<T: Copy + Send + Sync>(
             })
             .map_err(Error::Other)?
     };
+    Ok(Patterns { res, which })
+}
+
+/// Runs `f` on each string of `x` with its regex from `p`. Each chunk clones
+/// a regex the first time it needs it; an `NA` pattern gives `na`.
+fn per_pattern<T: Clone + Send + Sync>(
+    out: &mut [T],
+    x: &[usize],
+    p: &Patterns,
+    na: T,
+    nthreads: i32,
+    f: impl Fn(&Re, &[u8]) -> T + Sync,
+) {
     per_string(
         out,
         x,
-        na,
+        na.clone(),
         nthreads,
-        || vec![None; res.len()],
-        // ponytail: each chunk clones every regex it meets, and each clone
-        // builds its own cache: 1e4 distinct patterns in 1e6 strings take
-        // 0.7s (stringi 2.7s), against 14ms for 10. Grouping the strings by
-        // pattern would build each cache about once, if that case matters.
+        || vec![None; p.res.len()],
+        // Each clone builds its own cache. Sorting the strings by pattern,
+        // so each regex would build its cache about once, was slower at
+        // every count measured: 1e4 distinct patterns in 1e6 strings take
+        // 80-90ms as it is, and 110ms sorted.
         |cache: &mut Vec<Option<Re>>, i, s| {
-            let id = which.as_ref().map_or(0, |w| w[i] as usize);
-            match &res[id] {
-                None => na,
+            let id = p.which.as_ref().map_or(0, |w| w[i] as usize);
+            match &p.res[id] {
+                None => na.clone(),
                 Some(re) => f(cache[id].get_or_insert_with(|| re.clone()), s),
             }
         },
     );
-    Ok(())
 }
 
 /// `grepl(pattern, x)` with Rust's regex syntax, or a literal `pattern` if
@@ -780,16 +795,16 @@ fn par_detect_rs(
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Logicals> {
+    let p = patterns(&pattern, fixed, nthreads)?;
     let mut out = Logicals::new(x.len());
     per_pattern(
         &mut out,
-        &x,
-        &pattern,
-        fixed,
+        unsafe { charsxps(&x) },
+        &p,
         Rbool::na_value(),
         nthreads,
         |re, s| re.is_match(s).into(),
-    )?;
+    );
     Ok(out)
 }
 
@@ -803,22 +818,115 @@ fn par_count_rs(
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
+    let p = patterns(&pattern, fixed, nthreads)?;
     let mut out = Integers::new(x.len());
     per_pattern(
         &mut out,
-        &x,
-        &pattern,
-        fixed,
+        unsafe { charsxps(&x) },
+        &p,
         Rint::na(),
         nthreads,
         |re, s| count(re.find_iter(s)),
-    )?;
+    );
     Ok(out)
 }
 
 /// The length of an iterator as an R integer, capped at R's largest.
 fn count(it: impl Iterator) -> Rint {
     (it.count().min(i32::MAX as usize) as i32).into()
+}
+
+/// A string of a result, found on the threads and made on R's thread, which
+/// alone may make R strings: `Same` is the string of `x` itself, and `Span`
+/// a part of it.
+#[derive(Clone)]
+enum Piece {
+    Na,
+    Same,
+    Span(usize, usize),
+    New(Vec<u8>),
+}
+
+/// The strings `out` describes, each made from the string of `x` at its
+/// position. They are UTF-8, as R passes `x` through `enc2utf8()`, except
+/// those made from bytes-encoded strings, which stay bytes.
+fn strings(x: &[usize], out: Vec<Piece>) -> Robj {
+    let res: Robj = Strings::new(out.len()).into();
+    for (i, (piece, &p)) in out.into_iter().zip(x).enumerate() {
+        unsafe {
+            let ce = if Rf_getCharCE(p as SEXP) == 3 { 3 } else { 1 };
+            let make = |s: &[u8]| Rf_mkCharLenCE(s.as_ptr() as *const c_char, s.len() as c_int, ce);
+            let s = match piece {
+                Piece::Na => R_NaString,
+                Piece::Same => p as SEXP,
+                Piece::Span(a, b) if a == 0 && b == bytes(p).len() => p as SEXP,
+                Piece::Span(a, b) => make(&bytes(p)[a..b]),
+                Piece::New(v) => make(&v),
+            };
+            SET_STRING_ELT(res.get(), i as isize, s);
+        }
+    }
+    res
+}
+
+/// The first match of `pattern` in each string, or its capture group
+/// `group` (0 for the whole match); `NA` where there is none. Otherwise as
+/// `par_detect_rs()`.
+/// @noRd
+#[extendr]
+fn par_extract_rs(
+    x: Robj,
+    pattern: Robj,
+    group: i32,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
+    let p = patterns(&pattern, fixed, nthreads)?;
+    let g = group as usize;
+    if p.res.iter().flatten().any(|re| g >= re.captures_len()) {
+        return Err(Error::Other(format!("`pattern` has no group {group}.")));
+    }
+    let x = unsafe { charsxps(&x) };
+    let mut out = vec![Piece::Na; x.len()];
+    per_pattern(&mut out, x, &p, Piece::Na, nthreads, |re, s| {
+        let m = if g == 0 {
+            re.find(s)
+        } else {
+            re.captures(s).and_then(|c| c.get(g))
+        };
+        m.map_or(Piece::Na, |m| Piece::Span(m.start(), m.end()))
+    });
+    Ok(strings(x, out))
+}
+
+/// Every match of `pattern` in each string replaced by `replacement`, in
+/// which `$1` or `${name}` stands for a capture group unless `fixed`.
+/// Otherwise as `par_detect_rs()`.
+/// @noRd
+#[extendr]
+fn par_replace_rs(
+    x: Robj,
+    pattern: Robj,
+    replacement: Robj,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
+    let p = patterns(&pattern, fixed, nthreads)?;
+    let rep = unsafe { bytes(charsxps(&replacement)[0]) };
+    let x = unsafe { charsxps(&x) };
+    let mut out = vec![Piece::Na; x.len()];
+    per_pattern(&mut out, x, &p, Piece::Na, nthreads, |re, s| {
+        let r = if fixed {
+            re.replace_all(s, regex::bytes::NoExpand(rep))
+        } else {
+            re.replace_all(s, rep)
+        };
+        match r {
+            std::borrow::Cow::Borrowed(_) => Piece::Same,
+            std::borrow::Cow::Owned(v) => Piece::New(v),
+        }
+    });
+    Ok(strings(x, out))
 }
 
 /// The automaton for `terms`. Building one takes about 0.9ms for 1000
@@ -1079,6 +1187,8 @@ extendr_module! {
     fn par_duplicated_rows_rs;
     fn par_detect_rs;
     fn par_count_rs;
+    fn par_extract_rs;
+    fn par_replace_rs;
     fn par_match_term_rs;
     fn par_count_term_rs;
     fn par_which_term_rs;

@@ -89,7 +89,7 @@ run_pattern <- function(rs, x, pattern, fixed, nthreads) {
 
   if (is.factor(x) && nlevels(x) < length(x) && length(pattern) == 1L) {
     # Matching the levels is enough. The extra `NA` is for missing values.
-    return(index_codes(
+    return(index_levels(
       x,
       c(run_pattern(rs, levels(x), pattern, fixed, nthreads), NA),
       nthreads

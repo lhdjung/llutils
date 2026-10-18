@@ -70,6 +70,18 @@ par_detect_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_detect_rs
 #' @noRd
 par_count_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_count_rs, x, pattern, fixed, nthreads)
 
+#' The first match of `pattern` in each string, or its capture group
+#' `group` (0 for the whole match); `NA` where there is none. Otherwise as
+#' `par_detect_rs()`.
+#' @noRd
+par_extract_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_extract_rs, x, pattern, group, fixed, nthreads)
+
+#' Every match of `pattern` in each string replaced by `replacement`, in
+#' which `$1` or `${name}` stands for a capture group unless `fixed`.
+#' Otherwise as `par_detect_rs()`.
+#' @noRd
+par_replace_rs <- function(x, pattern, replacement, fixed, nthreads) .Call(wrap__par_replace_rs, x, pattern, replacement, fixed, nthreads)
+
 #' For each string, the 1-based index of the first of `terms` it contains,
 #' or `NA`. One automaton finds every occurrence of every term in a single
 #' pass, and the lowest index wins, so term order sets priority, not where
