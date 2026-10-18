@@ -44,7 +44,7 @@ par_detect <- function(
   if (!is.character(pattern) || length(pattern) != 1 || is.na(pattern)) {
     stop("`pattern` must be a single string.")
   }
-  if (!isTRUE(fixed) && !isFALSE(fixed)) {
+  if (!is_bool(fixed)) {
     stop("`fixed` must be `TRUE` or `FALSE`.")
   }
   if (is.factor(x) && nlevels(x) < length(x)) {

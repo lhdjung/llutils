@@ -47,12 +47,10 @@ par_match_term <- function(
   if (!is.character(terms) || anyNA(terms)) {
     stop("`terms` must be a character vector without `NA`.")
   }
-  if (
-    !is.logical(ignore_case) || length(ignore_case) != 1L || is.na(ignore_case)
-  ) {
+  if (!is_bool(ignore_case)) {
     stop("`ignore_case` must be `TRUE` or `FALSE`.")
   }
-  if (!isTRUE(whole_word) && !isFALSE(whole_word)) {
+  if (!is_bool(whole_word)) {
     stop("`whole_word` must be `TRUE` or `FALSE`.")
   }
   if (is.factor(x) && nlevels(x) < length(x)) {

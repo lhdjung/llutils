@@ -94,10 +94,6 @@ par_in <- function(x, table, nthreads = getOption("llutils.threads", 0L)) {
   par_match(x, table, nomatch = 0L, nthreads = nthreads) > 0L
 }
 
-
-# Below this many elements, calling into Rust costs more than it saves.
-RUST_MIN <- 1e4
-
 # NULL where base must take over: other types, or a case Rust declines.
 par_match_fast <- function(x, table, nomatch, nthreads) {
   if (identical(class(x), "Date") && identical(class(table), "Date")) {
@@ -132,24 +128,4 @@ as_plain <- function(x) {
   } else if (is.factor(x)) {
     as.character(x)
   }
-}
-
-# Can't use is.numeric() because that's FALSE for POSIXct
-is_num <- function(x) is.integer(x) || is.double(x)
-
-# Doubles go to Rust as they are, attributes and all, without a copy.
-as_dbl <- function(x) if (is.double(x)) x else as.double(x)
-
-check_nthreads <- function(nthreads) {
-  if (
-    !is.numeric(nthreads) ||
-      length(nthreads) != 1L ||
-      is.na(nthreads) ||
-      nthreads < 0 ||
-      nthreads > .Machine$integer.max ||
-      nthreads != trunc(nthreads)
-  ) {
-    stop("`nthreads` must be a single non-negative whole number.")
-  }
-  as.integer(nthreads)
 }
