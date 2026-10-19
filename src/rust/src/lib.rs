@@ -2135,6 +2135,112 @@ fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthr
     }
 }
 
+/// `rank(x)` for an integer or double vector, `NA` and `NaN` taking ranks
+/// after the others (`na_last` 1), before them (2), or staying `NA` (0).
+/// `ties` is "average", "first", "last", "min", or "max". The elements are
+/// sorted with their positions, in parallel, and each run of equal ones
+/// ranked at once: ties are equal, as in R, so `-0` ties with `0`.
+/// @noRd
+#[extendr]
+fn par_rank_rs(x: Robj, ties: &str, na_last: i32, nthreads: i32) -> Robj {
+    let pool = pool(nthreads);
+    if let Some(v) = x.as_integer_slice() {
+        let key = |v: &i32| (*v != NA_INT).then_some(*v);
+        rank(v, key, ties, na_last, &pool)
+    } else {
+        let v = x.as_real_slice().unwrap();
+        // Bits that sort as the numbers do, with -0 as 0.
+        let key = |v: &f64| {
+            (!v.is_nan()).then(|| {
+                let b = (v + 0.0).to_bits();
+                if b >> 63 == 1 {
+                    !b
+                } else {
+                    b | 1 << 63
+                }
+            })
+        };
+        rank(v, key, ties, na_last, &pool)
+    }
+}
+
+fn rank<T: Sync, K: Ord + Copy + Send + Sync>(
+    x: &[T],
+    key: impl Fn(&T) -> Option<K> + Sync,
+    ties: &str,
+    na_last: i32,
+    pool: &rayon::ThreadPool,
+) -> Robj {
+    let (mut sorted, nas): (Vec<(K, u32)>, Vec<u32>) = pool.install(|| {
+        let keyed = || x.par_iter().enumerate().with_min_len(MATCH_PER_THREAD);
+        let mut sorted: Vec<_> = keyed()
+            .filter_map(|(i, v)| key(v).map(|k| (k, i as u32)))
+            .collect();
+        // Positions break ties, so the order is as stable as R's.
+        sorted.par_sort_unstable();
+        let nas = keyed()
+            .filter(|(_, v)| key(v).is_none())
+            .map(|(i, _)| i as u32)
+            .collect();
+        (sorted, nas)
+    });
+    let shift = if na_last == 2 { nas.len() } else { 0 };
+    // The rank of the `k`th sorted element, in a run of ties from `i` to `j`.
+    let ranks = |out: &mut [f64], at: &(dyn Fn(usize, usize, usize) -> f64 + Sync)| {
+        let (m, out) = (sorted.len(), Shared(out.as_mut_ptr()));
+        let nt = pool.current_num_threads().min(m / MATCH_PER_THREAD).max(1);
+        // Chunks start where a run does, so each thread ranks whole runs.
+        let start = |c: usize| {
+            let mut b = c * m / nt;
+            while b > 0 && b < m && sorted[b].0 == sorted[b - 1].0 {
+                b += 1;
+            }
+            b
+        };
+        pool.install(|| {
+            (0..nt).into_par_iter().for_each(|c| {
+                let (mut i, end) = (start(c), start(c + 1));
+                while i < end {
+                    let mut j = i + 1;
+                    while j < m && sorted[j].0 == sorted[i].0 {
+                        j += 1;
+                    }
+                    for (k, &(_, pos)) in sorted.iter().enumerate().take(j).skip(i) {
+                        // Each position is in one run only.
+                        unsafe { *out.get().add(pos as usize) = at(i, j, k) + shift as f64 };
+                    }
+                    i = j;
+                }
+            })
+        });
+    };
+    let mut out = vec![NA_REAL; x.len()];
+    match ties {
+        "average" => ranks(&mut out, &|i, j, _| (i + j + 1) as f64 / 2.0),
+        "first" => ranks(&mut out, &|_, _, k| (k + 1) as f64),
+        "last" => ranks(&mut out, &|i, j, k| (i + j - k) as f64),
+        "min" => ranks(&mut out, &|i, _, _| (i + 1) as f64),
+        _ => ranks(&mut out, &|_, j, _| j as f64),
+    }
+    if na_last != 0 {
+        let first = if na_last == 1 { sorted.len() } else { 0 };
+        for (t, &i) in nas.iter().enumerate() {
+            out[i as usize] = (first + t + 1) as f64;
+        }
+    }
+    sorted.clear();
+    if ties == "average" {
+        return Doubles::from_values(out).into();
+    }
+    let ints: Vec<i32> = pool.install(|| {
+        out.par_iter()
+            .with_min_len(MATCH_PER_THREAD)
+            .map(|&v| if v.is_nan() { NA_INT } else { v as i32 })
+            .collect()
+    });
+    Integers::from_values(ints).into()
+}
+
 /// Whether a character counts as part of a word for `whole_word`: a letter
 /// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
 /// the string, or bytes that aren't UTF-8) doesn't.
@@ -2231,4 +2337,5 @@ extendr_module! {
     fn par_locate_rs;
     fn par_replace_term_rs;
     fn par_parse_time_rs;
+    fn par_rank_rs;
 }

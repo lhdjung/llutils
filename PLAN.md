@@ -422,6 +422,17 @@ per 1e6), `dist()` (144ms for 5000 rows of 10).
 - At 1e6 strings: dates 7ms (base 4.6s, `data.table::as.IDate()` 4.6s, as
   it calls base), times 12ms (base 15s).
 
+`par_rank()`:
+
+- The elements that aren't `NA` are sorted with their positions, as one
+  key, by rayon's parallel sort, which needs no stable sort since
+  positions break ties. Runs of equal elements then get their ranks on the
+  threads, each chunk starting where a run does. Doubles sort by their bits,
+  with -0 as 0, which ties them as `rank()` does.
+- 1e7 doubles take 0.24s (base 9.8s, `data.table::frank()` 0.61s), 1e7
+  integers with many ties 0.16s (base 7.3s, `frank()` 0.22s).
+- `"random"` goes to base, which draws from R's random numbers.
+
 `par_find_interval()`:
 
 - A binary search (`partition_point()`) per element, in parallel. 1e7

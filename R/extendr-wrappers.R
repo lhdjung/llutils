@@ -152,4 +152,12 @@ par_replace_term_rs <- function(x, terms, ignore_case, word_start, word_end, fix
 #' @noRd
 par_parse_time_rs <- function(x, formats, try_formats, date, nthreads) .Call(wrap__par_parse_time_rs, x, formats, try_formats, date, nthreads)
 
+#' `rank(x)` for an integer or double vector, `NA` and `NaN` taking ranks
+#' after the others (`na_last` 1), before them (2), or staying `NA` (0).
+#' `ties` is "average", "first", "last", "min", or "max". The elements are
+#' sorted with their positions, in parallel, and each run of equal ones
+#' ranked at once: ties are equal, as in R, so `-0` ties with `0`.
+#' @noRd
+par_rank_rs <- function(x, ties, na_last, nthreads) .Call(wrap__par_rank_rs, x, ties, na_last, nthreads)
+
 # nolint end
