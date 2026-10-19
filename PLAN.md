@@ -433,6 +433,16 @@ per 1e6), `dist()` (144ms for 5000 rows of 10).
   integers with many ties 0.16s (base 7.3s, `frank()` 0.22s).
 - `"random"` goes to base, which draws from R's random numbers.
 
+`par_rowsum()`:
+
+- R finds the groups (`par_unique()`, sorted in R) and each row's group
+  (`par_match()`); Rust then splits the rows by group as `par_duplicated()`
+  splits elements, and each thread sums its own groups, each group's rows
+  in their order: the sums are base's to the bit. Integer overflow gives
+  `NA`, checked as base checks it.
+- 1e7 doubles in 1e5 groups take 103ms (base 1.2s, collapse 67ms); in 100
+  groups, 78ms (base 145ms, collapse 30ms).
+
 `par_find_interval()`:
 
 - A binary search (`partition_point()`) per element, in parallel. 1e7

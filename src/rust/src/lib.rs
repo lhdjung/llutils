@@ -2241,6 +2241,74 @@ fn rank<T: Sync, K: Ord + Copy + Send + Sync>(
     Integers::from_values(ints).into()
 }
 
+/// `rowsum(x, group)` for an integer or double vector or matrix `x`, given
+/// each row's group as a 1-based `code` among `ng`: the sums, a column per
+/// column of `x`. As in R, each group's rows are added in their order, so
+/// the sums are R's to the bit, and integer sums that overflow give `NA`.
+/// The rows are split by group as `par_duplicated()` splits elements, and
+/// each thread sums its own groups.
+/// @noRd
+#[extendr]
+fn par_rowsum_rs(x: Robj, codes: &[i32], ng: i32, na_rm: bool, nthreads: i32) -> Robj {
+    fn sums<T: Copy + Send + Sync>(
+        x: &[T],
+        codes: &[i32],
+        ng: usize,
+        zero: T,
+        add: impl Fn(&mut T, T) + Sync,
+        pool: &rayon::ThreadPool,
+    ) -> Vec<T> {
+        let n = codes.len();
+        let mut out = vec![zero; ng * (x.len() / n.max(1))];
+        let dst = Shared(out.as_mut_ptr());
+        // Each group is in one bucket only, so no two threads add to the
+        // same sum.
+        let sum = |code: i32, row: usize| {
+            for (j, &v) in x[row..].iter().step_by(n).enumerate() {
+                add(
+                    unsafe { &mut *dst.get().add(code as usize - 1 + j * ng) },
+                    v,
+                );
+            }
+        };
+        pool.install(|| match partition(codes, &|c: &i32| *c) {
+            None => codes.iter().enumerate().for_each(|(i, &c)| sum(c, i)),
+            Some((nb, runs)) => (0..nb).into_par_iter().for_each(|b| {
+                for &(c, i) in runs.iter().flat_map(|r| &r[b]) {
+                    sum(c, i as usize - 1)
+                }
+            }),
+        });
+        out
+    }
+    let (pool, ng) = (pool(nthreads), ng as usize);
+    if let Some(v) = x.as_real_slice() {
+        let add = |s: &mut f64, v: f64| {
+            if !na_rm || !v.is_nan() {
+                *s += v
+            }
+        };
+        Doubles::from_values(sums(v, codes, ng, 0.0, add, &pool)).into()
+    } else {
+        let add = |s: &mut i32, v: i32| {
+            if v == NA_INT {
+                if !na_rm {
+                    *s = NA_INT
+                }
+            } else if *s != NA_INT {
+                let sum = *s as i64 + v as i64;
+                *s = if sum < i32::MIN as i64 || sum > i32::MAX as i64 {
+                    NA_INT
+                } else {
+                    sum as i32
+                }
+            }
+        };
+        let v = x.as_integer_slice().unwrap();
+        Integers::from_values(sums(v, codes, ng, 0, add, &pool)).into()
+    }
+}
+
 /// Whether a character counts as part of a word for `whole_word`: a letter
 /// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
 /// the string, or bytes that aren't UTF-8) doesn't.
@@ -2338,4 +2406,5 @@ extendr_module! {
     fn par_replace_term_rs;
     fn par_parse_time_rs;
     fn par_rank_rs;
+    fn par_rowsum_rs;
 }

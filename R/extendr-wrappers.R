@@ -160,4 +160,13 @@ par_parse_time_rs <- function(x, formats, try_formats, date, nthreads) .Call(wra
 #' @noRd
 par_rank_rs <- function(x, ties, na_last, nthreads) .Call(wrap__par_rank_rs, x, ties, na_last, nthreads)
 
+#' `rowsum(x, group)` for an integer or double vector or matrix `x`, given
+#' each row's group as a 1-based `code` among `ng`: the sums, a column per
+#' column of `x`. As in R, each group's rows are added in their order, so
+#' the sums are R's to the bit, and integer sums that overflow give `NA`.
+#' The rows are split by group as `par_duplicated()` splits elements, and
+#' each thread sums its own groups.
+#' @noRd
+par_rowsum_rs <- function(x, codes, ng, na_rm, nthreads) .Call(wrap__par_rowsum_rs, x, codes, ng, na_rm, nthreads)
+
 # nolint end
