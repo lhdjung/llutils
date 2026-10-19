@@ -201,6 +201,33 @@ test_that("all keep names, as regmatches(), sub(), and gsub() do", {
   )
 })
 
+test_that("par_locate() agrees with regexpr()", {
+  locate <- function(x, pattern) {
+    r <- regexpr(pattern, x, perl = TRUE)
+    start <- as.integer(r)
+    start[start == -1L] <- NA
+    cbind(start = start, end = start + attr(r, "match.length") - 1L)
+  }
+  x <- c("born 1999 in Oslo", "no year", NA, "\u00e91234", "", "ab")
+  expect_identical(par_locate(x, "[0-9]{4}"), locate(x, "[0-9]{4}"))
+  expect_identical(par_locate(x, "x*"), locate(x, "x*"))
+  x <- rep(x, 3000)
+  expect_identical(par_locate(x, "[0-9]+|\u00e9"), locate(x, "[0-9]+|\u00e9"))
+  out <- par_locate(c(a = "born 1999", b = "x"), "born ([0-9]+)", group = 1)
+  expect_identical(
+    out,
+    matrix(
+      c(6L, NA, 9L, NA),
+      2,
+      dimnames = list(c("a", "b"), c("start", "end"))
+    )
+  )
+  expect_identical(
+    par_locate(factor(c("x1", "y", "x1")), "[0-9]")[, "start"],
+    c(2L, NA, 2L)
+  )
+})
+
 test_that("latin1 strings, converted on the threads, give UTF-8's results", {
   x <- c("caf\xe9", "\x80uro", "a\x81b\x9dc", "na\xefve", "plain", NA)
   Encoding(x) <- "latin1"
@@ -215,6 +242,7 @@ test_that("latin1 strings, converted on the threads, give UTF-8's results", {
     expect_identical(par_extract_all(x, "."), par_extract_all(u, "."))
     expect_identical(par_replace_all(x, "a", "A"), par_replace_all(u, "a", "A"))
     expect_identical(Encoding(par_replace_all(x, "zzz", "A")), Encoding(u))
+    expect_identical(par_locate(x, "\u00e9|<9d>"), par_locate(u, "\u00e9|<9d>"))
     expect_identical(
       par_match_term(x, c("\u00e9", "\u20ac")),
       par_match_term(u, c("\u00e9", "\u20ac"))

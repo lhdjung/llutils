@@ -127,4 +127,11 @@ par_unique_rs <- function(x, from_last, nthreads) .Call(wrap__par_unique_rs, x, 
 #' @noRd
 par_extract_all_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_extract_all_rs, x, pattern, group, fixed, nthreads)
 
+#' Where the first match of `pattern` is in each string, or its capture
+#' group `group`: the positions of its first and last characters, 1-based,
+#' as the starts of all strings, then their ends; `NA` where there is none.
+#' Otherwise as `par_extract_rs()`.
+#' @noRd
+par_locate_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_locate_rs, x, pattern, group, fixed, nthreads)
+
 # nolint end

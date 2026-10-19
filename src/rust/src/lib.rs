@@ -1058,6 +1058,42 @@ fn par_extract_rs(
     strings(x, out)
 }
 
+/// Where the first match of `pattern` is in each string, or its capture
+/// group `group`: the positions of its first and last characters, 1-based,
+/// as the starts of all strings, then their ends; `NA` where there is none.
+/// Otherwise as `par_extract_rs()`.
+/// @noRd
+#[extendr]
+fn par_locate_rs(
+    x: Robj,
+    pattern: Robj,
+    group: i32,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Integers> {
+    let p = patterns(&pattern, fixed, nthreads)?;
+    check_group(&p, group)?;
+    let g = group as usize;
+    let x = unsafe { charsxps(&x) };
+    let mut out = vec![[NA_INT; 2]; x.len()];
+    per_pattern(&mut out, x, &p, [NA_INT; 2], nthreads, |re, s| {
+        let m = if g == 0 {
+            re.find(s)
+        } else {
+            re.captures(s).and_then(|c| c.get(g))
+        };
+        m.map_or([NA_INT; 2], |m| {
+            let chars = |s: &[u8]| s.iter().filter(|&&b| b & 0xC0 != 0x80).count() as i32;
+            let start = chars(&s[..m.start()]) + 1;
+            [start, start + chars(m.as_bytes()) - 1]
+        })
+    });
+    let col = |k: usize| out.iter().map(move |o| o[k]);
+    Ok(Integers::from_values(
+        col(0).chain(col(1)).collect::<Vec<_>>(),
+    ))
+}
+
 /// Every match of `pattern` in each string, as `par_count_rs()` finds them,
 /// or capture group `group` of each, `NA` where it took no part: a list of
 /// character vectors, `NA` where `x` or `pattern` is `NA`. Otherwise as
@@ -1666,4 +1702,5 @@ extendr_module! {
     fn par_find_interval_rs;
     fn par_unique_rs;
     fn par_extract_all_rs;
+    fn par_locate_rs;
 }

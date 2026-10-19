@@ -343,6 +343,16 @@ Nothing at the moment. Add ideas here when a use turns up.
   matched as positions from `par_match()`, as base matches those by
   printed number.
 
+`par_locate()`:
+
+- `par_extract()`'s search, returning the first and last character of the
+  match, counted from its bytes (UTF-8 continuation bytes don't count).
+  Returns a matrix, as stringi's `stri_locate_first_regex()` does; a
+  factor goes through `as.character()`, since a matrix can't be indexed by
+  levels. At 1e6 strings: 18ms, against 80ms for `regexpr(perl = TRUE)`
+  and 138ms for stringi. No `par_locate_all()` yet: it would make a matrix
+  per string on R's thread.
+
 `par_find_interval()`:
 
 - A binary search (`partition_point()`) per element, in parallel. 1e7

@@ -4,7 +4,8 @@
 #'   string, like `regmatches(x, regexpr(pattern, x))` but with `NA` where
 #'   nothing matches, or a capture group of it, which takes the place of
 #'   lookaround. `par_extract_all()` gives every match, like
-#'   `regmatches(x, gregexpr(pattern, x))`.
+#'   `regmatches(x, gregexpr(pattern, x))`. `par_locate()` gives where the
+#'   first match is instead, like `regexpr(pattern, x)`.
 #'
 #'   `par_replace()` replaces the first match, like
 #'   `sub(pattern, replacement, x)`, and `par_replace_all()` every match, like
@@ -36,6 +37,12 @@
 #'   counts, so the lengths are the counts, and for a group, `NA` where it
 #'   took no part in a match.
 #'
+#'   `par_locate()` returns an integer matrix with a row per string and
+#'   columns `start` and `end`, positions of characters, as in
+#'   [stringi::stri_locate_first_regex()]: an empty match has `end` one less
+#'   than `start`. `NA` where there is no match, or the group took no part in
+#'   it.
+#'
 #' @export
 #'
 #' @examples
@@ -43,6 +50,7 @@
 #' par_extract(x, "[0-9]{4}")
 #' par_extract(x, "born ([0-9]+)", group = 1)
 #' par_extract_all(c("#rstats and #rust", "none", NA), "#(\\w+)", group = 1)
+#' par_locate(x, "[0-9]{4}")
 #' par_replace(x, "[0-9]", "#")
 #' par_replace_all(x, "[0-9]", "#")
 #' par_replace_all("Smith, John", "(\\w+), (\\w+)", "$2 $1")
@@ -69,6 +77,24 @@ par_extract_all <- function(
 ) {
   out <- run_extract(par_extract_all_rs, x, pattern, group, fixed, nthreads)
   names(out) <- names(x) # as regmatches() keeps them
+  out
+}
+
+#' @rdname par_extract
+#' @export
+par_locate <- function(
+  x,
+  pattern,
+  group = 0L,
+  fixed = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+) {
+  if (is.factor(x)) {
+    x <- as.character(x) # a matrix can't be indexed by the levels
+  }
+  out <- run_extract(par_locate_rs, x, pattern, group, fixed, nthreads)
+  dim(out) <- c(length(x), 2L)
+  dimnames(out) <- list(names(x), c("start", "end"))
   out
 }
 

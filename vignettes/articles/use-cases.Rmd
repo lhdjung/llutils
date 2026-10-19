@@ -254,6 +254,13 @@ par_extract_all(c("#rstats and #rust", "no tags", NA), "#(\\w+)", group = 1)
 Only R's own thread can make R strings, so these run fastest where few
 strings change, such as redacting the few that hold an email address.
 
+`par_locate()` says where the first match is, as a matrix of the first and
+last character, for `substr()` or for highlighting:
+
+```{r}
+par_locate(notes, "HR [0-9]+")
+```
+
 ## Lookups and joins
 
 `par_match()` and `%par_in%` return exactly what `match()` and `%in%`

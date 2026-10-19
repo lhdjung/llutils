@@ -3,6 +3,7 @@
 \name{par_extract}
 \alias{par_extract}
 \alias{par_extract_all}
+\alias{par_locate}
 \alias{par_replace}
 \alias{par_replace_all}
 \title{Extract or replace regex matches, in parallel}
@@ -16,6 +17,14 @@ par_extract(
 )
 
 par_extract_all(
+  x,
+  pattern,
+  group = 0L,
+  fixed = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+)
+
+par_locate(
   x,
   pattern,
   group = 0L,
@@ -74,13 +83,20 @@ string, a string vector of its matches, \code{character(0)} if none, or
 \code{NA} where \code{x} or \code{pattern} is \code{NA}. It finds the matches \code{\link[=par_count]{par_count()}}
 counts, so the lengths are the counts, and for a group, \code{NA} where it
 took no part in a match.
+
+\code{par_locate()} returns an integer matrix with a row per string and
+columns \code{start} and \code{end}, positions of characters, as in
+\code{\link[stringi:stri_locate]{stringi::stri_locate_first_regex()}}: an empty match has \code{end} one less
+than \code{start}. \code{NA} where there is no match, or the group took no part in
+it.
 }
 \description{
 \code{par_extract()} gives the first match of \code{pattern} in each
 string, like \code{regmatches(x, regexpr(pattern, x))} but with \code{NA} where
 nothing matches, or a capture group of it, which takes the place of
 lookaround. \code{par_extract_all()} gives every match, like
-\code{regmatches(x, gregexpr(pattern, x))}.
+\code{regmatches(x, gregexpr(pattern, x))}. \code{par_locate()} gives where the
+first match is instead, like \code{regexpr(pattern, x)}.
 
 \code{par_replace()} replaces the first match, like
 \code{sub(pattern, replacement, x)}, and \code{par_replace_all()} every match, like
@@ -99,6 +115,7 @@ x <- c("born 1999 in Oslo", "no year", NA)
 par_extract(x, "[0-9]{4}")
 par_extract(x, "born ([0-9]+)", group = 1)
 par_extract_all(c("#rstats and #rust", "none", NA), "#(\\\\w+)", group = 1)
+par_locate(x, "[0-9]{4}")
 par_replace(x, "[0-9]", "#")
 par_replace_all(x, "[0-9]", "#")
 par_replace_all("Smith, John", "(\\\\w+), (\\\\w+)", "$2 $1")
