@@ -7,17 +7,18 @@
 
 <!-- badges: end -->
 
-parvenu provides ultra-fast replacements for common R utility
+parvenu provides ultra-fast parallel replacements for common R utility
 functions.
 
-It features `match()`, `%in%`, `duplicated()`, `unique()`, and
-`findInterval()` equivalents, row matching on several key columns, regex
-detection, counting, extraction, and replacement, and dictionary lookup,
-on all your cores. It is written in Rust. `par_match()`, `%par_in%`,
-`par_duplicated()`, `par_unique()`, and `par_find_interval()` behave
-exactly like base R, so they are drop-in replacements. `par_detect()` is
-`grepl()` with the syntax of Rust’s [regex
-crate](https://docs.rs/regex/latest/regex/#syntax), which never
+It features equivalents of `match()`, `%in%`, `duplicated()`,
+`unique()`, and `findInterval()`, row matching on several key columns,
+regex detection, counting, extraction, and replacement, and dictionary
+lookup and replacement, on all your cores. It is written in Rust.
+
+`par_match()`, `%par_in%`, `par_duplicated()`, `par_unique()`, and
+`par_find_interval()` behave exactly like base R, so they are drop-in
+replacements. `par_detect()` is `grepl()` with the syntax of Rust’s
+[regex crate](https://docs.rs/regex/latest/regex/#syntax), which never
 backtracks.
 
 The gains are largest where base R is slow and the work is bound by CPU:
@@ -30,6 +31,13 @@ Which of 100,000 strings mention any of 1,000 terms? A backtracking
 engine tries each term at each position. `par_detect()` compiles the
 alternation once, into an automaton that finds all terms in one pass,
 and splits the strings across threads.
+
+<details>
+
+<summary>
+
+Show code
+</summary>
 
 ``` r
 library(parvenu)
@@ -53,13 +61,6 @@ x <- paste(
 
 terms <- sample(vocabulary, 1000)
 pattern <- paste(terms, collapse = "|")
-
-hits <- par_detect(x, pattern)
-head(x[hits], 3)
-#> [1] "ezwyrblt xhvokbru 627" "xwyayuxt ntapthgt 259" "xomhfess pvcbbxzc 906"
-mean(hits)
-#> [1] 0.18929
-
 results <- bench::mark(
   base = grepl(pattern, x, perl = TRUE),
   stringi = stringi::stri_detect_regex(x, pattern),
@@ -67,14 +68,25 @@ results <- bench::mark(
   iterations = 10
 )
 results[, c("expression", "median")]
-#> # A tibble: 3 × 2
-#>   expression   median
-#>   <bch:expr> <bch:tm>
-#> 1 base         15.12s
-#> 2 stringi       8.56s
-#> 3 parvenu    29.07ms
 plot(results)
 ```
+
+</details>
+
+``` r
+hits <- par_detect(x, pattern)
+head(x[hits], 3)
+#> [1] "ezwyrblt xhvokbru 627" "xwyayuxt ntapthgt 259" "xomhfess pvcbbxzc 906"
+mean(hits)
+#> [1] 0.18929
+```
+
+    #> # A tibble: 3 × 2
+    #>   expression   median
+    #>   <bch:expr> <bch:tm>
+    #> 1 base         14.95s
+    #> 2 stringi       8.47s
+    #> 3 parvenu     22.01ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-dictionary-1.png" alt="Timings on a log scale: parvenu takes milliseconds, stringi and base R take seconds." width="100%" />
 
@@ -92,17 +104,26 @@ lowercase both the strings and the terms.
 in `terms`: `match()` for substrings. If a string contains several
 terms, the one earliest in `terms` wins, so put specific terms such as
 `"new york"` before general ones such as `"york"`. The terms are
-literal, so they need no escaping, and `ignore_case = TRUE` ignores
-ASCII case at full speed. `whole_word = TRUE` skips hits inside longer
-words, so `"york"` matches `"york, uk"` but not `"yorkshire"`, and
-`whole_word = "start"` matches prefixes, such as `"happ"` in
-`"happiness"`.
+literal, so they need no escaping, and `ignore_case = TRUE` ignores case
+in any script, at full speed for ASCII text. `whole_word = TRUE` skips
+hits inside longer words, so `"york"` matches `"york, uk"` but not
+`"yorkshire"`, and `whole_word = "start"` matches prefixes, such as
+`"happ"` in `"happiness"`.
 
 ``` r
 found <- par_match_term(x, terms)
 head(terms[found][!is.na(found)], 3)
 #> [1] "xhvokbru" "ntapthgt" "xomhfess"
+```
 
+<details>
+
+<summary>
+
+Show code
+</summary>
+
+``` r
 # The same result with stringi: one search per term
 stringi_loop <- function(x, terms) {
   out <- rep(NA_integer_, length(x))
@@ -116,32 +137,45 @@ upper <- toupper(x)
 
 results <- bench::mark(
   stringi = stringi_loop(x, terms),
-  parvenu = par_match_term(x, terms),
+  parvenu_default = par_match_term(x, terms),
   parvenu_ignore_case = par_match_term(upper, terms, ignore_case = TRUE),
-  iterations = 3,
+  iterations = 10,
   filter_gc = FALSE
 )
 results[, c("expression", "median")]
-#> # A tibble: 3 × 2
-#>   expression             median
-#>   <bch:expr>           <bch:tm>
-#> 1 stringi                 5.04s
-#> 2 parvenu               2.87ms
-#> 3 parvenu_ignore_case   2.77ms
 plot(results)
 ```
+
+</details>
+
+    #> # A tibble: 3 × 2
+    #>   expression            median
+    #>   <bch:expr>          <bch:tm>
+    #> 1 stringi                4.88s
+    #> 2 parvenu_default       2.64ms
+    #> 3 parvenu_ignore_case   2.84ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-term-1.png" alt="Timings on a log scale: parvenu takes milliseconds, a stringi loop over the terms takes seconds." width="100%" />
 
 To count hits instead, `par_count_term()` gives the number of term
-occurrences in each string, as for scoring text against a sentiment
-lexicon, and `par_which_term()` gives every term each string contains,
-for tagging. `par_count()` counts regex matches per string. With
-`fixed = FALSE`, the terms are regexes, all searched in one pass: slower
-than literal terms, but several times faster than one `par_detect()` per
-term.
+occurrences in each string, or with `weights`, their summed scores, as
+for scoring text against a sentiment lexicon. `par_which_term()` gives
+every term each string contains, for tagging, and `par_replace_term()`
+replaces each term with its replacement: 1,000 terms in 100,000 strings
+take 21ms, where stringi’s
+`stri_replace_all_fixed(vectorize_all = FALSE)` takes 3.7s. With
+`fixed = FALSE`, the terms of all four `_term` functions are regexes,
+all searched in one pass: slower than literal terms, but several times
+faster than one `par_detect()` per term.
 
 ## General matching
+
+<details>
+
+<summary>
+
+Show code
+</summary>
 
 ``` r
 keys <- sample.int(1e8, size = 1e6)
@@ -155,14 +189,17 @@ results <- bench::mark(
   filter_gc = FALSE
 )
 results[, c("expression", "median")]
-#> # A tibble: 3 × 2
-#>   expression   median
-#>   <bch:expr> <bch:tm>
-#> 1 base          289ms
-#> 2 collapse      232ms
-#> 3 parvenu       19ms
 plot(results)
 ```
+
+</details>
+
+    #> # A tibble: 3 × 2
+    #>   expression   median
+    #>   <bch:expr> <bch:tm>
+    #> 1 base          256ms
+    #> 2 collapse    180.7ms
+    #> 3 parvenu      16.2ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-match-1.png" alt="Timings on a log scale: parvenu is about ten times faster than collapse and base R." width="100%" />
 
@@ -178,11 +215,12 @@ strings. The numbers behind the comparison with collapse are in
 
 `par_duplicated()` is `duplicated()` on the same hash tables, built in
 parallel, and compares the rows of data frames as base does;
-`par_unique()` is `unique()` on top of it. `par_match_rows()` matches
-rows on several key columns at once, as in a join: it hashes whole rows
-in parallel, so a lookup of 10 million rows into 10 million others takes
-a fraction of a second, where pasting the columns into strings for
-`match()` takes seconds per million.
+`par_unique()` is `unique()`, collecting the first occurrences in the
+same pass. `par_match_rows()` matches rows on several key columns at
+once, as in a join: it hashes whole rows in parallel, so a lookup of 10
+million rows into 10 million others takes a fraction of a second, where
+pasting the columns into strings for `match()` takes seconds per
+million.
 
 `par_find_interval()` bins values by sorted breaks, such as ages into
 age groups, with a binary search per element on all cores. It is
@@ -218,14 +256,18 @@ differences:
 - Flags go in the pattern: `(?i)` ignores case.
 - `NA` gives `NA`, where `grepl()` gives `FALSE`.
 
+`fixed = TRUE` finds `pattern` as it is, as in `grepl(fixed = TRUE)`.
+`pattern` can also have one element per string, as in stringi.
+
 `par_extract()` gives the first match in each string, or a capture group
 of it, which takes the place of lookaround, and `par_extract_all()`
-every match. `par_replace()` replaces the first match, as `sub()` does,
-and `par_replace_all()` every match, as `gsub()` does, with `$1` instead
-of `\\1` for a group. Only R’s own thread can make R strings, so the
-more strings change, the more of the time that takes: where a tenth of a
-million strings change, it is about 8 times faster than
-`gsub(perl = TRUE)`, and where all of them do, about twice as fast.
+every match. `par_locate()` gives where the first match starts and ends,
+as `regexpr()` does. `par_replace()` replaces the first match, as
+`sub()` does, and `par_replace_all()` every match, as `gsub()` does,
+with `$1` instead of `\\1` for a group. Only R’s own thread can make R
+strings, so the more strings change, the more of the time that takes:
+where a tenth of a million strings change, it is about 6 times faster
+than `gsub(perl = TRUE)`, and where all of them do, about twice as fast.
 
 ## Installation
 
