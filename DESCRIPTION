@@ -1,6 +1,6 @@
 Package: parvenu
 Title: Multithreaded Matching and Regex Detection for Large Vectors
-Version: 0.0.0.9000
+Version: 0.0.0.9001
 Authors@R: person("Lukas", "Jung", , "jung-lukas@gmx.net", role = c("aut", "cre"))
 Description: Multithreaded versions of match(), %in%, duplicated(),
     unique(), findInterval(), grepl(), sub(), and gsub(), written in Rust,

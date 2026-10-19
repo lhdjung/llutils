@@ -80,7 +80,7 @@ Wrap the alternation in `\b(` and `)\b` to match whole words only, or use `par_m
 
 ### Which term?
 
-`par_match_term()` says which term each string contains, as a position in `terms`: `match()` for substrings. If a string contains several terms, the one earliest in `terms` wins, so put specific terms such as `"new york"` before general ones such as `"york"`. The terms are literal, so they need no escaping, and `ignore_case = TRUE` ignores ASCII case at full speed. `whole_word = TRUE` skips hits inside longer words, so `"york"` matches `"york, uk"` but not `"yorkshire"`.
+`par_match_term()` says which term each string contains, as a position in `terms`: `match()` for substrings. If a string contains several terms, the one earliest in `terms` wins, so put specific terms such as `"new york"` before general ones such as `"york"`. The terms are literal, so they need no escaping, and `ignore_case = TRUE` ignores ASCII case at full speed. `whole_word = TRUE` skips hits inside longer words, so `"york"` matches `"york, uk"` but not `"yorkshire"`, and `whole_word = "start"` matches prefixes, such as `"happ"` in `"happiness"`.
 
 ```{r term, fig.alt = "Timings on a log scale: parvenu takes milliseconds, a stringi loop over the terms takes seconds."}
 found <- par_match_term(x, terms)

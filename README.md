@@ -94,7 +94,9 @@ terms, the one earliest in `terms` wins, so put specific terms such as
 `"new york"` before general ones such as `"york"`. The terms are
 literal, so they need no escaping, and `ignore_case = TRUE` ignores
 ASCII case at full speed. `whole_word = TRUE` skips hits inside longer
-words, so `"york"` matches `"york, uk"` but not `"yorkshire"`.
+words, so `"york"` matches `"york, uk"` but not `"yorkshire"`, and
+`whole_word = "start"` matches prefixes, such as `"happ"` in
+`"happiness"`.
 
 ``` r
 found <- par_match_term(x, terms)
