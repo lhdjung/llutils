@@ -200,3 +200,24 @@ test_that("all keep names, as regmatches(), sub(), and gsub() do", {
     regmatches(x, gregexpr("[0-9]", x))
   )
 })
+
+test_that("latin1 strings, converted on the threads, give UTF-8's results", {
+  x <- c("caf\xe9", "\x80uro", "a\x81b\x9dc", "na\xefve", "plain", NA)
+  Encoding(x) <- "latin1"
+  for (x in list(x, rep(x, 2000))) {
+    u <- enc2utf8(x)
+    expect_identical(
+      par_detect(x, "\u00e9|\u20ac|<81>"),
+      par_detect(u, "\u00e9|\u20ac|<81>")
+    )
+    expect_identical(par_count(x, "."), par_count(u, "."))
+    expect_identical(par_extract(x, ".{2}$"), par_extract(u, ".{2}$"))
+    expect_identical(par_extract_all(x, "."), par_extract_all(u, "."))
+    expect_identical(par_replace_all(x, "a", "A"), par_replace_all(u, "a", "A"))
+    expect_identical(Encoding(par_replace_all(x, "zzz", "A")), Encoding(u))
+    expect_identical(
+      par_match_term(x, c("\u00e9", "\u20ac")),
+      par_match_term(u, c("\u00e9", "\u20ac"))
+    )
+  }
+})

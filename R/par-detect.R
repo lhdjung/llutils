@@ -98,7 +98,5 @@ run_pattern <- function(rs, x, pattern, fixed, nthreads) {
     x <- as.character(x)
   }
 
-  # Rust reads the bytes; this makes them UTF-8, without copying strings that
-  # are ASCII or UTF-8 already.
-  rs(enc2utf8(x), enc2utf8(pattern), fixed, nthreads)
+  rs(as_utf8(x), enc2utf8(pattern), fixed, nthreads)
 }

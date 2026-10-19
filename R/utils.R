@@ -6,6 +6,11 @@ is_num <- function(x) is.integer(x) || is.double(x)
 # Doubles go to Rust as they are, attributes and all, without a copy.
 as_dbl <- function(x) if (is.double(x)) x else as.double(x)
 
+# Rust reads strings as UTF-8, converting latin1 ones on its threads, so only
+# native strings in a locale that isn't UTF-8 need enc2utf8() first. It takes
+# about 6ms per 1e6 strings on one thread, even where it changes nothing.
+as_utf8 <- function(x) if (l10n_info()[["UTF-8"]]) x else enc2utf8(x)
+
 check_nthreads <- function(nthreads) {
   if (
     !is.numeric(nthreads) ||

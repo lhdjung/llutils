@@ -147,9 +147,14 @@ Nothing at the moment. Add ideas here when a use turns up.
   with fewer than a few hundred strings is slower than `grepl(perl = TRUE)`.
   The last compiled regex is kept, so repeats cost nothing (100 strings:
   17us against 32us). Below 5000 strings it runs on one thread.
-- `enc2utf8()` runs serially first, about 4ms per 1e6 strings, and is most
-  of the remaining time for fast patterns. bytes-encoded strings are matched
-  byte by byte.
+- Strings marked latin1 are converted to UTF-8 on the threads, as
+  `enc2utf8()` converts them: R reads latin1 as Windows-1252, and writes
+  the 5 bytes that has no character for as `<81>` and the like. R ran
+  `enc2utf8()` first, which took 5-6ms per 1e6 strings on one thread even
+  where it changed nothing, about half the time for fast patterns: at 1e6
+  strings `par_detect()` went from 11ms to 5ms, `par_match_term()` from
+  12ms to 7ms. R still runs it in a locale that isn't UTF-8, where native
+  strings need converting. bytes-encoded strings are matched byte by byte.
 - A factor with fewer levels than elements is matched by its levels, and
   the codes then index the result, as in `par_match()`: 50 levels in 1e7
   elements take 5ms, against 84ms as strings. `par_match_term()` does the
@@ -203,8 +208,9 @@ Nothing at the moment. Add ideas here when a use turns up.
   0.21s (2 threads: 0.24s), against 0.43s for `stri_extract_all_regex()`
   and 11s for `regmatches(x, gregexpr(perl = TRUE))`: making the 3e6
   strings is most of the time.
-- Results are marked UTF-8, as R passes `x` through `enc2utf8()`, except
-  those made from bytes-encoded strings. `par_extract()` gives `NA` where
+- Results are marked UTF-8, except those made from bytes-encoded strings.
+  A latin1 string is converted again on R's thread when a result is made
+  from it. `par_extract()` gives `NA` where
   nothing matches, as stringi does, not a shorter vector, as `regmatches()`
   does. A `group` beyond the pattern's groups is an error.
 - The `regex` crate and its 4 dependencies add 5 of the package's 25

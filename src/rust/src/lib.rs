@@ -723,7 +723,7 @@ fn regex(pattern: &str) -> extendr_api::Result<regex::bytes::Regex> {
 /// are thread-safe, but data.table has read strings from threads for years.
 /// Each chunk gets its own state from `init`, such as regex clones: threads
 /// sharing one regex contend for its cache, and cloning per rayon task
-/// costs more than it saves.
+/// costs more than it saves. Latin1 strings are converted, as `utf8()` says.
 fn per_string<T: Clone + Send + Sync, S>(
     out: &mut [T],
     x: &[usize],
@@ -735,11 +735,12 @@ fn per_string<T: Clone + Send + Sync, S>(
     let na_ptr = unsafe { R_NaString } as usize;
     let run = |start: usize, out: &mut [T], x: &[usize]| {
         let mut s = init();
+        let mut buf = Vec::new();
         for (j, (o, &p)) in out.iter_mut().zip(x).enumerate() {
             *o = if p == na_ptr {
                 na.clone()
             } else {
-                f(&mut s, start + j, unsafe { bytes(p) })
+                f(&mut s, start + j, unsafe { utf8(p, &mut buf) })
             };
         }
     };
@@ -976,8 +977,8 @@ enum Piece {
 }
 
 /// The strings `out` describes, each made from the string of `x` at its
-/// position. They are UTF-8, as R passes `x` through `enc2utf8()`, except
-/// those made from bytes-encoded strings, which stay bytes.
+/// position. They are UTF-8, latin1 strings converted as `utf8()` does,
+/// except those made from bytes-encoded strings, which stay bytes.
 fn strings(x: &[usize], out: Vec<Piece>) -> extendr_api::Result<Robj> {
     let res: Robj = Strings::new(out.len()).into();
     for (i, (piece, &p)) in out.into_iter().zip(x).enumerate() {
@@ -989,18 +990,26 @@ fn strings(x: &[usize], out: Vec<Piece>) -> extendr_api::Result<Robj> {
 /// The string `piece` describes, made from the string at `p`, as in
 /// `strings()`.
 unsafe fn string(piece: Piece, p: usize) -> extendr_api::Result<SEXP> {
-    let ce = if Rf_getCharCE(p as SEXP) == 3 { 3 } else { 1 };
+    let ce = Rf_getCharCE(p as SEXP);
     let make = |s: &[u8]| -> extendr_api::Result<SEXP> {
         let n = c_int::try_from(s.len()).map_err(|_| {
             Error::Other("A result is longer than R's limit of 2^31 - 1 bytes.".into())
         })?;
-        Ok(Rf_mkCharLenCE(s.as_ptr() as *const c_char, n, ce))
+        Ok(Rf_mkCharLenCE(
+            s.as_ptr() as *const c_char,
+            n,
+            if ce == 3 { 3 } else { 1 },
+        ))
     };
+    let mut buf = Vec::new();
+    let s = utf8(p, &mut buf);
+    // A latin1 string is made again, as UTF-8.
+    let whole = || if ce == 2 { make(s) } else { Ok(p as SEXP) };
     Ok(match piece {
         Piece::Na => R_NaString,
-        Piece::Same => p as SEXP,
-        Piece::Span(a, b) if a == 0 && b == bytes(p).len() => p as SEXP,
-        Piece::Span(a, b) => make(&bytes(p)[a..b])?,
+        Piece::Same => whole()?,
+        Piece::Span(a, b) if a == 0 && b == s.len() => whole()?,
+        Piece::Span(a, b) => make(&s[a..b])?,
         Piece::New(v) => make(&v)?,
     })
 }
@@ -1586,6 +1595,41 @@ fn last_char(s: &[u8]) -> Option<char> {
         None
     }
 }
+
+/// A string's bytes, by its pointer, as UTF-8: a latin1 string is converted
+/// into `buf` as `enc2utf8()` converts it, so R needn't run that first, on
+/// one thread. R reads latin1 as Windows-1252, and writes the 5 bytes that
+/// has no character for as `<81>` and the like.
+unsafe fn utf8(p: usize, buf: &mut Vec<u8>) -> &[u8] {
+    // R never marks an ASCII string as latin1.
+    if Rf_getCharCE(p as SEXP) != 2 {
+        return bytes(p);
+    }
+    buf.clear();
+    for &b in bytes(p) {
+        let c = if (0x80..0xA0).contains(&b) {
+            CP1252[b as usize - 0x80]
+        } else {
+            b as char
+        };
+        if c == '\0' {
+            buf.extend_from_slice(format!("<{b:02x}>").as_bytes());
+        } else {
+            buf.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes());
+        }
+    }
+    buf
+}
+
+/// Windows-1252 from 0x80 to 0x9F, where latin1 has control characters;
+/// `'\0'` where it has none either.
+#[rustfmt::skip]
+const CP1252: [char; 32] = [
+        '\u{20AC}', '\0', '\u{201A}', '\u{0192}', '\u{201E}', '\u{2026}', '\u{2020}', '\u{2021}',
+        '\u{02C6}', '\u{2030}', '\u{0160}', '\u{2039}', '\u{0152}', '\0', '\u{017D}', '\0', '\0',
+        '\u{2018}', '\u{2019}', '\u{201C}', '\u{201D}', '\u{2022}', '\u{2013}', '\u{2014}',
+        '\u{02DC}', '\u{2122}', '\u{0161}', '\u{203A}', '\u{0153}', '\0', '\u{017E}', '\u{0178}',
+];
 
 /// A character vector's string pointers, as integers that threads can share.
 unsafe fn charsxps(x: &Robj) -> &[usize] {

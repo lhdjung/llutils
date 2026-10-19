@@ -188,7 +188,7 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, fixed, nthreads) {
   }
 
   rs(
-    enc2utf8(x),
+    as_utf8(x),
     enc2utf8(terms),
     ignore_case,
     bounds[1],
