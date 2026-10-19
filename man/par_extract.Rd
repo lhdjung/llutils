@@ -40,7 +40,7 @@ par_replace_all(
 )
 }
 \arguments{
-\item{x}{A character vector, or something \code{\link[=as.character]{as.character()}} converts.}
+\item{x}{A string vector, or an object convertible by \code{\link[=as.character]{as.character()}}.}
 
 \item{pattern}{The regex, or the literal string to find if \code{fixed = TRUE}:
 one string, or one per string of \code{x}, as in
@@ -64,13 +64,13 @@ named one, and \verb{$$} for a \code{$}. Write \verb{$\{1\}a}, not \verb{$1a}, w
 group named \verb{1a}. R's \verb{\\\\1} is not a group here.}
 }
 \value{
-A character vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern}
+A string vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern}
 is \code{NA}, and for \code{par_extract()}, also where nothing matches, or the
 group took no part in the match. All keep the names of \code{x}, as
 \code{\link[=regmatches]{regmatches()}}, \code{\link[=sub]{sub()}}, and \code{\link[=gsub]{gsub()}} do.
 
 \code{par_extract_all()} returns a list as long as \code{x} instead: for each
-string, a character vector of its matches, \code{character(0)} if none, or
+string, a string vector of its matches, \code{character(0)} if none, or
 \code{NA} where \code{x} or \code{pattern} is \code{NA}. It finds the matches \code{\link[=par_count]{par_count()}}
 counts, so the lengths are the counts, and for a group, \code{NA} where it
 took no part in a match.

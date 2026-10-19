@@ -52,7 +52,7 @@ large inputs. For a data frame, rows are compared, as in base.
 }
 \details{
 Computed in Rust when \code{x} has at least 1e4 elements (or rows)
-and is an integer, double, or character vector, a factor, a Date, or a
+and is an integer, double, or string vector, a factor, a Date, or a
 POSIXct, or a data frame of such columns and logical ones. Anything else
 goes to base \code{\link[=duplicated]{duplicated()}} unchanged.
 

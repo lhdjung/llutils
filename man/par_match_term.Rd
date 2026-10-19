@@ -34,9 +34,10 @@ par_which_term(
 )
 }
 \arguments{
-\item{x}{A character vector, or something \code{\link[=as.character]{as.character()}} converts.}
+\item{x}{A string vector, or an object convertible by \code{\link[=as.character]{as.character()}}.}
 
-\item{terms}{A character vector of literal strings to find, without \code{NA}.}
+\item{terms}{A string vector of literal strings to find. \code{NA} is not
+allowed.}
 
 \item{ignore_case}{If \code{TRUE}, ASCII letters match regardless of case.
 Other letters, such as \code{"é"} and \code{"É"}, still match only
@@ -83,27 +84,30 @@ increasing order and each once, \code{integer(0)} if none, or \code{NA} where \c
 is \code{NA}.
 }
 \description{
-For each string in \code{x}, the index of the first of \code{terms} it
-contains, like \code{match()} for substrings. Terms are literal, as in
-\code{grepl(fixed = TRUE)}, so no character needs escaping, unless
-\code{fixed = FALSE} makes them regexes.
+For each string in \code{x}:
+\itemize{
+\item \code{par_match_term()} finds the index of the first term in \code{terms} it
+contains. It is like \code{match()} for substrings.
+\item \code{par_count_term()} counts every hit of every term instead, for scoring
+strings against a lexicon, such as positive and negative words.
+\item \code{par_which_term()} gives every term each string contains, not just the
+first, for tagging: an abstract with every drug it names.
+}
+}
+\details{
+Terms are literal, as in \code{grepl(fixed = TRUE)}, so no character
+needs escaping by default. However, with \code{fixed = FALSE}, the terms are
+regular expressions.
 
 Order sets priority: if a string contains several terms, the one earliest
 in \code{terms} wins, wherever it occurs in the string. Put specific terms
 before general ones, such as \code{"new york"} before \code{"york"}.
 
-\code{par_count_term()} counts every hit of every term instead, for scoring
-strings against a lexicon, such as positive and negative words.
-
-\code{par_which_term()} gives every term each string contains, not just the
-first, for tagging: an abstract with every drug it names.
-}
-\details{
-All terms are compiled into one Aho-Corasick automaton, which finds
-every occurrence of every term in a single pass over each string, however
-many terms there are. The threads read the strings straight from R's
-memory, as data.table does. The last automaton is kept, so calls that
-repeat the same \code{terms} don't build it again.
+All terms are compiled into one Aho-Corasick automaton, which finds every
+occurrence of every term in a single pass over each string, however many
+terms there are. The threads read the strings straight from R's memory, as
+data.table does. The last automaton is kept, so calls that repeat the same
+\code{terms} don't build it again.
 
 With \code{fixed = FALSE}, the terms are compiled into one regex set instead,
 which also says in one pass which of them match a string. That is much
@@ -111,12 +115,20 @@ slower than the automaton, but much faster than a regex per term.
 }
 \examples{
 cities <- c("new york", "york", "paris")
+
 par_match_term(c("york and new york", "paris, texas", "rome", NA), cities)
+
 par_match_term("NEW YORK", cities, ignore_case = TRUE)
+
 par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
+
 par_match_term("1+1=2", c("+", "("))
+
 par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
+
 par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
+
 par_which_term(c("york and new york", "rome", NA), cities)
+
 par_match_term(c("call 555-1234", "mail a@b.org"), c("\\\\d{3}-\\\\d{4}", "@"), fixed = FALSE)
 }

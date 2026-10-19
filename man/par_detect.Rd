@@ -20,7 +20,7 @@ par_count(
 )
 }
 \arguments{
-\item{x}{A character vector, or something \code{\link[=as.character]{as.character()}} converts.}
+\item{x}{A string vector, or an object convertible by \code{\link[=as.character]{as.character()}}.}
 
 \item{pattern}{The regex, or the literal string to find if \code{fixed = TRUE}:
 one string, or one per string of \code{x}, as in

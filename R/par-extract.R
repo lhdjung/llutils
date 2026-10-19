@@ -25,13 +25,13 @@
 #'   group named `1a`. R's `\\1` is not a group here.
 #' @inheritParams par_detect
 #'
-#' @returns A character vector as long as `x`, `NA` where `x` or `pattern`
+#' @returns A string vector as long as `x`, `NA` where `x` or `pattern`
 #'   is `NA`, and for `par_extract()`, also where nothing matches, or the
 #'   group took no part in the match. All keep the names of `x`, as
 #'   [regmatches()], [sub()], and [gsub()] do.
 #'
 #'   `par_extract_all()` returns a list as long as `x` instead: for each
-#'   string, a character vector of its matches, `character(0)` if none, or
+#'   string, a string vector of its matches, `character(0)` if none, or
 #'   `NA` where `x` or `pattern` is `NA`. It finds the matches [par_count()]
 #'   counts, so the lengths are the counts, and for a group, `NA` where it
 #'   took no part in a match.

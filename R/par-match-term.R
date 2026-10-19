@@ -1,32 +1,35 @@
 #' Find which term each string contains, in parallel
 #'
-#' @description For each string in `x`, the index of the first of `terms` it
-#'   contains, like `match()` for substrings. Terms are literal, as in
-#'   `grepl(fixed = TRUE)`, so no character needs escaping, unless
-#'   `fixed = FALSE` makes them regexes.
+#' @description For each string in `x`:
+#'
+#' - `par_match_term()` finds the index of the first term in `terms` it
+#'   contains. It is like `match()` for substrings.
+#' - `par_count_term()` counts every hit of every term instead, for scoring
+#'   strings against a lexicon, such as positive and negative words.
+#' - `par_which_term()` gives every term each string contains, not just the
+#'   first, for tagging: an abstract with every drug it names.
+#'
+#' @details Terms are literal, as in `grepl(fixed = TRUE)`, so no character
+#'   needs escaping by default. However, with `fixed = FALSE`, the terms are
+#'   regular expressions.
 #'
 #'   Order sets priority: if a string contains several terms, the one earliest
 #'   in `terms` wins, wherever it occurs in the string. Put specific terms
 #'   before general ones, such as `"new york"` before `"york"`.
 #'
-#'   `par_count_term()` counts every hit of every term instead, for scoring
-#'   strings against a lexicon, such as positive and negative words.
-#'
-#'   `par_which_term()` gives every term each string contains, not just the
-#'   first, for tagging: an abstract with every drug it names.
-#'
-#' @details All terms are compiled into one Aho-Corasick automaton, which finds
-#'   every occurrence of every term in a single pass over each string, however
-#'   many terms there are. The threads read the strings straight from R's
-#'   memory, as data.table does. The last automaton is kept, so calls that
-#'   repeat the same `terms` don't build it again.
+#'   All terms are compiled into one Aho-Corasick automaton, which finds every
+#'   occurrence of every term in a single pass over each string, however many
+#'   terms there are. The threads read the strings straight from R's memory, as
+#'   data.table does. The last automaton is kept, so calls that repeat the same
+#'   `terms` don't build it again.
 #'
 #'   With `fixed = FALSE`, the terms are compiled into one regex set instead,
 #'   which also says in one pass which of them match a string. That is much
 #'   slower than the automaton, but much faster than a regex per term.
 #'
-#' @param x A character vector, or something [as.character()] converts.
-#' @param terms A character vector of literal strings to find, without `NA`.
+#' @param x A string vector, or an object convertible by [as.character()].
+#' @param terms A string vector of literal strings to find. `NA` is not
+#'   allowed.
 #' @param ignore_case If `TRUE`, ASCII letters match regardless of case.
 #'   Other letters, such as `"é"` and `"É"`, still match only
 #'   themselves. With `fixed = FALSE`, all letters do, as with `(?i)`.
@@ -65,13 +68,21 @@
 #'
 #' @examples
 #' cities <- c("new york", "york", "paris")
+#'
 #' par_match_term(c("york and new york", "paris, texas", "rome", NA), cities)
+#'
 #' par_match_term("NEW YORK", cities, ignore_case = TRUE)
+#'
 #' par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
+#'
 #' par_match_term("1+1=2", c("+", "("))
+#'
 #' par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
+#'
 #' par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
+#'
 #' par_which_term(c("york and new york", "rome", NA), cities)
+#'
 #' par_match_term(c("call 555-1234", "mail a@b.org"), c("\\d{3}-\\d{4}", "@"), fixed = FALSE)
 par_match_term <- function(
   x,
@@ -144,6 +155,7 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, fixed, nthreads) {
   if (!is_bool(ignore_case)) {
     stop("`ignore_case` must be `TRUE` or `FALSE`.")
   }
+
   if (identical(whole_word, "start")) {
     bounds <- c(TRUE, FALSE)
   } else if (is_bool(whole_word)) {
@@ -151,6 +163,7 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, fixed, nthreads) {
   } else {
     stop("`whole_word` must be `TRUE`, `FALSE`, or `\"start\"`.")
   }
+
   if (!is_bool(fixed)) {
     stop("`fixed` must be `TRUE` or `FALSE`.")
   }

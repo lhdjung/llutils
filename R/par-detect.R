@@ -31,7 +31,7 @@
 #' @details The threads read the strings straight from R's memory, as
 #'   data.table does.
 #'
-#' @param x A character vector, or something [as.character()] converts.
+#' @param x A string vector, or an object convertible by [as.character()].
 #' @param pattern The regex, or the literal string to find if `fixed = TRUE`:
 #'   one string, or one per string of `x`, as in
 #'   [stringi::stri_detect_regex()]. Each distinct pattern is compiled once.
@@ -80,7 +80,7 @@ run_pattern <- function(rs, x, pattern, fixed, nthreads) {
     !is.character(pattern) ||
       (length(pattern) != 1L && length(pattern) != length(x))
   ) {
-    stop("`pattern` must be a string, or a character vector as long as `x`.")
+    stop("`pattern` must be a string, or a string vector as long as `x`.")
   }
 
   if (!is_bool(fixed)) {
