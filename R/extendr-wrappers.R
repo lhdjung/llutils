@@ -169,4 +169,11 @@ par_rank_rs <- function(x, ties, na_last, nthreads) .Call(wrap__par_rank_rs, x, 
 #' @noRd
 par_rowsum_rs <- function(x, codes, ng, na_rm, nthreads) .Call(wrap__par_rowsum_rs, x, codes, ng, na_rm, nthreads)
 
+#' `approx()`'s interpolation at each of `xout`, from `x` sorted, without
+#' `NA`, and `y`, as R's `approx1()` does it: `method` 1 is linear, 2
+#' constant; `ends` holds `yleft`, `yright`, and `f`, which may be `NA`. `NA`
+#' and `NaN` in `xout` stay as they are.
+#' @noRd
+par_approx_rs <- function(x, y, xout, method, ends, nthreads) .Call(wrap__par_approx_rs, x, y, xout, method, ends, nthreads)
+
 # nolint end

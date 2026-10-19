@@ -2309,6 +2309,74 @@ fn par_rowsum_rs(x: Robj, codes: &[i32], ng: i32, na_rm: bool, nthreads: i32) ->
     }
 }
 
+/// `approx()`'s interpolation at each of `xout`, from `x` sorted, without
+/// `NA`, and `y`, as R's `approx1()` does it: `method` 1 is linear, 2
+/// constant; `ends` holds `yleft`, `yright`, and `f`, which may be `NA`. `NA`
+/// and `NaN` in `xout` stay as they are.
+/// @noRd
+#[extendr]
+fn par_approx_rs(
+    x: &[f64],
+    y: &[f64],
+    xout: &[f64],
+    method: i32,
+    ends: &[f64],
+    nthreads: i32,
+) -> Doubles {
+    let [yleft, yright, f] = ends.try_into().unwrap();
+    let (f1, f2) = (1.0 - f, f);
+    let approx1 = |v: f64| -> f64 {
+        if v.is_nan() {
+            return v;
+        }
+        if x.is_empty() {
+            return f64::NAN;
+        }
+        let (mut i, mut j) = (0, x.len() - 1);
+        if v < x[i] {
+            return yleft;
+        }
+        if v > x[j] {
+            return yright;
+        }
+        while i + 1 < j {
+            let ij = (i + j) / 2;
+            if v < x[ij] {
+                j = ij
+            } else {
+                i = ij
+            }
+        }
+        if v == x[j] {
+            return y[j];
+        }
+        if v == x[i] {
+            return y[i];
+        }
+        if method == 1 {
+            let (d, t) = (y[j] - y[i], (v - x[i]) / (x[j] - x[i]));
+            // C compilers fuse this multiply and add into one instruction on
+            // arm64, which rounds once, and R is compiled so; on x86-64 they
+            // don't, without flags for newer processors.
+            if cfg!(target_arch = "aarch64") {
+                d.mul_add(t, y[i])
+            } else {
+                y[i] + d * t
+            }
+        } else {
+            (if f1 != 0.0 { y[i] * f1 } else { 0.0 }) + (if f2 != 0.0 { y[j] * f2 } else { 0.0 })
+        }
+    };
+    let mut out = vec![0.0; xout.len()];
+    pool(nthreads).install(|| {
+        out.par_iter_mut()
+            .zip(xout)
+            .with_min_len(MATCH_PER_THREAD)
+            .for_each(|(o, &v)| *o = approx1(v))
+    });
+    Doubles::from_values(out)
+}
+
 /// Whether a character counts as part of a word for `whole_word`: a letter
 /// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
 /// the string, or bytes that aren't UTF-8) doesn't.
@@ -2407,4 +2475,5 @@ extendr_module! {
     fn par_parse_time_rs;
     fn par_rank_rs;
     fn par_rowsum_rs;
+    fn par_approx_rs;
 }

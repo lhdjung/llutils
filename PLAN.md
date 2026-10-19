@@ -443,6 +443,18 @@ per 1e6), `dist()` (144ms for 5000 rows of 10).
 - 1e7 doubles in 1e5 groups take 103ms (base 1.2s, collapse 67ms); in 100
   groups, 78ms (base 145ms, collapse 30ms).
 
+`par_approx()`:
+
+- `approxfun()` prepares the points (sorting, merging ties, checking the
+  arguments) and Rust interpolates, reading `x`, `y`, `method`, `yleft`,
+  `yright`, and `f` from the environment of the function it returns.
+  That environment is not a documented interface; the tests compare with
+  `approx()` on every R that CI runs.
+- `y[i] + (y[j] - y[i]) * t` is fused into one multiply-add on arm64,
+  where C compilers fuse it and R's results depend on it, and not on
+  x86-64, where they don't.
+- 1e7 points into 1e4 take 96ms (base 0.63s). `na.rm = FALSE` goes to base.
+
 `par_find_interval()`:
 
 - A binary search (`partition_point()`) per element, in parallel. 1e7
