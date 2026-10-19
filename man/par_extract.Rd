@@ -66,8 +66,8 @@ group named \verb{1a}. R's \verb{\\\\1} is not a group here.}
 \value{
 A character vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern}
 is \code{NA}, and for \code{par_extract()}, also where nothing matches, or the
-group took no part in the match. \code{par_replace()} and \code{par_replace_all()}
-keep the names of \code{x}, as \code{\link[=sub]{sub()}} and \code{\link[=gsub]{gsub()}} do.
+group took no part in the match. All keep the names of \code{x}, as
+\code{\link[=regmatches]{regmatches()}}, \code{\link[=sub]{sub()}}, and \code{\link[=gsub]{gsub()}} do.
 
 \code{par_extract_all()} returns a list as long as \code{x} instead: for each
 string, a character vector of its matches, \code{character(0)} if none, or

@@ -80,6 +80,16 @@ still free. The release steps at the end wait until then.
    character in `par_replace_all()` and `par_count()` (`""` in `"é"` gave
    invalid UTF-8), subclassed factors and `contrasts` in `par_unique()`,
    and names in `par_replace_all()`, which `gsub()` keeps.
+   A third review on 2026-10-19, of `par_unique()` in Rust,
+   `par_replace()`, `par_extract_all()`, and regex terms, compared about
+   60 cases (thresholds at 1e4 and 65536 elements, one thread, attributes
+   and classes, NaN payloads, mixed encodings, bytes, empty and optional
+   groups, empty terms, 1e4 and 5e4 regex terms). `par_unique()` agreed
+   with `unique()` everywhere. It fixed regex terms with unbalanced
+   parentheses, which escaped the `whole_word` wrapper (`x)|(y` matched
+   `x` anywhere instead of being an error), and `(?x)` terms ending in a
+   comment, which swallowed it. `par_extract()` and `par_extract_all()`
+   now keep names, as `regmatches()` does.
 2. **Names of the string functions.** `par_replace()` became
    `par_replace_all()` on 2026-10-19: in stringr `str_replace()` replaces
    the first match only, and base `replace()` is unrelated, while `par_`
@@ -199,6 +209,9 @@ Nothing at the moment. Add ideas here when a use turns up.
   does. A `group` beyond the pattern's groups is an error.
 - The `regex` crate and its 4 dependencies add 5 of the package's 25
   crates, which adds to the vendored tarball.
+- A pattern that matches single bytes, such as `(?-u:.)`, can cut a
+  character in two, and `par_extract()` and `par_extract_all()` then give
+  invalid UTF-8, as `useBytes = TRUE` can in base.
 
 `par_match_term()`:
 
@@ -252,6 +265,10 @@ Nothing at the moment. Add ideas here when a use turns up.
   `stri_detect_regex()` per term. For 10 and 100 terms it takes 5ms and
   15-19ms (`par_detect()` per term 11ms and 150ms, stringi 0.14s and
   1.6s); literal terms take 2-4ms at any count.
+- The set clones keep their caches while the terms stay the same, up to
+  16MB per core. More than about 1e4 regex terms exceed the regex
+  crate's 10MB limit on a compiled regex, which is an error; 1e4 take
+  0.3s to build.
 - `whole_word` drops a hit if the character right before or after it is a
   letter or digit in any script, or `_` (Rust's `char::is_alphanumeric()`).
   That is PCRE's `(?<!\w)term(?!\w)`, not `\bterm\b`: the two differ only

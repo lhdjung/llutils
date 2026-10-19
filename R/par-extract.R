@@ -27,8 +27,8 @@
 #'
 #' @returns A character vector as long as `x`, `NA` where `x` or `pattern`
 #'   is `NA`, and for `par_extract()`, also where nothing matches, or the
-#'   group took no part in the match. `par_replace()` and `par_replace_all()`
-#'   keep the names of `x`, as [sub()] and [gsub()] do.
+#'   group took no part in the match. All keep the names of `x`, as
+#'   [regmatches()], [sub()], and [gsub()] do.
 #'
 #'   `par_extract_all()` returns a list as long as `x` instead: for each
 #'   string, a character vector of its matches, `character(0)` if none, or
@@ -53,7 +53,9 @@ par_extract <- function(
   fixed = FALSE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  run_extract(par_extract_rs, x, pattern, group, fixed, nthreads)
+  out <- run_extract(par_extract_rs, x, pattern, group, fixed, nthreads)
+  names(out) <- names(x) # as regmatches() keeps them
+  out
 }
 
 #' @rdname par_extract
@@ -65,7 +67,9 @@ par_extract_all <- function(
   fixed = FALSE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  run_extract(par_extract_all_rs, x, pattern, group, fixed, nthreads)
+  out <- run_extract(par_extract_all_rs, x, pattern, group, fixed, nthreads)
+  names(out) <- names(x) # as regmatches() keeps them
+  out
 }
 
 #' @rdname par_extract

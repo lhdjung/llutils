@@ -354,6 +354,20 @@ test_that("regex terms ignore case in any script, and bad ones error", {
   expect_identical(par_match_term("1+1", "+"), 1L)
   expect_error(par_match_term("1+1", "+", fixed = FALSE), "repetition")
   expect_error(par_match_term("a", "a", fixed = NA), "fixed")
+  # whole_word must not let a term escape its wrapper.
+  expect_error(
+    par_match_term("x b", "x)|(y", whole_word = TRUE, fixed = FALSE),
+    "unopened group"
+  )
+  expect_identical(
+    par_match_term(
+      c("a b", "ab"),
+      "(?x)a # a comment",
+      whole_word = TRUE,
+      fixed = FALSE
+    ),
+    c(1L, NA)
+  )
   f <- factor(sample(c("a1", "b2", NA), 3e4, TRUE))
   expect_identical(
     par_which_term(f, c("[0-9]", "b"), fixed = FALSE),

@@ -191,7 +191,12 @@ test_that("empty matches never split a character", {
   expect_identical(par_count(rep(e, 6000), "x*"), rep(2L, 6000)) # parallel
 })
 
-test_that("par_replace_all() keeps names, as gsub() does", {
+test_that("all keep names, as regmatches(), sub(), and gsub() do", {
   x <- c(a = "x1", b = "y")
   expect_identical(par_replace_all(x, "[0-9]", "#"), gsub("[0-9]", "#", x))
+  expect_identical(par_extract(x, "[0-9]"), c(a = "1", b = NA))
+  expect_identical(
+    par_extract_all(x, "[0-9]"),
+    regmatches(x, gregexpr("[0-9]", x))
+  )
 })

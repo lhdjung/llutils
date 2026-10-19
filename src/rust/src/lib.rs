@@ -1210,11 +1210,21 @@ fn compile_terms(
             .iter()
             .map(|&p| {
                 let t = std::str::from_utf8(unsafe { bytes(p) }).map_err(|e| err(&e))?;
-                Ok(if whole_word {
-                    format!(r"\b{{start-half}}(?:{t})\b{{end-half}}")
-                } else {
-                    t.to_string()
-                })
+                if !whole_word {
+                    return Ok(t.to_string());
+                }
+                // The term is checked on its own first: one with unbalanced
+                // parentheses, such as `a)|(b`, would escape the wrapper.
+                let ast = regex_syntax::ast::parse::Parser::new()
+                    .parse_with_comments(t)
+                    .map_err(|e| err(&e))?;
+                // In `(?x)` mode, a comment at the end would swallow the `)`.
+                let end = ast
+                    .comments
+                    .last()
+                    .is_some_and(|c| c.span.end.offset == t.len());
+                let end = if end { "\n" } else { "" };
+                Ok(format!(r"\b{{start-half}}(?:{t}{end})\b{{end-half}}"))
             })
             .collect::<extendr_api::Result<Vec<_>>>()?;
         let res = src

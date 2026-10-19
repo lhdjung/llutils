@@ -112,7 +112,10 @@ par_find_interval_rs <- function(x, vec, rightmost_closed, all_inside, left_open
 
 #' `unique(x)` for an integer, double, or string vector, without
 #' attributes; `NULL` for strings that `par_match_chr()` would leave to
-#' base.
+#' base. The first occurrences are marked in a byte per element, as
+#' `duplicated()` marks the others, and the marked elements then gathered
+#' in parallel, where subsetting by the result of `duplicated()` in R reads
+#' four bytes per element on one thread.
 #' @noRd
 par_unique_rs <- function(x, from_last, nthreads) .Call(wrap__par_unique_rs, x, from_last, nthreads)
 

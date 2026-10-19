@@ -99,6 +99,7 @@ dependencies = [
  "extendr-api",
  "rayon",
  "regex",
+ "regex-syntax",
  "rustc-hash",
 ]
 
