@@ -157,6 +157,15 @@ data.frame(
 )
 ```
 
+Dictionaries such as LIWC list stems, such as `"happ*"` for `"happy"` and
+`"happiness"`. Pass the stems without the `*` and with
+`whole_word = "start"`: a term then has to start a word but may end inside
+one, so `"unhappy"` doesn't count:
+
+```{r}
+par_count_term(c("Happy and full of happiness", "Unhappy"), "happ", ignore_case = TRUE, whole_word = "start")
+```
+
 Hits are counted where they overlap, too: with `c("new york", "york")`,
 the string `"new york"` has two. A term listed twice counts twice, so pass
 `unique(terms)` if the list might repeat itself.

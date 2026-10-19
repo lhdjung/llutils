@@ -33,9 +33,15 @@
 #' @param whole_word If `TRUE`, a term counts only where it isn't part of a
 #'   longer word: the characters right before and after it must not be
 #'   letters, digits, or `_`, in any script. `"york"` then matches
-#'   `"new york"` and `"york, uk"`, but not `"yorkshire"`. With
-#'   `fixed = FALSE`, a term's match must have no such character on either
-#'   side.
+#'   `"new york"` and `"york, uk"`, but not `"yorkshire"`. An apostrophe
+#'   between two such characters joins them into one word, so `"won"`
+#'   doesn't match `"won't"`, nor `"heaven"` `"heaven's"`; this holds for
+#'   `'` and the curly `\u2019`. With `fixed = FALSE`, the same goes for a
+#'   term's match.
+#'
+#'   If `"start"`, a term must start a word but may end inside one, as a
+#'   prefix: `"happ"` matches `"happy"` and `"happiness"`, but not
+#'   `"unhappy"`. This is the `"happ*"` of dictionaries such as LIWC.
 #' @param fixed If `FALSE`, `terms` are regexes, in the syntax of
 #'   [par_detect()].
 #' @inheritParams par_match
@@ -64,6 +70,7 @@
 #' par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 #' par_match_term("1+1=2", c("+", "("))
 #' par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
+#' par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
 #' par_which_term(c("york and new york", "rome", NA), cities)
 #' par_match_term(c("call 555-1234", "mail a@b.org"), c("\\d{3}-\\d{4}", "@"), fixed = FALSE)
 par_match_term <- function(
@@ -137,8 +144,12 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, fixed, nthreads) {
   if (!is_bool(ignore_case)) {
     stop("`ignore_case` must be `TRUE` or `FALSE`.")
   }
-  if (!is_bool(whole_word)) {
-    stop("`whole_word` must be `TRUE` or `FALSE`.")
+  if (identical(whole_word, "start")) {
+    bounds <- c(TRUE, FALSE)
+  } else if (is_bool(whole_word)) {
+    bounds <- c(whole_word, whole_word)
+  } else {
+    stop("`whole_word` must be `TRUE`, `FALSE`, or `\"start\"`.")
   }
   if (!is_bool(fixed)) {
     stop("`fixed` must be `TRUE` or `FALSE`.")
@@ -163,5 +174,13 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, fixed, nthreads) {
     x <- as.character(x)
   }
 
-  rs(enc2utf8(x), enc2utf8(terms), ignore_case, whole_word, fixed, nthreads)
+  rs(
+    enc2utf8(x),
+    enc2utf8(terms),
+    ignore_case,
+    bounds[1],
+    bounds[2],
+    fixed,
+    nthreads
+  )
 }

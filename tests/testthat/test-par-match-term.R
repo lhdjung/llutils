@@ -90,10 +90,14 @@ test_that("factors are matched by their levels", {
   expect_identical(par_match_term(f[1:3], terms), c(2L, NA, 1L))
 })
 
-test_that("whole_word = TRUE agrees with PCRE lookarounds on ASCII", {
-  # The definition: no word character right before or after the term.
-  whole_word_base <- function(x, terms) {
-    patterns <- paste0("(?<!\\w)\\Q", terms, "\\E(?!\\w)")
+test_that("whole_word agrees with PCRE lookarounds on ASCII", {
+  # The definition: no word character right before (or after) the term, nor
+  # an apostrophe that joins one to it.
+  whole_word_base <- function(x, terms, whole_word) {
+    a <- "['\u2019]"
+    before <- paste0("(?<!\\w)(?!(?<=\\w", a, ")\\w)")
+    after <- if (isTRUE(whole_word)) paste0("(?!\\w)(?!(?<=\\w)", a, "\\w)")
+    patterns <- paste0(before, "\\Q", terms, "\\E", after)
     vapply(
       x,
       function(s) {
@@ -112,25 +116,76 @@ test_that("whole_word = TRUE agrees with PCRE lookarounds on ASCII", {
     1:6000,
     function(i) {
       paste(
-        sample(c("a", "b", "_", "1", " ", "-", "."), 8, TRUE),
+        sample(c("a", "b", "_", "1", " ", "-", ".", "'", "\u2019"), 8, TRUE),
         collapse = ""
       )
     },
     ""
   )
   x[7] <- NA
-  terms <- c("ab", "a", "b-", "-a", "1", "a.b", "_", "", "zz")
-  for (t in list(terms, rev(terms), terms[-8])) {
+  terms <- c("ab", "a", "b-", "-a", "1", "a.b", "_", "", "zz", "a'b", "'a")
+  for (ww in list(TRUE, "start")) {
+    for (t in list(terms, rev(terms), terms[-8])) {
+      expect_identical(
+        par_match_term(x, t, whole_word = ww),
+        whole_word_base(x, t, ww),
+        info = paste(ww, paste(t, collapse = ","))
+      )
+    }
     expect_identical(
-      par_match_term(x, t, whole_word = TRUE),
-      whole_word_base(x, t),
-      info = paste(t, collapse = ",")
+      par_match_term(x[1:20], terms[-8], whole_word = ww),
+      whole_word_base(x[1:20], terms[-8], ww)
+    )
+  }
+})
+
+test_that("an apostrophe inside a word joins it, for literals and regexes", {
+  x <- c("won't", "won\u2019t", "heaven's", "'won'", "rock 'n' roll", "won")
+  for (fixed in c(TRUE, FALSE)) {
+    expect_identical(
+      par_count_term(
+        x,
+        c("won", "n", "heaven"),
+        whole_word = TRUE,
+        fixed = fixed
+      ),
+      c(0L, 0L, 0L, 1L, 1L, 1L),
+      info = fixed
+    )
+    expect_identical(
+      par_match_term(
+        x,
+        c("won't", "won\u2019t"),
+        whole_word = TRUE,
+        fixed = fixed
+      ),
+      c(1L, 2L, NA, NA, NA, NA),
+      info = fixed
+    )
+  }
+  # Without whole_word, apostrophes don't matter
+  expect_identical(par_count_term("won't", "won"), 1L)
+})
+
+test_that('whole_word = "start" matches prefixes', {
+  x <- c("happy", "unhappy", "happiness, happ", "Happy-go-lucky", NA)
+  for (fixed in c(TRUE, FALSE)) {
+    expect_identical(
+      par_count_term(x, "happ", whole_word = "start", fixed = fixed),
+      c(1L, 0L, 2L, 0L, NA),
+      info = fixed
     )
   }
   expect_identical(
-    par_match_term(x[1:20], terms[-8], whole_word = TRUE),
-    whole_word_base(x[1:20], terms[-8])
+    par_count_term(x[4], "happ", ignore_case = TRUE, whole_word = "start"),
+    1L
   )
+  # The automaton kept for repeated terms isn't reused for another mode
+  expect_identical(
+    par_match_term("happy", "happ", whole_word = TRUE),
+    NA_integer_
+  )
+  expect_error(par_match_term("a", "a", whole_word = "end"), "whole_word")
 })
 
 test_that("whole_word = TRUE skips hits inside longer words, in any script", {
@@ -326,7 +381,7 @@ test_that("fixed = FALSE takes regexes", {
   # Literal terms without metacharacters give the same results as regexes,
   # also for whole words.
   lit <- c("ab", "a", "c d", "1")
-  for (ww in c(FALSE, TRUE)) {
+  for (ww in list(FALSE, TRUE, "start")) {
     expect_identical(
       par_match_term(x, lit, whole_word = ww, fixed = FALSE),
       par_match_term(x, lit, whole_word = ww),

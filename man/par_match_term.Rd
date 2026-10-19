@@ -45,9 +45,15 @@ themselves. With \code{fixed = FALSE}, all letters do, as with \code{(?i)}.}
 \item{whole_word}{If \code{TRUE}, a term counts only where it isn't part of a
 longer word: the characters right before and after it must not be
 letters, digits, or \verb{_}, in any script. \code{"york"} then matches
-\code{"new york"} and \code{"york, uk"}, but not \code{"yorkshire"}. With
-\code{fixed = FALSE}, a term's match must have no such character on either
-side.}
+\code{"new york"} and \code{"york, uk"}, but not \code{"yorkshire"}. An apostrophe
+between two such characters joins them into one word, so \code{"won"}
+doesn't match \code{"won't"}, nor \code{"heaven"} \code{"heaven's"}; this holds for
+\verb{'} and the curly \verb{\\u2019}. With \code{fixed = FALSE}, the same goes for a
+term's match.
+
+If \code{"start"}, a term must start a word but may end inside one, as a
+prefix: \code{"happ"} matches \code{"happy"} and \code{"happiness"}, but not
+\code{"unhappy"}. This is the \code{"happ*"} of dictionaries such as LIWC.}
 
 \item{fixed}{If \code{FALSE}, \code{terms} are regexes, in the syntax of
 \code{\link[=par_detect]{par_detect()}}.}
@@ -110,6 +116,7 @@ par_match_term("NEW YORK", cities, ignore_case = TRUE)
 par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 par_match_term("1+1=2", c("+", "("))
 par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
+par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
 par_which_term(c("york and new york", "rome", NA), cities)
 par_match_term(c("call 555-1234", "mail a@b.org"), c("\\\\d{3}-\\\\d{4}", "@"), fixed = FALSE)
 }

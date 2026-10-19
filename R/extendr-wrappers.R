@@ -85,24 +85,25 @@ par_replace_rs <- function(x, pattern, replacement, fixed, all, nthreads) .Call(
 #' For each string, the 1-based index of the first of `terms` it contains,
 #' or `NA`. One automaton finds every occurrence of every term in a single
 #' pass, and the lowest index wins, so term order sets priority, not where
-#' in the string a term occurs. With `whole_word`, a hit counts only if no
-#' word character touches it on either side. Unless `fixed`, terms are
+#' in the string a term occurs. With `word_start` and `word_end`, a hit
+#' counts only if it doesn't run on into a word on those sides, as
+#' `Bounds::joins()` says. Unless `fixed`, terms are
 #' regexes, found in one pass by a set. Strings are matched as bytes, so R
 #' should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 #' @noRd
-par_match_term_rs <- function(x, terms, ignore_case, whole_word, fixed, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, whole_word, fixed, nthreads)
+par_match_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads)
 
 #' For each string, how many hits of `terms` it contains: every occurrence
 #' of every literal term, also where they overlap, or every match of every
 #' regex; otherwise as `par_match_term_rs()`.
 #' @noRd
-par_count_term_rs <- function(x, terms, ignore_case, whole_word, fixed, nthreads) .Call(wrap__par_count_term_rs, x, terms, ignore_case, whole_word, fixed, nthreads)
+par_count_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads) .Call(wrap__par_count_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads)
 
 #' For each string, the 1-based indices of every term it contains, in
 #' `terms` order, each once; `NA` for `NA`. Otherwise as
 #' `par_match_term_rs()`.
 #' @noRd
-par_which_term_rs <- function(x, terms, ignore_case, whole_word, fixed, nthreads) .Call(wrap__par_which_term_rs, x, terms, ignore_case, whole_word, fixed, nthreads)
+par_which_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads) .Call(wrap__par_which_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads)
 
 #' `findInterval(x, vec)`: how many of the sorted `vec` are at most each
 #' `x` (below it, if `left_open`), with base's adjustments at the ends.

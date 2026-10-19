@@ -1161,8 +1161,8 @@ fn par_replace_rs(
 /// The terms of `par_match_term()` and the like: literal ones in one
 /// automaton, or regexes in one set, which says which of them match a
 /// string but not where or how often, so each also has its own regex to
-/// count its matches. With `whole_word`, the regexes require no word
-/// character on either side, which the automaton's hits are checked for
+/// count its matches. With `Bounds`, the regexes require no word character
+/// on the sides it names, which the automaton's hits are checked for
 /// afterwards.
 #[derive(Clone)]
 enum Terms {
@@ -1179,10 +1179,10 @@ enum Terms {
 fn compile_terms(
     terms: &Robj,
     ignore_case: bool,
-    whole_word: bool,
+    bounds: Bounds,
     fixed: bool,
 ) -> extendr_api::Result<Terms> {
-    struct Last(Robj, (bool, bool, bool), Terms);
+    struct Last(Robj, (bool, bool, Option<Bounds>), Terms);
     // Only R's thread ever touches it.
     unsafe impl Send for Last {}
     static LAST: Mutex<Option<Last>> = Mutex::new(None);
@@ -1190,7 +1190,7 @@ fn compile_terms(
     // the lock is held, or it would never be released.
     let p = unsafe { charsxps(terms) };
     let copy = terms.duplicate();
-    let key = (ignore_case, fixed, whole_word && !fixed);
+    let key = (ignore_case, fixed, (!fixed).then_some(bounds));
     let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(Last(t, k, m)) = last.as_ref() {
         if *k == key && unsafe { charsxps(t) } == p {
@@ -1210,7 +1210,7 @@ fn compile_terms(
             .iter()
             .map(|&p| {
                 let t = std::str::from_utf8(unsafe { bytes(p) }).map_err(|e| err(&e))?;
-                if !whole_word {
+                if !bounds.start && !bounds.end {
                     return Ok(t.to_string());
                 }
                 // The term is checked on its own first: one with unbalanced
@@ -1224,7 +1224,9 @@ fn compile_terms(
                     .last()
                     .is_some_and(|c| c.span.end.offset == t.len());
                 let end = if end { "\n" } else { "" };
-                Ok(format!(r"\b{{start-half}}(?:{t}{end})\b{{end-half}}"))
+                let before = if bounds.start { r"\b{start-half}" } else { "" };
+                let after = if bounds.end { r"\b{end-half}" } else { "" };
+                Ok(format!("{before}(?:{t}{end}){after}"))
             })
             .collect::<extendr_api::Result<Vec<_>>>()?;
         let res = src
@@ -1281,10 +1283,10 @@ impl<'a> Search<'a> {
     /// occurrence, also where they overlap, as `hits()` finds them, and for
     /// regexes every match, as `par_count_rs()` finds them. Otherwise at
     /// least once per term found, in no particular order.
-    fn each(&mut self, s: &[u8], whole_word: bool, every: bool, mut f: impl FnMut(u32) -> bool) {
+    fn each(&mut self, s: &[u8], bounds: Bounds, every: bool, mut f: impl FnMut(u32) -> bool) {
         match self.terms {
             Terms::Fixed(ac) => {
-                for t in hits(ac, s, whole_word) {
+                for t in hits(ac, s, bounds) {
                     if !f(t) {
                         return;
                     }
@@ -1292,12 +1294,26 @@ impl<'a> Search<'a> {
             }
             Terms::Regex(sets, res) => {
                 let set = &sets[rayon::current_thread_index().unwrap_or(0) % sets.len()];
+                // The regexes' `\b` doesn't see an apostrophe join a match to
+                // a word, so where there may be one, matches are checked.
+                // 0x99 ends the curly apostrophe, and some other characters.
+                // ponytail: a match that fails this check hides any other
+                // match at the same start, as "won" does "won't" in
+                // "won|won't"; list the longer alternative first.
+                let check =
+                    (bounds.start || bounds.end) && s.iter().any(|&b| b == b'\'' || b == 0x99);
                 for t in set.matches(s).iter() {
-                    let n = if every {
+                    let n = if every || check {
                         let re = self.res[t].get_or_insert_with(|| res[t].clone());
-                        re.find_iter(s)
-                            .filter(|m| !splits_char(s, m.start(), m.end()))
-                            .count()
+                        let ok = re.find_iter(s).filter(|m| {
+                            !splits_char(s, m.start(), m.end())
+                                && !(check && bounds.joins(s, m.start(), m.end()))
+                        });
+                        if every {
+                            ok.count()
+                        } else {
+                            ok.take(1).count()
+                        }
                     } else {
                         1
                     };
@@ -1313,27 +1329,58 @@ impl<'a> Search<'a> {
 }
 
 /// The index of each term found in `s`, in the order the automaton finds
-/// them: every hit, also where hits overlap. With `whole_word`, a hit counts
-/// only if no word character touches it on either side.
+/// them: every hit, also where hits overlap, unless it runs on into a word
+/// on a side that `bounds` names.
 fn hits<'a>(
     ac: &'a aho_corasick::AhoCorasick,
     s: &'a [u8],
-    whole_word: bool,
+    bounds: Bounds,
 ) -> impl Iterator<Item = u32> + 'a {
     ac.find_overlapping_iter(s)
         .filter(move |m| !splits_char(s, m.start(), m.end()))
-        .filter(move |m| {
-            !whole_word
-                || !(is_word(last_char(&s[..m.start()])) || is_word(first_char(&s[m.end()..])))
-        })
+        .filter(move |m| !bounds.joins(s, m.start(), m.end()))
         .map(|m| m.pattern().as_u32())
+}
+
+/// The sides of a hit where `whole_word` wants a word to end: both for
+/// `TRUE`, only the start for `"start"`, so the term may begin a longer
+/// word.
+#[derive(Clone, Copy, PartialEq)]
+struct Bounds {
+    start: bool,
+    end: bool,
+}
+
+impl Bounds {
+    /// Whether the hit `s[i..j]` runs on into a word on a side that must
+    /// end one: a word character touches it, or an apostrophe joins it to
+    /// one, as in "won't", where "won" isn't a whole word.
+    fn joins(self, s: &[u8], i: usize, j: usize) -> bool {
+        let hit = &s[i..j];
+        let before = &s[..i];
+        let after = &s[j..];
+        let start = || match last_char(before) {
+            Some(c @ ('\'' | '\u{2019}')) => {
+                is_word(first_char(hit)) && is_word(last_char(&before[..i - c.len_utf8()]))
+            }
+            c => is_word(c),
+        };
+        let end = || match first_char(after) {
+            Some(c @ ('\'' | '\u{2019}')) => {
+                is_word(last_char(hit)) && is_word(first_char(&after[c.len_utf8()..]))
+            }
+            c => is_word(c),
+        };
+        (self.start && start()) || (self.end && end())
+    }
 }
 
 /// For each string, the 1-based index of the first of `terms` it contains,
 /// or `NA`. One automaton finds every occurrence of every term in a single
 /// pass, and the lowest index wins, so term order sets priority, not where
-/// in the string a term occurs. With `whole_word`, a hit counts only if no
-/// word character touches it on either side. Unless `fixed`, terms are
+/// in the string a term occurs. With `word_start` and `word_end`, a hit
+/// counts only if it doesn't run on into a word on those sides, as
+/// `Bounds::joins()` says. Unless `fixed`, terms are
 /// regexes, found in one pass by a set. Strings are matched as bytes, so R
 /// should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
@@ -1342,11 +1389,16 @@ fn par_match_term_rs(
     x: Robj,
     terms: Robj,
     ignore_case: bool,
-    whole_word: bool,
+    word_start: bool,
+    word_end: bool,
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
-    let m = compile_terms(&terms, ignore_case, whole_word, fixed)?;
+    let bounds = Bounds {
+        start: word_start,
+        end: word_end,
+    };
+    let m = compile_terms(&terms, ignore_case, bounds, fixed)?;
     let mut out = Integers::new(x.len());
     per_string(
         &mut out,
@@ -1356,7 +1408,7 @@ fn par_match_term_rs(
         || Search::new(&m),
         |search, _, s| {
             let mut best = u32::MAX;
-            search.each(s, whole_word, false, |t| {
+            search.each(s, bounds, false, |t| {
                 best = best.min(t);
                 best != 0
             });
@@ -1379,11 +1431,16 @@ fn par_count_term_rs(
     x: Robj,
     terms: Robj,
     ignore_case: bool,
-    whole_word: bool,
+    word_start: bool,
+    word_end: bool,
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
-    let m = compile_terms(&terms, ignore_case, whole_word, fixed)?;
+    let bounds = Bounds {
+        start: word_start,
+        end: word_end,
+    };
+    let m = compile_terms(&terms, ignore_case, bounds, fixed)?;
     let mut out = Integers::new(x.len());
     per_string(
         &mut out,
@@ -1393,7 +1450,7 @@ fn par_count_term_rs(
         || Search::new(&m),
         |search, _, s| {
             let mut n = 0usize;
-            search.each(s, whole_word, true, |_| {
+            search.each(s, bounds, true, |_| {
                 n += 1;
                 true
             });
@@ -1412,11 +1469,16 @@ fn par_which_term_rs(
     x: Robj,
     terms: Robj,
     ignore_case: bool,
-    whole_word: bool,
+    word_start: bool,
+    word_end: bool,
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Robj> {
-    let m = compile_terms(&terms, ignore_case, whole_word, fixed)?;
+    let bounds = Bounds {
+        start: word_start,
+        end: word_end,
+    };
+    let m = compile_terms(&terms, ignore_case, bounds, fixed)?;
     let x = unsafe { charsxps(&x) };
     let mut out: Vec<Option<Vec<u32>>> = vec![None; x.len()];
     per_string(
@@ -1427,7 +1489,7 @@ fn par_which_term_rs(
         || Search::new(&m),
         |search, _, s| {
             let mut t = Vec::new();
-            search.each(s, whole_word, false, |i| {
+            search.each(s, bounds, false, |i| {
                 t.push(i);
                 true
             });
