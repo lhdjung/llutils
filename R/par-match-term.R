@@ -5,7 +5,9 @@
 #' - `par_match_term()` finds the index of the first term in `terms` it
 #'   contains. It is like `match()` for substrings.
 #' - `par_count_term()` counts every hit of every term instead, for scoring
-#'   strings against a lexicon, such as positive and negative words.
+#'   strings against a lexicon, such as positive and negative words. With
+#'   `weights`, it sums a score per hit instead, as for a lexicon that rates
+#'   words from -5 to 5.
 #' - `par_which_term()` gives every term each string contains, not just the
 #'   first, for tagging: an abstract with every drug it names.
 #'
@@ -30,9 +32,10 @@
 #' @param x A string vector, or an object convertible by [as.character()].
 #' @param terms A string vector of literal strings to find. `NA` is not
 #'   allowed.
-#' @param ignore_case If `TRUE`, ASCII letters match regardless of case.
-#'   Other letters, such as `"é"` and `"É"`, still match only
-#'   themselves. With `fixed = FALSE`, all letters do, as with `(?i)`.
+#' @param ignore_case If `TRUE`, letters match regardless of case, in any
+#'   script: `"é"` matches `"É"`. ASCII letters cost nothing extra; strings
+#'   with other characters are lowercased first. With `fixed = FALSE`, this
+#'   is `(?i)`.
 #' @param whole_word If `TRUE`, a term counts only where it isn't part of a
 #'   longer word: the characters right before and after it must not be
 #'   letters, digits, or `_`, in any script. `"york"` then matches
@@ -47,6 +50,9 @@
 #'   `"unhappy"`. This is the `"happ*"` of dictionaries such as LIWC.
 #' @param fixed If `FALSE`, `terms` are regexes, in the syntax of
 #'   [par_detect()].
+#' @param weights For `par_count_term()`: `NULL` to count hits, or a numeric
+#'   vector as long as `terms`, without `NA`, to sum the weight of each term
+#'   at each of its hits.
 #' @inheritParams par_match
 #'
 #' @returns An integer vector as long as `x`, `NA` where `x` is `NA`:
@@ -57,7 +63,8 @@
 #'   occurrence of every term counts, also where they overlap: `"new york"`
 #'   has two hits for `c("new york", "york")`, and a term listed twice counts
 #'   twice. For regexes, each term's matches are counted as [par_count()]
-#'   counts them, which don't overlap.
+#'   counts them, which don't overlap. With `weights`, a double vector: the
+#'   sum of the weights of the hits, `0` if none.
 #'
 #'   `par_which_term()` returns a list as long as `x` instead: for each
 #'   string, the positions in `terms` of every term found in it, in
@@ -80,6 +87,8 @@
 #' par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
 #'
 #' par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
+#'
+#' par_count_term("good food, not bad", c("good", "bad"), weights = c(1, -2))
 #'
 #' par_which_term(c("york and new york", "rome", NA), cities)
 #'
@@ -111,10 +120,23 @@ par_count_term <- function(
   ignore_case = FALSE,
   whole_word = FALSE,
   fixed = TRUE,
+  weights = NULL,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
+  if (
+    !is.null(weights) &&
+      (!is.numeric(weights) ||
+        length(weights) != length(terms) ||
+        anyNA(weights))
+  ) {
+    stop(
+      "`weights` must be `NULL`, or numbers as long as `terms`, without `NA`."
+    )
+  }
+  weights <- if (!is.null(weights)) as.double(weights)
+  rs <- function(...) par_count_term_rs(..., weights)
   run_terms(
-    par_count_term_rs,
+    rs,
     x,
     terms,
     ignore_case,
@@ -143,6 +165,73 @@ par_which_term <- function(
     fixed,
     nthreads
   )
+}
+
+#' Replace dictionary terms, in parallel
+#'
+#' @description Replaces every term of `terms` in each string with its
+#'   replacement, in one pass however many terms there are, such as to
+#'   normalize spellings, expand abbreviations, or redact names. It does
+#'   what a `gsub(fixed = TRUE)` per term would, but in one pass, so a
+#'   replacement is never searched again for the terms after it.
+#'
+#' @details Hits don't overlap. The leftmost hit is replaced first, and the
+#'   search goes on after it. If several terms start at the same place, the
+#'   one earliest in `terms` wins, so put longer terms before their prefixes,
+#'   such as `"new york"` before `"new"`.
+#'
+#' @param terms A string vector of literal strings to find, without `NA`,
+#'   or `""` unless `fixed = FALSE`.
+#' @param replacement A string vector as long as `terms`, the replacement for
+#'   each, or one string for all of them. With `fixed = FALSE`, `$1` stands
+#'   for the first capture group of the term's match, as in
+#'   [par_replace_all()].
+#' @inheritParams par_match_term
+#'
+#' @returns A string vector as long as `x`, `NA` where `x` is `NA`. It keeps
+#'   the names of `x`, as [gsub()] does.
+#'
+#' @export
+#'
+#' @examples
+#' par_replace_term(
+#'   c("NYC and LA", "la la land"),
+#'   c("NYC", "LA"),
+#'   c("New York City", "Los Angeles"),
+#'   whole_word = TRUE
+#' )
+#'
+#' # Redaction
+#' par_replace_term("Ann met Bob", c("ann", "bob"), "[name]", ignore_case = TRUE)
+#'
+#' # Longer terms first
+#' par_replace_term("new york, new jersey", c("new york", "new"), c("NY", "N."))
+par_replace_term <- function(
+  x,
+  terms,
+  replacement,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  fixed = TRUE,
+  nthreads = getOption("parvenu.threads", 0L)
+) {
+  if (
+    !is.character(replacement) ||
+      !(length(replacement) %in% c(1L, length(terms))) ||
+      anyNA(replacement)
+  ) {
+    stop(
+      "`replacement` must be a string vector as long as `terms`, or a string."
+    )
+  }
+  if (isTRUE(fixed) && !all(nzchar(terms))) {
+    stop("`terms` must not contain `\"\"`.")
+  }
+  replacement <- enc2utf8(replacement)
+  rs <- function(...) par_replace_term_rs(..., replacement)
+  out <- run_terms(rs, x, terms, ignore_case, whole_word, fixed, nthreads)
+  names(out) <- names(x) # as gsub() keeps them
+  out
 }
 
 # Checks the arguments of par_match_term() and the like, and calls `rs`.

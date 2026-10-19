@@ -1,9 +1,10 @@
 # parvenu: plan
 
 Multithreaded `match()`, `%in%`, `duplicated()`, `unique()`,
-`findInterval()`, row matching, regex detection, counting, extraction, and
-replacement, and dictionary lookup (`par_match_term()`, `par_count_term()`,
-`par_which_term()`) in Rust. Open work
+`findInterval()`, row matching, regex detection, counting, location,
+extraction, and replacement, and dictionary lookup and replacement
+(`par_match_term()`, `par_count_term()`, `par_which_term()`,
+`par_replace_term()`) in Rust. Open work
 only. Started from exhaustive's Rust plan (`git show 1b2678c:PLAN.md` in
 exhaustive).
 Benchmarks are in `bench/`, run on 2026-10-17 with 8 cores. Measure after
@@ -247,8 +248,24 @@ Nothing at the moment. Add ideas here when a use turns up.
   per term and 60s for `stri_extract_all_regex()` on the alternation. At
   1e6 strings it takes 120-190ms, where `par_match_term()` takes 45-70ms:
   most of the difference is making the 1e6 vectors.
-- `ignore_case` folds ASCII letters only, which is what aho-corasick offers.
-  Lowercasing both sides with `tolower()` covers the rest.
+- `ignore_case` folds ASCII letters in the automaton, which is what
+  aho-corasick offers. Terms and strings with other characters are
+  lowercased first (`char::to_lowercase()`, with final sigma as σ), each
+  string on its thread into a buffer, with a map back to its own positions
+  for `par_replace_term()`. Lowercase isn't quite case folding: `"ß"` and
+  `"ss"` stay apart, as in `(?i)`, but `"İ"` becomes two characters. At
+  1e5 strings and 1000 terms: 3ms for ASCII, 8ms where every string has a
+  non-ASCII character, against 73ms for `tolower()` first.
+- `par_count_term()` with `weights` adds a double per hit instead of 1, at
+  the same speed (3ms at 1e5 strings and 1000 terms).
+- `par_replace_term()` collects every hit, sorts them by start and then
+  term, and replaces each that starts after the last one replaced ended,
+  so the leftmost wins and, at the same start, the earliest term. Regex
+  terms expand `$1` by running the term's regex again from the hit
+  (`captures_at()`). Empty literal terms are an error: they would hit
+  between every two characters. At 1e5 strings and 1000 terms it takes
+  21ms, where `stri_replace_all_fixed(vectorize_all = FALSE)` takes 3.7s
+  for the same result.
 - `fixed = FALSE` takes regex terms, compiled into one `regex::RegexSet`,
   which says which terms match a string but not where or how often. So
   `par_count_term()` runs each matching term's own regex, counting as

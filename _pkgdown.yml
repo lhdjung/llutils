@@ -28,3 +28,4 @@ reference:
     desc: Many literal terms at once, in one pass per string.
     contents:
       - par_match_term
+      - par_replace_term

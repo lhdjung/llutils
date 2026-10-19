@@ -48,15 +48,26 @@ test_that("term order sets priority, not position in the string", {
   expect_identical(par_match_term(character(), "a"), integer())
 })
 
-test_that("ignore_case folds ASCII only", {
+test_that("ignore_case folds case in any script", {
   e <- intToUtf8(233)
   E <- intToUtf8(201)
   expect_identical(
     par_match_term(c("NEW York", "york"), "new york", ignore_case = TRUE),
     c(1L, NA)
   )
-  expect_identical(par_match_term(E, e, ignore_case = TRUE), NA_integer_)
+  expect_identical(par_match_term(E, e, ignore_case = TRUE), 1L)
+  expect_identical(par_match_term(E, e), NA_integer_)
   expect_identical(par_match_term("Ab", "aB"), NA_integer_)
+  # Final sigma, the Kelvin sign, and sharp s, which doesn't become "ss"
+  x <- c("\u039f\u0394\u039f\u03a3", "\u212a", "Stra\u00dfe")
+  terms <- c("\u03bf\u03b4\u03bf\u03c2", "k", "STRASSE")
+  expect_identical(par_match_term(x, terms, ignore_case = TRUE), c(1L, 2L, NA))
+  # Lowercased strings keep word bounds
+  x <- c(paste0(E, "COLES"), paste0("L'", E, "COLE"), paste0("- ", E, "COLE"))
+  expect_identical(
+    par_match_term(x, paste0(e, "cole"), ignore_case = TRUE, whole_word = TRUE),
+    c(NA, NA, 1L)
+  )
 })
 
 test_that("strings match by character, in any encoding", {
@@ -427,5 +438,103 @@ test_that("regex terms ignore case in any script, and bad ones error", {
   expect_identical(
     par_which_term(f, c("[0-9]", "b"), fixed = FALSE),
     par_which_term(as.character(f), c("[0-9]", "b"), fixed = FALSE)
+  )
+})
+
+test_that("par_count_term() sums weights", {
+  terms <- c("good", "bad", "great")
+  w <- c(1, -2, 1.5)
+  x <- c("good good bad", "great", "none", NA, "goodbad")
+  expected <- c(0, 1.5, 0, NA, -1)
+  expect_identical(par_count_term(x, terms, weights = w), expected)
+  expect_identical(
+    par_count_term(rep(x, 3000), terms, weights = w),
+    rep(expected, 3000)
+  )
+  expect_identical(par_count_term(factor(x), terms, weights = w), expected)
+  expect_identical(
+    par_count_term(x, c("go+d", "ba."), weights = c(2L, 3L), fixed = FALSE),
+    c(7, 0, 0, NA, 5)
+  )
+  expect_error(par_count_term(x, terms, weights = 1:2), "weights")
+  expect_error(par_count_term(x, terms, weights = c(1, NA, 1)), "weights")
+})
+
+test_that("par_replace_term() replaces the leftmost hit, earliest term first", {
+  x <- c(a = "NYC and LA", b = "la la land", c = NA, d = "LAX")
+  expect_identical(
+    par_replace_term(
+      x,
+      c("NYC", "LA"),
+      c("NY", "Los Angeles"),
+      whole_word = TRUE
+    ),
+    c(a = "NY and Los Angeles", b = "la la land", c = NA, d = "LAX")
+  )
+  x <- "new york, new jersey"
+  expect_identical(
+    par_replace_term(x, c("new york", "new"), c("NY", "N.")),
+    "NY, N. jersey"
+  )
+  expect_identical(
+    par_replace_term(x, c("new", "new york"), c("N.", "NY")),
+    "N. york, N. jersey"
+  )
+  expect_identical(
+    par_replace_term("york and new york", c("new york", "york"), c("A", "B")),
+    "B and A"
+  )
+  expect_identical(par_replace_term("aaa", c("a", "aa"), c("1", "2")), "111")
+  expect_identical(
+    par_replace_term("won't win", "won", "X", whole_word = TRUE),
+    "won't win"
+  )
+  expect_identical(par_replace_term("abc", character(0), character(0)), "abc")
+  expect_identical(
+    par_replace_term(factor(c("a b", "b", "a b")), c("a", "b"), c("1", "2")),
+    c("1 2", "2", "1 2")
+  )
+  x <- rep(c("the cat sat", "dog", "cat dog cat", "\u00e9 cat"), 5000)
+  expect_identical(
+    par_replace_term(x, c("cat", "dog"), c("CAT", "DOG")),
+    gsub("dog", "DOG", gsub("cat", "CAT", x, fixed = TRUE), fixed = TRUE)
+  )
+  expect_error(par_replace_term("a", c("a", ""), "x"), "must not contain")
+  expect_error(
+    par_replace_term("a", c("a", "b"), c("x", "y", "z")),
+    "replacement"
+  )
+})
+
+test_that("par_replace_term() ignores case in any script, and expands groups", {
+  e <- intToUtf8(233)
+  E <- intToUtf8(201)
+  expect_identical(
+    par_replace_term(
+      paste("Ann met BOB and", E),
+      c("ann", "bob", e),
+      "[x]",
+      ignore_case = TRUE
+    ),
+    "[x] met [x] and [x]"
+  )
+  # Lowercasing the Kelvin sign shortens it, and replacements still land.
+  expect_identical(
+    par_replace_term(
+      paste0("A", E, " \u212aB ", E, E),
+      c(e, "kb"),
+      c("e", "KB"),
+      ignore_case = TRUE
+    ),
+    "Ae KB ee"
+  )
+  expect_identical(
+    par_replace_term(
+      "Smith, John; Doe, Jane",
+      "(\\w+), (\\w+)",
+      "$2 $1",
+      fixed = FALSE
+    ),
+    "John Smith; Jane Doe"
   )
 })

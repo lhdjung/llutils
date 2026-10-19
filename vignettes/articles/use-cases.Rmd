@@ -170,6 +170,14 @@ Hits are counted where they overlap, too: with `c("new york", "york")`,
 the string `"new york"` has two. A term listed twice counts twice, so pass
 `unique(terms)` if the list might repeat itself.
 
+Lexicons such as AFINN rate each word, from -5 to 5. `weights` sums the
+rating of every hit, in one pass for all words:
+
+```{r}
+lexicon <- data.frame(word = c("great", "good", "bad", "rude"), score = c(3, 2, -2, -3))
+par_count_term(reviews, lexicon$word, ignore_case = TRUE, whole_word = TRUE, weights = lexicon$score)
+```
+
 ## Filtering and validating with a regex
 
 `par_detect()` is `grepl()` on all cores. It suits large text columns:
@@ -260,6 +268,32 @@ last character, for `substr()` or for highlighting:
 ```{r}
 par_locate(notes, "HR [0-9]+")
 ```
+
+## Rewriting text with a dictionary
+
+To replace many literal terms at once, such as spelling variants,
+abbreviations, or names to redact, `par_replace_term()` finds them all in
+one pass. A loop of `gsub(fixed = TRUE)` would search every string once per
+term, and could replace text that an earlier replacement put there:
+
+```{r}
+spelling <- data.frame(
+  from = c("colour", "favour", "centre", "NYC"),
+  to = c("color", "favor", "center", "New York City")
+)
+par_replace_term(
+  c("Colour and flavour in the centre", "NYC, my favourite"),
+  spelling$from,
+  spelling$to,
+  ignore_case = TRUE,
+  whole_word = "start"
+)
+```
+
+Hits don't overlap: the leftmost wins, and among terms that start at the same
+place, the one listed first, so list longer terms before their prefixes.
+With `ignore_case = TRUE`, the replacement goes in as it is, whatever the
+case of the hit.
 
 ## Lookups and joins
 

@@ -21,6 +21,7 @@ par_count_term(
   ignore_case = FALSE,
   whole_word = FALSE,
   fixed = TRUE,
+  weights = NULL,
   nthreads = getOption("parvenu.threads", 0L)
 )
 
@@ -39,9 +40,10 @@ par_which_term(
 \item{terms}{A string vector of literal strings to find. \code{NA} is not
 allowed.}
 
-\item{ignore_case}{If \code{TRUE}, ASCII letters match regardless of case.
-Other letters, such as \code{"é"} and \code{"É"}, still match only
-themselves. With \code{fixed = FALSE}, all letters do, as with \code{(?i)}.}
+\item{ignore_case}{If \code{TRUE}, letters match regardless of case, in any
+script: \code{"é"} matches \code{"É"}. ASCII letters cost nothing extra; strings
+with other characters are lowercased first. With \code{fixed = FALSE}, this
+is \code{(?i)}.}
 
 \item{whole_word}{If \code{TRUE}, a term counts only where it isn't part of a
 longer word: the characters right before and after it must not be
@@ -64,6 +66,10 @@ the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
 default is the \code{parvenu.threads} option, or \code{0} if that isn't set. Inputs
 too small to keep that many threads busy get fewer, and more threads than
 cores count as all cores.}
+
+\item{weights}{For \code{par_count_term()}: \code{NULL} to count hits, or a numeric
+vector as long as \code{terms}, without \code{NA}, to sum the weight of each term
+at each of its hits.}
 }
 \value{
 An integer vector as long as \code{x}, \code{NA} where \code{x} is \code{NA}:
@@ -75,7 +81,8 @@ each string, or \code{NA} if none is found. Use
 occurrence of every term counts, also where they overlap: \code{"new york"}
 has two hits for \code{c("new york", "york")}, and a term listed twice counts
 twice. For regexes, each term's matches are counted as \code{\link[=par_count]{par_count()}}
-counts them, which don't overlap.
+counts them, which don't overlap. With \code{weights}, a double vector: the
+sum of the weights of the hits, \code{0} if none.
 }
 
 \code{par_which_term()} returns a list as long as \code{x} instead: for each
@@ -89,7 +96,9 @@ For each string in \code{x}:
 \item \code{par_match_term()} finds the index of the first term in \code{terms} it
 contains. It is like \code{match()} for substrings.
 \item \code{par_count_term()} counts every hit of every term instead, for scoring
-strings against a lexicon, such as positive and negative words.
+strings against a lexicon, such as positive and negative words. With
+\code{weights}, it sums a score per hit instead, as for a lexicon that rates
+words from -5 to 5.
 \item \code{par_which_term()} gives every term each string contains, not just the
 first, for tagging: an abstract with every drug it names.
 }
@@ -127,6 +136,8 @@ par_match_term("1+1=2", c("+", "("))
 par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
 
 par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
+
+par_count_term("good food, not bad", c("good", "bad"), weights = c(1, -2))
 
 par_which_term(c("york and new york", "rome", NA), cities)
 

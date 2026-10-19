@@ -1209,9 +1209,11 @@ fn par_replace_rs(
 /// count its matches. With `Bounds`, the regexes require no word character
 /// on the sides it names, which the automaton's hits are checked for
 /// afterwards.
+/// `Fixed` holds whether to lowercase strings that aren't ASCII, for
+/// `ignore_case`.
 #[derive(Clone)]
 enum Terms {
-    Fixed(aho_corasick::AhoCorasick),
+    Fixed(aho_corasick::AhoCorasick, bool),
     Regex(Vec<regex::bytes::RegexSet>, Vec<Re>),
 }
 
@@ -1244,11 +1246,27 @@ fn compile_terms(
     }
     let err = |e: &dyn std::fmt::Display| Error::Other(e.to_string());
     let m = if fixed {
+        // The automaton ignores ASCII case itself; other letters are
+        // lowercased on both sides.
+        let (mut buf, mut at) = (Vec::new(), Vec::new());
+        let p: Vec<std::borrow::Cow<[u8]>> = p
+            .iter()
+            .map(|&p| {
+                let s = unsafe { bytes(p) };
+                if ignore_case && !s.is_ascii() {
+                    lower(s, &mut buf, &mut at);
+                    buf.clone().into()
+                } else {
+                    s.into()
+                }
+            })
+            .collect();
         Terms::Fixed(
             aho_corasick::AhoCorasick::builder()
                 .ascii_case_insensitive(ignore_case)
-                .build(p.iter().map(|&p| unsafe { bytes(p) }))
+                .build(p)
                 .map_err(|e| err(&e))?,
+            ignore_case,
         )
     } else {
         let src = p
@@ -1308,36 +1326,69 @@ const DFA_SIZE: usize = 16 << 20;
 /// is most of the time for many terms, and a clone per chunk took 2-3x
 /// longer for 1000 terms, while one set shared by all threads took 2x
 /// longer for 10, from contention on its caches. A term's regex is cloned
-/// the first time a chunk counts its matches, as in `per_pattern()`.
+/// the first time a chunk counts its matches, as in `per_pattern()`. `buf`
+/// and `at` hold a string lowercased by `lower()`.
 struct Search<'a> {
     terms: &'a Terms,
     res: Vec<Option<Re>>,
+    buf: Vec<u8>,
+    at: Vec<u32>,
 }
 
 impl<'a> Search<'a> {
     fn new(terms: &'a Terms) -> Self {
         let res = match terms {
-            Terms::Fixed(_) => Vec::new(),
+            Terms::Fixed(..) => Vec::new(),
             Terms::Regex(_, res) => vec![None; res.len()],
         };
-        Search { terms, res }
+        Search {
+            terms,
+            res,
+            buf: Vec::new(),
+            at: Vec::new(),
+        }
     }
 
-    /// Calls `f` with the index of each term found in `s` until it returns
-    /// `false`. With `every`, once per hit: for literal terms every
-    /// occurrence, also where they overlap, as `hits()` finds them, and for
-    /// regexes every match, as `par_count_rs()` finds them. Otherwise at
-    /// least once per term found, in no particular order.
-    fn each(&mut self, s: &[u8], bounds: Bounds, every: bool, mut f: impl FnMut(u32) -> bool) {
-        match self.terms {
-            Terms::Fixed(ac) => {
-                for t in hits(ac, s, bounds) {
-                    if !f(t) {
+    /// Calls `f` with the index of each term found in `s`, and where in `s`
+    /// it starts and ends, until it returns `false`. With `every`, once per
+    /// hit: for literal terms every occurrence, also where they overlap, as
+    /// `hits()` finds them, and for regexes every match, as `par_count_rs()`
+    /// finds them. Otherwise at least once per term found, in no particular
+    /// order, and for regexes at position 0.
+    fn each(
+        &mut self,
+        s: &[u8],
+        bounds: Bounds,
+        every: bool,
+        mut f: impl FnMut(u32, usize, usize) -> bool,
+    ) {
+        let Search {
+            terms,
+            res,
+            buf,
+            at,
+        } = self;
+        match terms {
+            Terms::Fixed(ac, fold) => {
+                let folded = *fold && !s.is_ascii();
+                let t = if folded {
+                    lower(s, buf, at);
+                    &buf[..]
+                } else {
+                    s
+                };
+                for m in hits(ac, t, bounds) {
+                    let (i, j) = if folded {
+                        (at[m.start()] as usize, at[m.end()] as usize)
+                    } else {
+                        (m.start(), m.end())
+                    };
+                    if !f(m.pattern().as_u32(), i, j) {
                         return;
                     }
                 }
             }
-            Terms::Regex(sets, res) => {
+            Terms::Regex(sets, regexes) => {
                 let set = &sets[rayon::current_thread_index().unwrap_or(0) % sets.len()];
                 // The regexes' `\b` doesn't see an apostrophe join a match to
                 // a word, so where there may be one, matches are checked.
@@ -1348,22 +1399,19 @@ impl<'a> Search<'a> {
                 let check =
                     (bounds.start || bounds.end) && s.iter().any(|&b| b == b'\'' || b == 0x99);
                 for t in set.matches(s).iter() {
-                    let n = if every || check {
-                        let re = self.res[t].get_or_insert_with(|| res[t].clone());
-                        let ok = re.find_iter(s).filter(|m| {
-                            !splits_char(s, m.start(), m.end())
-                                && !(check && bounds.joins(s, m.start(), m.end()))
-                        });
-                        if every {
-                            ok.count()
-                        } else {
-                            ok.take(1).count()
+                    if !every && !check {
+                        if !f(t as u32, 0, 0) {
+                            return;
                         }
-                    } else {
-                        1
-                    };
-                    for _ in 0..n {
-                        if !f(t as u32) {
+                        continue;
+                    }
+                    let re = res[t].get_or_insert_with(|| regexes[t].clone());
+                    let ok = re.find_iter(s).filter(|m| {
+                        !splits_char(s, m.start(), m.end())
+                            && !(check && bounds.joins(s, m.start(), m.end()))
+                    });
+                    for m in ok.take(if every { usize::MAX } else { 1 }) {
+                        if !f(t as u32, m.start(), m.end()) {
                             return;
                         }
                     }
@@ -1371,20 +1419,60 @@ impl<'a> Search<'a> {
             }
         }
     }
+
+    /// Appends the replacement for term `t`'s hit at `i` of `s`: `rep` as it
+    /// is, or for a regex, with `$1` and the like expanded from the hit's
+    /// groups, as in `par_replace_rs()`.
+    fn expand(&mut self, s: &[u8], t: u32, i: usize, rep: &[u8], new: &mut Vec<u8>) {
+        match self.terms {
+            Terms::Regex(_, regexes) if rep.contains(&b'$') => {
+                let t = t as usize;
+                let re = self.res[t].get_or_insert_with(|| regexes[t].clone());
+                // The search from `i` finds the same match the hit was.
+                re.captures_at(s, i).unwrap().expand(rep, new);
+            }
+            _ => new.extend_from_slice(rep),
+        }
+    }
 }
 
-/// The index of each term found in `s`, in the order the automaton finds
-/// them: every hit, also where hits overlap, unless it runs on into a word
-/// on a side that `bounds` names.
+/// `s` lowercased into `buf`, for `ignore_case` beyond ASCII, with `at[i]`
+/// the position in `s` of the character that byte `i` of `buf` comes from,
+/// and one more for the end of `s`. Final sigma becomes σ, as Unicode's case
+/// folding has it, so "ΟΔΟΣ" matches "οδος".
+fn lower(s: &[u8], buf: &mut Vec<u8>, at: &mut Vec<u32>) {
+    buf.clear();
+    at.clear();
+    let mut i = 0;
+    for chunk in s.utf8_chunks() {
+        for c in chunk.valid().chars() {
+            for l in c.to_lowercase() {
+                let l = if l == '\u{3C2}' { '\u{3C3}' } else { l };
+                buf.extend_from_slice(l.encode_utf8(&mut [0; 4]).as_bytes());
+            }
+            at.resize(buf.len(), i as u32);
+            i += c.len_utf8();
+        }
+        for &b in chunk.invalid() {
+            buf.push(b);
+            at.push(i as u32);
+            i += 1;
+        }
+    }
+    at.push(i as u32);
+}
+
+/// Each hit of a term in `s`, in the order the automaton finds them: every
+/// hit, also where hits overlap, unless it runs on into a word on a side
+/// that `bounds` names.
 fn hits<'a>(
     ac: &'a aho_corasick::AhoCorasick,
     s: &'a [u8],
     bounds: Bounds,
-) -> impl Iterator<Item = u32> + 'a {
+) -> impl Iterator<Item = aho_corasick::Match> + 'a {
     ac.find_overlapping_iter(s)
         .filter(move |m| !splits_char(s, m.start(), m.end()))
         .filter(move |m| !bounds.joins(s, m.start(), m.end()))
-        .map(|m| m.pattern().as_u32())
 }
 
 /// The sides of a hit where `whole_word` wants a word to end: both for
@@ -1453,7 +1541,7 @@ fn par_match_term_rs(
         || Search::new(&m),
         |search, _, s| {
             let mut best = u32::MAX;
-            search.each(s, bounds, false, |t| {
+            search.each(s, bounds, false, |t, _, _| {
                 best = best.min(t);
                 best != 0
             });
@@ -1469,9 +1557,11 @@ fn par_match_term_rs(
 
 /// For each string, how many hits of `terms` it contains: every occurrence
 /// of every literal term, also where they overlap, or every match of every
-/// regex; otherwise as `par_match_term_rs()`.
+/// regex. With `weights`, a double per term, the sum of their weights
+/// instead. Otherwise as `par_match_term_rs()`.
 /// @noRd
 #[extendr]
+#[allow(clippy::too_many_arguments)]
 fn par_count_term_rs(
     x: Robj,
     terms: Robj,
@@ -1480,29 +1570,118 @@ fn par_count_term_rs(
     word_end: bool,
     fixed: bool,
     nthreads: i32,
-) -> extendr_api::Result<Integers> {
+    weights: Robj,
+) -> extendr_api::Result<Robj> {
     let bounds = Bounds {
         start: word_start,
         end: word_end,
     };
     let m = compile_terms(&terms, ignore_case, bounds, fixed)?;
+    let x = unsafe { charsxps(&x) };
+    if let Some(w) = weights.as_real_slice() {
+        let mut out = Doubles::new(x.len());
+        per_string(
+            &mut out,
+            x,
+            Rfloat::na(),
+            nthreads,
+            || Search::new(&m),
+            |search, _, s| {
+                let mut sum = 0.0;
+                search.each(s, bounds, true, |t, _, _| {
+                    sum += w[t as usize];
+                    true
+                });
+                sum.into()
+            },
+        );
+        return Ok(out.into());
+    }
     let mut out = Integers::new(x.len());
     per_string(
         &mut out,
-        unsafe { charsxps(&x) },
+        x,
         Rint::na(),
         nthreads,
         || Search::new(&m),
         |search, _, s| {
             let mut n = 0usize;
-            search.each(s, bounds, true, |_| {
+            search.each(s, bounds, true, |_, _, _| {
                 n += 1;
                 true
             });
             (n.min(i32::MAX as usize) as i32).into()
         },
     );
-    Ok(out)
+    Ok(out.into())
+}
+
+/// Every hit of `terms` in each string replaced by its `replacement`, one
+/// per term or one for all: the leftmost hit first, the earliest term
+/// winning among those that start there, then the search goes on after it.
+/// For regex terms, `$1` and the like expand as in `par_replace_rs()`.
+/// Otherwise as `par_match_term_rs()`.
+/// @noRd
+#[extendr]
+#[allow(clippy::too_many_arguments)]
+fn par_replace_term_rs(
+    x: Robj,
+    terms: Robj,
+    ignore_case: bool,
+    word_start: bool,
+    word_end: bool,
+    fixed: bool,
+    nthreads: i32,
+    replacement: Robj,
+) -> extendr_api::Result<Robj> {
+    let bounds = Bounds {
+        start: word_start,
+        end: word_end,
+    };
+    let m = compile_terms(&terms, ignore_case, bounds, fixed)?;
+    let reps: Vec<&[u8]> = unsafe { charsxps(&replacement).iter().map(|&p| bytes(p)).collect() };
+    let rep = |t: u32| {
+        if reps.len() == 1 {
+            reps[0]
+        } else {
+            reps[t as usize]
+        }
+    };
+    let x = unsafe { charsxps(&x) };
+    let mut out = vec![Piece::Na; x.len()];
+    per_string(
+        &mut out,
+        x,
+        Piece::Na,
+        nthreads,
+        || Search::new(&m),
+        |search, _, s| {
+            let mut hits = Vec::new();
+            search.each(s, bounds, true, |t, i, j| {
+                hits.push((i, t, j));
+                true
+            });
+            if hits.is_empty() {
+                return Piece::Same;
+            }
+            hits.sort_unstable();
+            let mut new = Vec::new();
+            // The end of the last hit replaced, and where it started, so no
+            // other hit starts there, not even an empty one.
+            let (mut end, mut start) = (0, None);
+            for (i, t, j) in hits {
+                if i < end || start == Some(i) {
+                    continue;
+                }
+                new.extend_from_slice(&s[end..i]);
+                search.expand(s, t, i, rep(t), &mut new);
+                (end, start) = (j, Some(i));
+            }
+            new.extend_from_slice(&s[end..]);
+            Piece::New(new)
+        },
+    );
+    strings(x, out)
 }
 
 /// For each string, the 1-based indices of every term it contains, in
@@ -1534,7 +1713,7 @@ fn par_which_term_rs(
         || Search::new(&m),
         |search, _, s| {
             let mut t = Vec::new();
-            search.each(s, bounds, false, |i| {
+            search.each(s, bounds, false, |i, _, _| {
                 t.push(i);
                 true
             });
@@ -1703,4 +1882,5 @@ extendr_module! {
     fn par_unique_rs;
     fn par_extract_all_rs;
     fn par_locate_rs;
+    fn par_replace_term_rs;
 }

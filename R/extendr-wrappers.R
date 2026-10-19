@@ -95,9 +95,10 @@ par_match_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed
 
 #' For each string, how many hits of `terms` it contains: every occurrence
 #' of every literal term, also where they overlap, or every match of every
-#' regex; otherwise as `par_match_term_rs()`.
+#' regex. With `weights`, a double per term, the sum of their weights
+#' instead. Otherwise as `par_match_term_rs()`.
 #' @noRd
-par_count_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads) .Call(wrap__par_count_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads)
+par_count_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads, weights) .Call(wrap__par_count_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads, weights)
 
 #' For each string, the 1-based indices of every term it contains, in
 #' `terms` order, each once; `NA` for `NA`. Otherwise as
@@ -133,5 +134,13 @@ par_extract_all_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__p
 #' Otherwise as `par_extract_rs()`.
 #' @noRd
 par_locate_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_locate_rs, x, pattern, group, fixed, nthreads)
+
+#' Every hit of `terms` in each string replaced by its `replacement`, one
+#' per term or one for all: the leftmost hit first, the earliest term
+#' winning among those that start there, then the search goes on after it.
+#' For regex terms, `$1` and the like expand as in `par_replace_rs()`.
+#' Otherwise as `par_match_term_rs()`.
+#' @noRd
+par_replace_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads, replacement) .Call(wrap__par_replace_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads, replacement)
 
 # nolint end
