@@ -68,6 +68,12 @@ par_match_rows <- function(
       day[j] <- dates_by_day()
       a <- as_dbl(a)
       b <- as_dbl(b)
+    } else if (is.factor(a) && is.factor(b)) {
+      # Codes stand in for the levels, which as.character() would copy into
+      # every element: `a`'s become `b`'s, and levels `b` lacks become 0,
+      # which no code of `b` is.
+      m <- c(match(levels(a), levels(b), nomatch = 0L), NA)
+      a <- index_codes(a, m, nthreads)
     } else {
       a <- as_plain(a)
       b <- as_plain(b)

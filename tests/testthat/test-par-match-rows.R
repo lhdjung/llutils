@@ -84,3 +84,24 @@ test_that("par_match_rows() matches Dates beyond 1e10 days as base does", {
   key <- function(l) paste(match(l[[1]], table[[1]]), l[[2]])
   expect_identical(par_match_rows(x, table), match(key(x), key(table)))
 })
+
+test_that("factor pairs match by level, whatever the levels' order", {
+  set.seed(3)
+  n <- 3e4
+  a <- factor(
+    sample(c(letters[1:5], NA), n, TRUE),
+    levels = c("e", "a", "b", "c", "d", "zz")
+  )
+  b <- factor(
+    sample(c(letters[2:7], NA), n, TRUE),
+    levels = c("g", "b", "c", "d", "e", "f", "no")
+  )
+  x <- data.frame(f = a, i = sample(3, n, TRUE))
+  table <- data.frame(f = b, i = sample(3, n, TRUE))
+  key <- function(d) paste(as.character(d$f), d$i)
+  expect_identical(par_match_rows(x, table), match(key(x), key(table)))
+  expect_identical(
+    par_match_rows(x["f"], table["f"]),
+    match(as.character(a), as.character(b))
+  )
+})

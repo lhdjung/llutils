@@ -356,7 +356,11 @@ Nothing at the moment. Add ideas here when a use turns up.
   180ms, collapse 450ms. Pasting the columns for `match()` takes 2.5s per
   1e6 rows, where this takes 18ms.
 - Columns pair by position. Integer, double, string, Date, and POSIXct
-  pairs, and factors (as strings), are hashed as they are; any other pair
+  pairs are hashed as they are. A pair of factors is hashed by codes, with
+  `x`'s mapped to `table`'s levels (`index_codes()`): as strings, each
+  column took a 54ms `as.character()`, and 1e7 rows of two factors into
+  1e7 took 444ms, now 191ms (collapse 90ms). A factor paired with a string
+  column is hashed as strings; any other pair
   is first turned into positions of first occurrences in `table` by two
   `par_match()` calls, which keeps `match()`'s semantics for every type.
 - Row indices are a `u32` vector as long as the longer side, 40MB for 1e7
