@@ -2,7 +2,9 @@
 % Please edit documentation in R/par-extract.R
 \name{par_extract}
 \alias{par_extract}
+\alias{par_extract_all}
 \alias{par_replace}
+\alias{par_replace_all}
 \title{Extract or replace regex matches, in parallel}
 \usage{
 par_extract(
@@ -13,7 +15,23 @@ par_extract(
   nthreads = getOption("parvenu.threads", 0L)
 )
 
+par_extract_all(
+  x,
+  pattern,
+  group = 0L,
+  fixed = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+)
+
 par_replace(
+  x,
+  pattern,
+  replacement,
+  fixed = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+)
+
+par_replace_all(
   x,
   pattern,
   replacement,
@@ -48,26 +66,40 @@ group named \verb{1a}. R's \verb{\\\\1} is not a group here.}
 \value{
 A character vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern}
 is \code{NA}, and for \code{par_extract()}, also where nothing matches, or the
-group took no part in the match. \code{par_replace()} keeps the names of
-\code{x}, as \code{\link[=gsub]{gsub()}} does.
+group took no part in the match. \code{par_replace()} and \code{par_replace_all()}
+keep the names of \code{x}, as \code{\link[=sub]{sub()}} and \code{\link[=gsub]{gsub()}} do.
+
+\code{par_extract_all()} returns a list as long as \code{x} instead: for each
+string, a character vector of its matches, \code{character(0)} if none, or
+\code{NA} where \code{x} or \code{pattern} is \code{NA}. It finds the matches \code{\link[=par_count]{par_count()}}
+counts, so the lengths are the counts, and for a group, \code{NA} where it
+took no part in a match.
 }
 \description{
 \code{par_extract()} gives the first match of \code{pattern} in each
 string, like \code{regmatches(x, regexpr(pattern, x))} but with \code{NA} where
 nothing matches, or a capture group of it, which takes the place of
-lookaround. \code{par_replace()} replaces every match, like
-\code{gsub(pattern, replacement, x)}. Both use the syntax of Rust's regex
-crate, as \code{\link[=par_detect]{par_detect()}} does.
+lookaround. \code{par_extract_all()} gives every match, like
+\code{regmatches(x, gregexpr(pattern, x))}.
+
+\code{par_replace()} replaces the first match, like
+\code{sub(pattern, replacement, x)}, and \code{par_replace_all()} every match, like
+\code{gsub(pattern, replacement, x)}.
+
+All use the syntax of Rust's regex crate, as \code{\link[=par_detect]{par_detect()}} does.
 }
 \details{
 The threads find the matches and build the replaced strings, but
 only R's thread may turn them into R strings, so that part runs
-serially. Strings that \code{par_replace()} leaves unchanged are not copied.
+serially. Strings that \code{par_replace()} and \code{par_replace_all()} leave
+unchanged are not copied.
 }
 \examples{
 x <- c("born 1999 in Oslo", "no year", NA)
 par_extract(x, "[0-9]{4}")
 par_extract(x, "born ([0-9]+)", group = 1)
+par_extract_all(c("#rstats and #rust", "none", NA), "#(\\\\w+)", group = 1)
 par_replace(x, "[0-9]", "#")
-par_replace("Smith, John", "(\\\\w+), (\\\\w+)", "$2 $1")
+par_replace_all(x, "[0-9]", "#")
+par_replace_all("Smith, John", "(\\\\w+), (\\\\w+)", "$2 $1")
 }

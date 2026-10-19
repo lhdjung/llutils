@@ -80,6 +80,12 @@ test_that("par_unique() agrees with unique()", {
     as.Date("2026-01-01") + sample(0:30, n, TRUE),
     as.POSIXct("2026-01-01", tz = "UTC") + sample(1e3, n, TRUE),
     setNames(sample(5, n, TRUE), rep("a", n)), # names dropped
+    sample.int(1000, 1e5, TRUE), # long enough to split by hash
+    sample(c(-0, 0, NA, NaN, 1.5, Inf), 1e5, TRUE),
+    as.character(sample.int(1000, 1e5, TRUE)),
+    as.POSIXct("2026-01-01") + sample(1e3, n, TRUE), # no time zone
+    structure(sample(30L, n, TRUE), class = "Date"), # integer Dates
+    rep(c(intToUtf8(233), iconv(intToUtf8(233), "UTF-8", "latin1")), n / 2),
     c(3, 1, 3), # base
     matrix(c(1, 1, 2, 2), 2), # unique() by rows
     list(1, 1, "a"),

@@ -230,9 +230,7 @@ fn partition<T: Sync, K: Copy + Hash + Eq + Send + Sync>(
 }
 
 /// `duplicated(x)`: whether an equal element comes earlier, or later if
-/// `from_last`. A large `x` is split by hash as in `build()`, and each
-/// bucket marks the duplicates among its own keys, so no second pass over
-/// `x` looks them up, as `par_match(x, x)` would.
+/// `from_last`.
 fn duplicated<X: Sync, K: Copy + Hash + Eq + Send + Sync>(
     x: &[X],
     key: impl Fn(&X) -> K + Sync,
@@ -240,27 +238,56 @@ fn duplicated<X: Sync, K: Copy + Hash + Eq + Send + Sync>(
     pool: &rayon::ThreadPool,
 ) -> Logicals {
     let mut out = Logicals::new(x.len()); // all FALSE
-    let slice: &mut [Rbool] = &mut out;
+    mark(
+        x,
+        key,
+        from_last,
+        false,
+        Rbool::true_value(),
+        &mut out,
+        pool,
+    );
+    out
+}
+
+/// Sets `out` to `v` at the first element of each key in `x` if `first`,
+/// else at the others, which `duplicated()` marks; the first is the last if
+/// `from_last`. A large `x` is split by hash as in `build()`, and each
+/// bucket marks its own keys, so no second pass over `x` looks them up, as
+/// `par_match(x, x)` would.
+fn mark<X: Sync, K: Copy + Hash + Eq + Send + Sync, V: Copy + Send + Sync>(
+    x: &[X],
+    key: impl Fn(&X) -> K + Sync,
+    from_last: bool,
+    first: bool,
+    v: V,
+    out: &mut [V],
+    pool: &rayon::ThreadPool,
+) {
     pool.install(|| {
         let Some((nb, runs)) = partition(x, &key) else {
             let mut seen = map(x.len(), x.len());
-            let mut mark = |(o, v): (&mut Rbool, &X)| *o = seen.insert(key(v), ()).is_some().into();
+            let mut mark = |(o, e): (&mut V, &X)| {
+                if seen.insert(key(e), ()).is_none() == first {
+                    *o = v
+                }
+            };
             if from_last {
-                slice.iter_mut().zip(x).rev().for_each(&mut mark)
+                out.iter_mut().zip(x).rev().for_each(&mut mark)
             } else {
-                slice.iter_mut().zip(x).for_each(&mut mark)
+                out.iter_mut().zip(x).for_each(&mut mark)
             }
             return;
         };
-        let out = Shared(slice.as_mut_ptr());
+        let out = Shared(out.as_mut_ptr());
         (0..nb).into_par_iter().for_each(|b| {
             let n = runs.iter().map(|r| r[b].len()).sum();
             let mut seen = map(n, x.len());
             let mut mark = |&(k, i): &(K, i32)| {
-                if seen.insert(k, ()).is_some() {
+                if seen.insert(k, ()).is_none() == first {
                     // Each position is in one bucket only, so no two
                     // threads write the same element.
-                    unsafe { *out.get().add(i as usize - 1) = Rbool::true_value() }
+                    unsafe { *out.get().add(i as usize - 1) = v }
                 }
             };
             let run = runs.iter().flat_map(|r| &r[b]);
@@ -271,7 +298,6 @@ fn duplicated<X: Sync, K: Copy + Hash + Eq + Send + Sync>(
             }
         })
     });
-    out
 }
 
 /// A pointer that threads may share, for writes to disjoint elements.
@@ -478,6 +504,51 @@ fn par_duplicated_rs(x: Robj, from_last: bool, nthreads: i32) -> Robj {
             return ().into();
         }
         duplicated(v, |p| *p, from_last, &pool).into()
+    }
+}
+
+/// `unique(x)` for an integer, double, or string vector, without
+/// attributes; `NULL` for strings that `par_match_chr()` would leave to
+/// base. The first occurrences are marked in a byte per element, as
+/// `duplicated()` marks the others, and the marked elements then gathered
+/// in parallel, where subsetting by the result of `duplicated()` in R reads
+/// four bytes per element on one thread.
+/// @noRd
+#[extendr]
+fn par_unique_rs(x: Robj, from_last: bool, nthreads: i32) -> Robj {
+    let pool = pool(nthreads);
+    fn firsts<T: Copy + Send + Sync, K: Copy + Hash + Eq + Send + Sync>(
+        x: &[T],
+        key: impl Fn(&T) -> K + Sync,
+        from_last: bool,
+        pool: &rayon::ThreadPool,
+    ) -> Vec<T> {
+        let mut keep = vec![false; x.len()];
+        mark(x, key, from_last, true, true, &mut keep, pool);
+        pool.install(|| {
+            x.par_iter()
+                .zip(keep)
+                .with_min_len(MATCH_PER_THREAD)
+                .filter_map(|(&e, k)| k.then_some(e))
+                .collect()
+        })
+    }
+    if let Some(v) = x.as_integer_slice() {
+        Integers::from_values(firsts(v, |v| *v, from_last, &pool)).into()
+    } else if let Some(v) = x.as_real_slice() {
+        Doubles::from_values(firsts(v, |v| dbl_key(*v), from_last, &pool)).into()
+    } else {
+        let v = unsafe { charsxps(&x) };
+        if !pointers_suffice(v, v, &pool) {
+            return ().into();
+        }
+        let u = firsts(v, |p| *p, from_last, &pool);
+        // Only R's thread may set the elements of a character vector.
+        let out: Robj = Strings::new(u.len()).into();
+        for (i, &p) in u.iter().enumerate() {
+            unsafe { SET_STRING_ELT(out.get(), i as isize, p as SEXP) };
+        }
+        out
     }
 }
 
@@ -910,25 +981,45 @@ enum Piece {
 fn strings(x: &[usize], out: Vec<Piece>) -> extendr_api::Result<Robj> {
     let res: Robj = Strings::new(out.len()).into();
     for (i, (piece, &p)) in out.into_iter().zip(x).enumerate() {
-        unsafe {
-            let ce = if Rf_getCharCE(p as SEXP) == 3 { 3 } else { 1 };
-            let make = |s: &[u8]| -> extendr_api::Result<SEXP> {
-                let n = c_int::try_from(s.len()).map_err(|_| {
-                    Error::Other("A result is longer than R's limit of 2^31 - 1 bytes.".into())
-                })?;
-                Ok(Rf_mkCharLenCE(s.as_ptr() as *const c_char, n, ce))
-            };
-            let s = match piece {
-                Piece::Na => R_NaString,
-                Piece::Same => p as SEXP,
-                Piece::Span(a, b) if a == 0 && b == bytes(p).len() => p as SEXP,
-                Piece::Span(a, b) => make(&bytes(p)[a..b])?,
-                Piece::New(v) => make(&v)?,
-            };
-            SET_STRING_ELT(res.get(), i as isize, s);
-        }
+        unsafe { SET_STRING_ELT(res.get(), i as isize, string(piece, p)?) };
     }
     Ok(res)
+}
+
+/// The string `piece` describes, made from the string at `p`, as in
+/// `strings()`.
+unsafe fn string(piece: Piece, p: usize) -> extendr_api::Result<SEXP> {
+    let ce = if Rf_getCharCE(p as SEXP) == 3 { 3 } else { 1 };
+    let make = |s: &[u8]| -> extendr_api::Result<SEXP> {
+        let n = c_int::try_from(s.len()).map_err(|_| {
+            Error::Other("A result is longer than R's limit of 2^31 - 1 bytes.".into())
+        })?;
+        Ok(Rf_mkCharLenCE(s.as_ptr() as *const c_char, n, ce))
+    };
+    Ok(match piece {
+        Piece::Na => R_NaString,
+        Piece::Same => p as SEXP,
+        Piece::Span(a, b) if a == 0 && b == bytes(p).len() => p as SEXP,
+        Piece::Span(a, b) => make(&bytes(p)[a..b])?,
+        Piece::New(v) => make(&v)?,
+    })
+}
+
+/// An error unless every regex of `p` has a capture group `group`.
+fn check_group(p: &Patterns, group: i32) -> extendr_api::Result<()> {
+    if p.res
+        .iter()
+        .flatten()
+        .any(|re| group as usize >= re.captures_len())
+    {
+        return Err(Error::Other(format!("`pattern` has no group {group}.")));
+    }
+    Ok(())
+}
+
+/// The part of a string a match or group spans, `Na` if it took no part.
+fn span(m: Option<regex::bytes::Match>) -> Piece {
+    m.map_or(Piece::Na, |m| Piece::Span(m.start(), m.end()))
 }
 
 /// The first match of `pattern` in each string, or its capture group
@@ -944,26 +1035,70 @@ fn par_extract_rs(
     nthreads: i32,
 ) -> extendr_api::Result<Robj> {
     let p = patterns(&pattern, fixed, nthreads)?;
+    check_group(&p, group)?;
     let g = group as usize;
-    if p.res.iter().flatten().any(|re| g >= re.captures_len()) {
-        return Err(Error::Other(format!("`pattern` has no group {group}.")));
-    }
     let x = unsafe { charsxps(&x) };
     let mut out = vec![Piece::Na; x.len()];
     per_pattern(&mut out, x, &p, Piece::Na, nthreads, |re, s| {
-        let m = if g == 0 {
+        span(if g == 0 {
             re.find(s)
         } else {
             re.captures(s).and_then(|c| c.get(g))
-        };
-        m.map_or(Piece::Na, |m| Piece::Span(m.start(), m.end()))
+        })
     });
     strings(x, out)
 }
 
-/// Every match of `pattern` in each string replaced by `replacement`, in
-/// which `$1` or `${name}` stands for a capture group unless `fixed`.
-/// Otherwise as `par_detect_rs()`.
+/// Every match of `pattern` in each string, as `par_count_rs()` finds them,
+/// or capture group `group` of each, `NA` where it took no part: a list of
+/// character vectors, `NA` where `x` or `pattern` is `NA`. Otherwise as
+/// `par_extract_rs()`.
+/// @noRd
+#[extendr]
+fn par_extract_all_rs(
+    x: Robj,
+    pattern: Robj,
+    group: i32,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
+    let p = patterns(&pattern, fixed, nthreads)?;
+    check_group(&p, group)?;
+    let g = group as usize;
+    let x = unsafe { charsxps(&x) };
+    let mut out: Vec<Option<Vec<Piece>>> = vec![None; x.len()];
+    per_pattern(&mut out, x, &p, None, nthreads, |re, s| {
+        let whole = |m: &regex::bytes::Match| !splits_char(s, m.start(), m.end());
+        Some(if g == 0 {
+            re.find_iter(s)
+                .filter(whole)
+                .map(|m| span(Some(m)))
+                .collect()
+        } else {
+            re.captures_iter(s)
+                .filter(|c| whole(&c.get(0).unwrap()))
+                .map(|c| span(c.get(g)))
+                .collect()
+        })
+    });
+    // Only R's thread may make R strings. Each vector goes into the list
+    // before its strings are made, which keeps it from R's garbage collector.
+    let res: Robj = List::new(out.len()).into();
+    for (i, (pieces, &p)) in out.into_iter().zip(x).enumerate() {
+        unsafe {
+            let v = Rf_allocVector(16, pieces.as_ref().map_or(1, |v| v.len()) as isize);
+            SET_VECTOR_ELT(res.get(), i as isize, v);
+            for (k, piece) in pieces.unwrap_or(vec![Piece::Na]).into_iter().enumerate() {
+                SET_STRING_ELT(v, k as isize, string(piece, p)?);
+            }
+        }
+    }
+    Ok(res)
+}
+
+/// Every match of `pattern` in each string replaced by `replacement`, or
+/// only the first unless `all`, in which `$1` or `${name}` stands for a
+/// capture group unless `fixed`. Otherwise as `par_detect_rs()`.
 /// @noRd
 #[extendr]
 fn par_replace_rs(
@@ -971,6 +1106,7 @@ fn par_replace_rs(
     pattern: Robj,
     replacement: Robj,
     fixed: bool,
+    all: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Robj> {
     let p = patterns(&pattern, fixed, nthreads)?;
@@ -996,12 +1132,18 @@ fn par_replace_rs(
             for c in re.captures_iter(s) {
                 if put(&mut new, c.get(0).unwrap()) {
                     c.expand(rep, &mut new);
+                    if !all {
+                        break;
+                    }
                 }
             }
         } else {
             for m in re.find_iter(s) {
                 if put(&mut new, m) {
                     new.extend_from_slice(rep);
+                    if !all {
+                        break;
+                    }
                 }
             }
         }
@@ -1016,14 +1158,31 @@ fn par_replace_rs(
     strings(x, out)
 }
 
-/// The automaton for `terms`. Building one takes about 0.9ms for 1000
-/// terms, most of a call below 1e4 strings, so the last one is kept for
-/// calls that repeat the terms. They are compared by their string pointers,
-/// as `par_match_chr()` compares strings, and a copy of the vector keeps
-/// those strings alive: otherwise R could free one and put another string
-/// at its address.
-fn automaton(terms: &Robj, ignore_case: bool) -> extendr_api::Result<aho_corasick::AhoCorasick> {
-    struct Last(Robj, bool, aho_corasick::AhoCorasick);
+/// The terms of `par_match_term()` and the like: literal ones in one
+/// automaton, or regexes in one set, which says which of them match a
+/// string but not where or how often, so each also has its own regex to
+/// count its matches. With `whole_word`, the regexes require no word
+/// character on either side, which the automaton's hits are checked for
+/// afterwards.
+#[derive(Clone)]
+enum Terms {
+    Fixed(aho_corasick::AhoCorasick),
+    Regex(Vec<regex::bytes::RegexSet>, Vec<Re>),
+}
+
+/// The `Terms` for `terms`. Building an automaton takes about 0.9ms for
+/// 1000 terms, most of a call below 1e4 strings, so the last one is kept
+/// for calls that repeat the terms. They are compared by their string
+/// pointers, as `par_match_chr()` compares strings, and a copy of the
+/// vector keeps those strings alive: otherwise R could free one and put
+/// another string at its address.
+fn compile_terms(
+    terms: &Robj,
+    ignore_case: bool,
+    whole_word: bool,
+    fixed: bool,
+) -> extendr_api::Result<Terms> {
+    struct Last(Robj, (bool, bool, bool), Terms);
     // Only R's thread ever touches it.
     unsafe impl Send for Last {}
     static LAST: Mutex<Option<Last>> = Mutex::new(None);
@@ -1031,18 +1190,116 @@ fn automaton(terms: &Robj, ignore_case: bool) -> extendr_api::Result<aho_corasic
     // the lock is held, or it would never be released.
     let p = unsafe { charsxps(terms) };
     let copy = terms.duplicate();
+    let key = (ignore_case, fixed, whole_word && !fixed);
     let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(Last(t, ic, ac)) = last.as_ref() {
-        if *ic == ignore_case && unsafe { charsxps(t) } == p {
-            return Ok(ac.clone());
+    if let Some(Last(t, k, m)) = last.as_ref() {
+        if *k == key && unsafe { charsxps(t) } == p {
+            return Ok(m.clone());
         }
     }
-    let ac = aho_corasick::AhoCorasick::builder()
-        .ascii_case_insensitive(ignore_case)
-        .build(p.iter().map(|&p| unsafe { bytes(p) }))
-        .map_err(|e| Error::Other(e.to_string()))?;
-    *last = Some(Last(copy, ignore_case, ac.clone()));
-    Ok(ac)
+    let err = |e: &dyn std::fmt::Display| Error::Other(e.to_string());
+    let m = if fixed {
+        Terms::Fixed(
+            aho_corasick::AhoCorasick::builder()
+                .ascii_case_insensitive(ignore_case)
+                .build(p.iter().map(|&p| unsafe { bytes(p) }))
+                .map_err(|e| err(&e))?,
+        )
+    } else {
+        let src = p
+            .iter()
+            .map(|&p| {
+                let t = std::str::from_utf8(unsafe { bytes(p) }).map_err(|e| err(&e))?;
+                Ok(if whole_word {
+                    format!(r"\b{{start-half}}(?:{t})\b{{end-half}}")
+                } else {
+                    t.to_string()
+                })
+            })
+            .collect::<extendr_api::Result<Vec<_>>>()?;
+        let res = src
+            .iter()
+            .map(|t| {
+                regex::bytes::RegexBuilder::new(t)
+                    .case_insensitive(ignore_case)
+                    .build()
+                    .map_err(|e| err(&e))
+            })
+            .collect::<extendr_api::Result<_>>()?;
+        let set = regex::bytes::RegexSetBuilder::new(&src)
+            .dfa_size_limit(DFA_SIZE)
+            .case_insensitive(ignore_case)
+            .build()
+            .map_err(|e| err(&e))?;
+        // One clone per core, as `Search` explains.
+        let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+        Terms::Regex(vec![set; cores], res)
+    };
+    *last = Some(Last(copy, key, m.clone()));
+    Ok(m)
+}
+
+/// The lazy DFA cache of a regex set, per thread. At the default 2MB, a set
+/// of 1000 terms fills it again and again: 1e5 strings took 4s and 1e6
+/// took 57s, where 16MB gives about 1s and 1.4s. 64MB saves 15% more.
+const DFA_SIZE: usize = 16 << 20;
+
+/// A chunk's searcher for `Terms`. The automaton has no cache, so threads
+/// share it. Each thread takes its own clone of the regex set, by its index
+/// in the pool (only one pool runs at a time), and the clones are kept with
+/// the terms, so their caches stay built between calls: building the DFA
+/// is most of the time for many terms, and a clone per chunk took 2-3x
+/// longer for 1000 terms, while one set shared by all threads took 2x
+/// longer for 10, from contention on its caches. A term's regex is cloned
+/// the first time a chunk counts its matches, as in `per_pattern()`.
+struct Search<'a> {
+    terms: &'a Terms,
+    res: Vec<Option<Re>>,
+}
+
+impl<'a> Search<'a> {
+    fn new(terms: &'a Terms) -> Self {
+        let res = match terms {
+            Terms::Fixed(_) => Vec::new(),
+            Terms::Regex(_, res) => vec![None; res.len()],
+        };
+        Search { terms, res }
+    }
+
+    /// Calls `f` with the index of each term found in `s` until it returns
+    /// `false`. With `every`, once per hit: for literal terms every
+    /// occurrence, also where they overlap, as `hits()` finds them, and for
+    /// regexes every match, as `par_count_rs()` finds them. Otherwise at
+    /// least once per term found, in no particular order.
+    fn each(&mut self, s: &[u8], whole_word: bool, every: bool, mut f: impl FnMut(u32) -> bool) {
+        match self.terms {
+            Terms::Fixed(ac) => {
+                for t in hits(ac, s, whole_word) {
+                    if !f(t) {
+                        return;
+                    }
+                }
+            }
+            Terms::Regex(sets, res) => {
+                let set = &sets[rayon::current_thread_index().unwrap_or(0) % sets.len()];
+                for t in set.matches(s).iter() {
+                    let n = if every {
+                        let re = self.res[t].get_or_insert_with(|| res[t].clone());
+                        re.find_iter(s)
+                            .filter(|m| !splits_char(s, m.start(), m.end()))
+                            .count()
+                    } else {
+                        1
+                    };
+                    for _ in 0..n {
+                        if !f(t as u32) {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// The index of each term found in `s`, in the order the automaton finds
@@ -1066,8 +1323,9 @@ fn hits<'a>(
 /// or `NA`. One automaton finds every occurrence of every term in a single
 /// pass, and the lowest index wins, so term order sets priority, not where
 /// in the string a term occurs. With `whole_word`, a hit counts only if no
-/// word character touches it on either side. Strings are matched as bytes,
-/// so R should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
+/// word character touches it on either side. Unless `fixed`, terms are
+/// regexes, found in one pass by a set. Strings are matched as bytes, so R
+/// should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 /// @noRd
 #[extendr]
 fn par_match_term_rs(
@@ -1075,25 +1333,23 @@ fn par_match_term_rs(
     terms: Robj,
     ignore_case: bool,
     whole_word: bool,
+    fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
-    let ac = automaton(&terms, ignore_case)?;
+    let m = compile_terms(&terms, ignore_case, whole_word, fixed)?;
     let mut out = Integers::new(x.len());
-    // Unlike a regex, the automaton has no cache, so threads share one.
     per_string(
         &mut out,
         unsafe { charsxps(&x) },
         Rint::na(),
         nthreads,
-        || (),
-        |_, _, s| {
+        || Search::new(&m),
+        |search, _, s| {
             let mut best = u32::MAX;
-            for t in hits(&ac, s, whole_word) {
+            search.each(s, whole_word, false, |t| {
                 best = best.min(t);
-                if best == 0 {
-                    break;
-                }
-            }
+                best != 0
+            });
             if best == u32::MAX {
                 Rint::na()
             } else {
@@ -1105,8 +1361,8 @@ fn par_match_term_rs(
 }
 
 /// For each string, how many hits of `terms` it contains: every occurrence
-/// of every term, also where they overlap; otherwise as
-/// `par_match_term_rs()`.
+/// of every literal term, also where they overlap, or every match of every
+/// regex; otherwise as `par_match_term_rs()`.
 /// @noRd
 #[extendr]
 fn par_count_term_rs(
@@ -1114,17 +1370,25 @@ fn par_count_term_rs(
     terms: Robj,
     ignore_case: bool,
     whole_word: bool,
+    fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Integers> {
-    let ac = automaton(&terms, ignore_case)?;
+    let m = compile_terms(&terms, ignore_case, whole_word, fixed)?;
     let mut out = Integers::new(x.len());
     per_string(
         &mut out,
         unsafe { charsxps(&x) },
         Rint::na(),
         nthreads,
-        || (),
-        |_, _, s| count(hits(&ac, s, whole_word)),
+        || Search::new(&m),
+        |search, _, s| {
+            let mut n = 0usize;
+            search.each(s, whole_word, true, |_| {
+                n += 1;
+                true
+            });
+            (n.min(i32::MAX as usize) as i32).into()
+        },
     );
     Ok(out)
 }
@@ -1139,9 +1403,10 @@ fn par_which_term_rs(
     terms: Robj,
     ignore_case: bool,
     whole_word: bool,
+    fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Robj> {
-    let ac = automaton(&terms, ignore_case)?;
+    let m = compile_terms(&terms, ignore_case, whole_word, fixed)?;
     let x = unsafe { charsxps(&x) };
     let mut out: Vec<Option<Vec<u32>>> = vec![None; x.len()];
     per_string(
@@ -1149,9 +1414,13 @@ fn par_which_term_rs(
         x,
         None,
         nthreads,
-        || (),
-        |_, _, s| {
-            let mut t: Vec<u32> = hits(&ac, s, whole_word).collect();
+        || Search::new(&m),
+        |search, _, s| {
+            let mut t = Vec::new();
+            search.each(s, whole_word, false, |i| {
+                t.push(i);
+                true
+            });
             t.sort_unstable();
             t.dedup();
             Some(t)
@@ -1279,4 +1548,6 @@ extendr_module! {
     fn par_count_term_rs;
     fn par_which_term_rs;
     fn par_find_interval_rs;
+    fn par_unique_rs;
+    fn par_extract_all_rs;
 }

@@ -110,6 +110,31 @@ data.frame(
 )
 ```
 
+## Terms that are patterns
+
+Where a term has several spellings or forms, `fixed = FALSE` takes regexes
+as terms, in the syntax of `par_detect()`. The earliest term in the list
+still wins:
+
+```{r}
+tickets <- c(
+  "Where is my parcel? Tracking no. 1Z999",
+  "I want my money back",
+  "Item arrived damaged, please refund",
+  "Change my delivery address"
+)
+topics <- c(
+  refund = "refund|money back|reimburs",
+  damage = "damaged?|broken",
+  shipping = "parcel|deliver(y|ed)|tracking"
+)
+names(topics)[par_match_term(tickets, topics, ignore_case = TRUE, fixed = FALSE)]
+```
+
+All the regexes are searched at once, which is much faster than a search
+per term, but much slower than literal terms: list the spellings as
+literal terms where you can.
+
 ## Scoring text against a lexicon
 
 Sentiment and topic scores often count how many words from a list each
@@ -199,16 +224,25 @@ par_extract(notes, "HR ([0-9]+)", group = 1)
 as.integer(par_extract(notes, "HR ([0-9]+)", group = 1))
 ```
 
-`par_replace()` replaces every match, as `gsub()` does. In the replacement,
+`par_replace_all()` replaces every match, as `gsub()` does. In the replacement,
 `$1` stands for the first group, where `gsub()` takes `\\1`:
 
 ```{r}
 people <- c("Smith, Jane", "Doe, John", "Prince")
-par_replace(people, "^(\\w+), (\\w+)$", "$2 $1")
-par_replace(c("phone: 044 123 45 67", NA), "[^0-9]", "")
+par_replace_all(people, "^(\\w+), (\\w+)$", "$2 $1")
+par_replace_all(c("phone: 044 123 45 67", NA), "[^0-9]", "")
 ```
 
-Only R's own thread can make R strings, so both run fastest where few
+`par_replace()` replaces only the first match, as `sub()` does, and
+`par_extract_all()` gives every match, as a list with one character vector
+per string:
+
+```{r}
+par_replace(c("  padded  ", "x"), "^ +", "")
+par_extract_all(c("#rstats and #rust", "no tags", NA), "#(\\w+)", group = 1)
+```
+
+Only R's own thread can make R strings, so these run fastest where few
 strings change, such as redacting the few that hold an email address.
 
 ## Lookups and joins

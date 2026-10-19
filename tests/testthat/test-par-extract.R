@@ -41,29 +41,85 @@ test_that("group = n extracts a capture group", {
   expect_error(par_extract("a", "a", group = 1.5), "group")
 })
 
-test_that("par_replace() agrees with gsub()", {
+test_that("par_replace_all() agrees with gsub()", {
   for (p in c("[0-9]+", "a", " ", "^", "b*")) {
     expect_identical(
-      par_replace(x, p, "<$0>"),
+      par_replace_all(x, p, "<$0>"),
       gsub(paste0("(", p, ")"), "<\\1>", x),
       info = p
     )
   }
   expect_identical(
-    par_replace(x, "([a-c])([0-9])", "$2${1}x"),
+    par_replace_all(x, "([a-c])([0-9])", "$2${1}x"),
     gsub("([a-c])([0-9])", "\\2\\1x", x)
   )
   expect_identical(
-    par_replace(x, ".", "$1", fixed = TRUE),
+    par_replace_all(x, ".", "$1", fixed = TRUE),
     gsub(".", "$1", x, fixed = TRUE)
   )
   expect_identical(
-    par_replace(c("a$b", NA), "$", "$$", fixed = TRUE),
+    par_replace_all(c("a$b", NA), "$", "$$", fixed = TRUE),
     c("a$$b", NA)
   )
-  expect_identical(par_replace("ab", "b", "$$"), "a$")
+  expect_identical(par_replace_all("ab", "b", "$$"), "a$")
+  expect_error(par_replace_all("a", "a", NA_character_), "replacement")
+  expect_error(par_replace_all("a", "a", c("b", "c")), "replacement")
+})
+
+test_that("par_replace() agrees with sub()", {
+  for (p in c("[0-9]+", "a", " ", "^", "b*", "$")) {
+    expect_identical(
+      par_replace(x, p, "<$0>"),
+      sub(paste0("(", p, ")"), "<\\1>", x),
+      info = p
+    )
+  }
+  expect_identical(
+    par_replace(x, ".", "$1", fixed = TRUE),
+    sub(".", "$1", x, fixed = TRUE)
+  )
+  e <- intToUtf8(233)
+  expect_identical(par_replace(e, "", "-"), sub("", "-", e))
+  expect_identical(par_replace(paste0(e, "x"), "x*", "-"), paste0("-", e, "x"))
+  y <- c(a = "x1", b = "y2")
+  expect_identical(par_replace(y, "[0-9]", "#"), sub("[0-9]", "#", y))
   expect_error(par_replace("a", "a", NA_character_), "replacement")
-  expect_error(par_replace("a", "a", c("b", "c")), "replacement")
+})
+
+test_that("par_extract_all() gives every match", {
+  skip_if_not_installed("stringi")
+  for (p in c("[0-9]+", "a.c", "^b", "[a-c]")) {
+    expect_identical(
+      par_extract_all(x, p),
+      lapply(stringi::stri_extract_all_regex(x, p, omit_no_match = TRUE), \(m) {
+        if (identical(m, NA_character_)) m else as.character(m)
+      }),
+      info = p
+    )
+  }
+  for (p in c("", "a*", "\\b", "[0-9]")) {
+    expect_identical(
+      lengths(par_extract_all(x, p))[!is.na(x)],
+      par_count(x, p)[!is.na(x)],
+      info = p
+    )
+  }
+  p <- "([a-c])( )?([0-9])"
+  m <- stringi::stri_match_all_regex(x, p, omit_no_match = TRUE)
+  for (g in 0:3) {
+    want <- lapply(m, \(m) {
+      if (nrow(m) && is.na(m[1, 1])) NA_character_ else m[, g + 1]
+    })
+    expect_identical(par_extract_all(x, p, group = g), want, info = paste(g))
+  }
+  expect_identical(
+    par_extract_all(c("#a and #b", "none", NA), "#(\\w+)", group = 1),
+    list(c("a", "b"), character(), NA_character_)
+  )
+  expect_identical(par_extract_all("a.c", ".", fixed = TRUE), list("."))
+  expect_identical(par_extract_all(intToUtf8(233), ""), list(c("", "")))
+  expect_error(par_extract_all("a", "(a)", group = 2), "no group 2")
+  expect_identical(par_extract_all(character(), "a"), list())
 })
 
 test_that("results are UTF-8, from any encoding", {
@@ -71,14 +127,14 @@ test_that("results are UTF-8, from any encoding", {
   latin1 <- iconv(paste0("caf", e, " 22"), "UTF-8", "latin1")
   big <- rep(c(paste0(e, "b2"), latin1, "e", NA), 2000) # the parallel path
   expect_identical(
-    par_replace(big, "2", "X"),
+    par_replace_all(big, "2", "X"),
     rep(c(paste0(e, "bX"), paste0("caf", e, " XX"), "e", NA), 2000)
   )
   expect_identical(
     par_extract(big, "[^ 0-9]+"),
     rep(c(paste0(e, "b"), paste0("caf", e), "e", NA), 2000)
   )
-  expect_identical(Encoding(par_replace(latin1, "2", "X")), "UTF-8")
+  expect_identical(Encoding(par_replace_all(latin1, "2", "X")), "UTF-8")
 })
 
 test_that("factors and one pattern per string work", {
@@ -88,37 +144,54 @@ test_that("factors and one pattern per string work", {
     par_extract(f, "[0-9]+"),
     par_extract(as.character(f), "[0-9]+")
   )
-  expect_identical(par_replace(f, "[0-9]", "#"), gsub("[0-9]", "#", f))
+  expect_identical(par_replace_all(f, "[0-9]", "#"), gsub("[0-9]", "#", f))
+  expect_identical(
+    par_extract_all(f, "[0-9]"),
+    par_extract_all(as.character(f), "[0-9]")
+  )
   p <- rep(c("[0-9]", "[a-c]", NA), 2000)
   expect_identical(
-    par_replace(x, p, "_"),
+    par_replace_all(x, p, "_"),
     stringi::stri_replace_all_regex(x, p, "_")
   )
   expect_identical(
     par_extract(x, p),
     stringi::stri_extract_first_regex(x, p)
   )
+  expect_identical(
+    par_replace(x, p, "_"),
+    stringi::stri_replace_first_regex(x, p, "_")
+  )
+  expect_identical(
+    par_extract_all(x, p),
+    lapply(seq_along(x), \(i) {
+      if (is.na(p[i])) NA_character_ else par_extract_all(x[i], p[i])[[1]]
+    })
+  )
 })
 
 test_that("empty inputs give empty results", {
   expect_identical(par_detect(character(), character()), logical())
   expect_identical(par_extract(character(), character()), character())
-  expect_identical(par_replace(character(), "a", "b"), character())
+  expect_identical(par_replace_all(character(), "a", "b"), character())
 })
 
 test_that("empty matches never split a character", {
   e <- intToUtf8(233)
-  expect_identical(par_replace(e, "", "-"), gsub("", "-", e))
+  expect_identical(par_replace_all(e, "", "-"), gsub("", "-", e))
   expect_identical(
-    par_replace(paste0(e, "x", e), "x*", "-"),
+    par_replace_all(paste0(e, "x", e), "x*", "-"),
     paste0("-", e, "-", e, "-")
   )
-  expect_identical(par_replace(e, "", "-", fixed = TRUE), paste0("-", e, "-"))
+  expect_identical(
+    par_replace_all(e, "", "-", fixed = TRUE),
+    paste0("-", e, "-")
+  )
   expect_identical(par_count(e, ""), 2L)
   expect_identical(par_count(rep(e, 6000), "x*"), rep(2L, 6000)) # parallel
 })
 
-test_that("par_replace() keeps names, as gsub() does", {
+test_that("par_replace_all() keeps names, as gsub() does", {
   x <- c(a = "x1", b = "y")
-  expect_identical(par_replace(x, "[0-9]", "#"), gsub("[0-9]", "#", x))
+  expect_identical(par_replace_all(x, "[0-9]", "#"), gsub("[0-9]", "#", x))
 })

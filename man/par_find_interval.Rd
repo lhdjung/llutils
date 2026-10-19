@@ -2,7 +2,7 @@
 % Please edit documentation in R/par-find-interval.R
 \name{par_find_interval}
 \alias{par_find_interval}
-\title{Multithreaded \code{findInterval()}}
+\title{Bin values by sorted breaks, in parallel}
 \usage{
 par_find_interval(
   x,
@@ -56,10 +56,17 @@ each element, the number of \code{vec} at most that element, adjusted by
 \code{NA}.
 }
 \description{
-Same results as base \code{\link[=findInterval]{findInterval()}}, but much faster for
-large, unsorted \code{x}: each element is found by a binary search in \code{vec},
-on several threads. Use it to bin values by sorted breaks, or to find
-which of a set of sorted ranges each value falls into.
+For each value, the number of the interval it falls into:
+how many of the sorted breaks in \code{vec} are at or below it. Use it to put
+ages into age groups, timestamps into shifts, or prices into tax
+brackets, and to index a vector of labels with the result. It is
+\code{cut(x, vec, right = FALSE, labels = FALSE)}, except that values below
+the first break give \code{0} and values at or above the last give
+\code{length(vec)}, where \code{\link[=cut]{cut()}} gives \code{NA}.
+
+It gives the same results as base \code{\link[=findInterval]{findInterval()}}, so it is also a
+drop-in replacement for that, much faster for large, unsorted \code{x}: each
+element is found by a binary search in \code{vec}, on several threads.
 }
 \details{
 Integer and double \code{x} and \code{vec} (including Dates and POSIXct)
@@ -71,6 +78,10 @@ and \code{checkNA} are passed to base, from R 4.5.0, which added them; Rust
 always checks.
 }
 \examples{
+age <- c(4, 17, 18, 45, 67, NA)
+groups <- c("child", "adult", "senior")
+groups[par_find_interval(age, vec = c(0, 18, 65))]
+
 par_find_interval(c(1.5, 3.2, 0, 4), vec = 1:4, nthreads = 2)
 par_find_interval(c(1.5, 3.2, 0, 4), vec = 1:4, rightmost.closed = TRUE)
 }

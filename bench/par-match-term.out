@@ -2,43 +2,77 @@
 # A tibble: 7 × 2
   expression        median
   <bch:expr>      <bch:tm>
-1 base_perl         14.91s
-2 stringi           28.89s
-3 stringi_loop       4.92s
-4 AhoCorasickTrie   42.17s
-5 par_detect       24.72ms
-6 parvenu_2         9.03ms
-7 parvenu_all       3.45ms
+1 base_perl         15.09s
+2 stringi            29.3s
+3 stringi_loop       5.02s
+4 AhoCorasickTrie   43.33s
+5 par_detect       25.36ms
+6 parvenu_2        8.38ms
+7 parvenu_all      2.74ms
 
 Same, uppercased, ignoring case
 # A tibble: 5 × 2
   expression         median
   <bch:expr>       <bch:tm>
-1 base_perl           15.5s
-2 stringi            54.13s
-3 par_detect          3.44s
-4 par_detect_lower 109.45ms
-5 parvenu_all        5.28ms
+1 base_perl          15.92s
+2 stringi            55.59s
+3 par_detect          4.42s
+4 par_detect_lower 116.41ms
+5 parvenu_all       3.35ms
 
 Scaling with terms (1e6 strings, all threads)
-10 terms: 14.2ms 
-1000 terms: 34.8ms 
-10000 terms: 47ms 
+10 terms: 17.2ms 
+1000 terms: 52.4ms 
+10000 terms: 52.9ms 
 
 Whole words: half the terms are words, half prefixes of words
 # A tibble: 5 × 2
   expression         median
   <bch:expr>       <bch:tm>
-1 stringi_loop       14.79s
-2 base_perl_detect    1.83s
-3 par_detect        14.75ms
-4 substring          5.25ms
-5 whole_word         4.18ms
+1 stringi_loop       15.42s
+2 base_perl_detect    1.88s
+3 par_detect         27.8ms
+4 substring          4.45ms
+5 whole_word         4.82ms
+
+Regex terms (fixed = FALSE): each term with one letter as [a-z]
+
+10 terms, 1e5 strings; first call 0.005s
+# A tibble: 5 × 2
+  expression        median
+  <bch:expr>      <bch:tm>
+1 stringi_loop    141.33ms
+2 par_detect_loop   10.9ms
+3 parvenu_2        7.35ms
+4 parvenu_all      5.07ms
+5 fixed_terms       2.81ms
+
+100 terms, 1e5 strings; first call 0.015s
+# A tibble: 5 × 2
+  expression        median
+  <bch:expr>      <bch:tm>
+1 stringi_loop       1.59s
+2 par_detect_loop 149.76ms
+3 parvenu_2        14.7ms
+4 parvenu_all        19ms
+5 fixed_terms       2.22ms
+
+1000 terms, 1e5 strings; first call 0.947s
+# A tibble: 5 × 2
+  expression        median
+  <bch:expr>      <bch:tm>
+1 stringi_loop      14.34s
+2 par_detect_loop    2.14s
+3 parvenu_2      371.64ms
+4 parvenu_all    700.31ms
+5 fixed_terms       3.79ms
+
+1000 regex terms, 1e6 strings: 1.32s 
 
 Small inputs, 1000 terms
-n = 100 :  27.4ms 903.9µs 
-n = 1000 : 294.32ms   1.02ms 
-n = 10000 : 2.91s 1.51ms 
+n = 100 : 27.4ms 28.9µs 
+n = 1000 : 307ms 158µs 
+n = 10000 :   2.89s 522.67µs 
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20

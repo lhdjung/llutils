@@ -11,6 +11,7 @@ par_match_term(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
+  fixed = TRUE,
   nthreads = getOption("parvenu.threads", 0L)
 )
 
@@ -19,6 +20,7 @@ par_count_term(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
+  fixed = TRUE,
   nthreads = getOption("parvenu.threads", 0L)
 )
 
@@ -27,6 +29,7 @@ par_which_term(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
+  fixed = TRUE,
   nthreads = getOption("parvenu.threads", 0L)
 )
 }
@@ -37,12 +40,17 @@ par_which_term(
 
 \item{ignore_case}{If \code{TRUE}, ASCII letters match regardless of case.
 Other letters, such as \code{"é"} and \code{"É"}, still match only
-themselves.}
+themselves. With \code{fixed = FALSE}, all letters do, as with \code{(?i)}.}
 
 \item{whole_word}{If \code{TRUE}, a term counts only where it isn't part of a
 longer word: the characters right before and after it must not be
 letters, digits, or \verb{_}, in any script. \code{"york"} then matches
-\code{"new york"} and \code{"york, uk"}, but not \code{"yorkshire"}.}
+\code{"new york"} and \code{"york, uk"}, but not \code{"yorkshire"}. With
+\code{fixed = FALSE}, a term's match must have no such character on either
+side.}
+
+\item{fixed}{If \code{FALSE}, \code{terms} are regexes, in the syntax of
+\code{\link[=par_detect]{par_detect()}}.}
 
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
@@ -59,7 +67,8 @@ each string, or \code{NA} if none is found. Use
 \item \code{par_count_term()}: the number of hits in each string. Every
 occurrence of every term counts, also where they overlap: \code{"new york"}
 has two hits for \code{c("new york", "york")}, and a term listed twice counts
-twice.
+twice. For regexes, each term's matches are counted as \code{\link[=par_count]{par_count()}}
+counts them, which don't overlap.
 }
 
 \code{par_which_term()} returns a list as long as \code{x} instead: for each
@@ -70,7 +79,8 @@ is \code{NA}.
 \description{
 For each string in \code{x}, the index of the first of \code{terms} it
 contains, like \code{match()} for substrings. Terms are literal, as in
-\code{grepl(fixed = TRUE)}, so no character needs escaping.
+\code{grepl(fixed = TRUE)}, so no character needs escaping, unless
+\code{fixed = FALSE} makes them regexes.
 
 Order sets priority: if a string contains several terms, the one earliest
 in \code{terms} wins, wherever it occurs in the string. Put specific terms
@@ -88,6 +98,10 @@ every occurrence of every term in a single pass over each string, however
 many terms there are. The threads read the strings straight from R's
 memory, as data.table does. The last automaton is kept, so calls that
 repeat the same \code{terms} don't build it again.
+
+With \code{fixed = FALSE}, the terms are compiled into one regex set instead,
+which also says in one pass which of them match a string. That is much
+slower than the automaton, but much faster than a regex per term.
 }
 \examples{
 cities <- c("new york", "york", "paris")
@@ -97,4 +111,5 @@ par_match_term(c("yorkshire", "york, uk"), cities, whole_word = TRUE)
 par_match_term("1+1=2", c("+", "("))
 par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
 par_which_term(c("york and new york", "rome", NA), cities)
+par_match_term(c("call 555-1234", "mail a@b.org"), c("\\\\d{3}-\\\\d{4}", "@"), fixed = FALSE)
 }

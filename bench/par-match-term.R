@@ -106,6 +106,50 @@ print(bench::mark(
   filter_gc = FALSE
 )[, c("expression", "median")])
 
+cat("\nRegex terms (fixed = FALSE): each term with one letter as [a-z]\n")
+regex_loop <- function(x, terms) {
+  out <- rep(NA_integer_, length(x))
+  for (i in rev(seq_along(terms))) {
+    out[stringi::stri_detect_regex(x, terms[i])] <- i
+  }
+  out
+}
+detect_loop <- function(x, terms) {
+  out <- rep(NA_integer_, length(x))
+  for (i in rev(seq_along(terms))) {
+    out[par_detect(x, terms[i])] <- i
+  }
+  out
+}
+for (k in c(10, 100, 1000)) {
+  t <- sample(vocabulary, k)
+  rx <- paste0(substr(t, 1, 3), "[a-z]", substr(t, 5, 8))
+  first <- system.time(m <- par_match_term(x, rx, fixed = FALSE))[["elapsed"]]
+  stopifnot(identical(m, detect_loop(x, rx)))
+  cat("\n", k, " terms, 1e5 strings; first call ", first, "s\n", sep = "")
+  print(bench::mark(
+    stringi_loop = regex_loop(x, rx),
+    par_detect_loop = detect_loop(x, rx),
+    parvenu_2 = par_match_term(x, rx, fixed = FALSE, nthreads = 2),
+    parvenu_all = par_match_term(x, rx, fixed = FALSE),
+    fixed_terms = par_match_term(x, t),
+    check = FALSE,
+    min_iterations = 3,
+    filter_gc = FALSE
+  )[, c("expression", "median")])
+}
+cat(
+  "\n1000 regex terms, 1e6 strings:",
+  format(
+    bench::mark(
+      par_match_term(x6, rx, fixed = FALSE),
+      min_iterations = 3,
+      filter_gc = FALSE
+    )$median
+  ),
+  "\n"
+)
+
 cat("\nSmall inputs, 1000 terms\n")
 for (m in c(100, 1000, 1e4)) {
   r <- bench::mark(

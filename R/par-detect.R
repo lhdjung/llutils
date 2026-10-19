@@ -72,7 +72,7 @@ par_count <- function(
   run_pattern(par_count_rs, x, pattern, fixed, nthreads)
 }
 
-# Checks the arguments of par_detect() and par_count(), and calls `rs`.
+# Checks the arguments of par_detect() and the like, and calls `rs`.
 run_pattern <- function(rs, x, pattern, fixed, nthreads) {
   nthreads <- check_nthreads(nthreads)
 
@@ -89,11 +89,9 @@ run_pattern <- function(rs, x, pattern, fixed, nthreads) {
 
   if (is.factor(x) && nlevels(x) < length(x) && length(pattern) == 1L) {
     # Matching the levels is enough. The extra `NA` is for missing values.
-    return(index_levels(
-      x,
-      c(run_pattern(rs, levels(x), pattern, fixed, nthreads), NA),
-      nthreads
-    ))
+    m <- run_pattern(rs, levels(x), pattern, fixed, nthreads)
+    na <- if (is.list(m)) list(NA_character_) else NA
+    return(index_levels(x, c(m, na), nthreads))
   }
 
   if (!is.character(x)) {

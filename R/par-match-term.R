@@ -2,7 +2,8 @@
 #'
 #' @description For each string in `x`, the index of the first of `terms` it
 #'   contains, like `match()` for substrings. Terms are literal, as in
-#'   `grepl(fixed = TRUE)`, so no character needs escaping.
+#'   `grepl(fixed = TRUE)`, so no character needs escaping, unless
+#'   `fixed = FALSE` makes them regexes.
 #'
 #'   Order sets priority: if a string contains several terms, the one earliest
 #'   in `terms` wins, wherever it occurs in the string. Put specific terms
@@ -20,15 +21,23 @@
 #'   memory, as data.table does. The last automaton is kept, so calls that
 #'   repeat the same `terms` don't build it again.
 #'
+#'   With `fixed = FALSE`, the terms are compiled into one regex set instead,
+#'   which also says in one pass which of them match a string. That is much
+#'   slower than the automaton, but much faster than a regex per term.
+#'
 #' @param x A character vector, or something [as.character()] converts.
 #' @param terms A character vector of literal strings to find, without `NA`.
 #' @param ignore_case If `TRUE`, ASCII letters match regardless of case.
 #'   Other letters, such as `"é"` and `"É"`, still match only
-#'   themselves.
+#'   themselves. With `fixed = FALSE`, all letters do, as with `(?i)`.
 #' @param whole_word If `TRUE`, a term counts only where it isn't part of a
 #'   longer word: the characters right before and after it must not be
 #'   letters, digits, or `_`, in any script. `"york"` then matches
-#'   `"new york"` and `"york, uk"`, but not `"yorkshire"`.
+#'   `"new york"` and `"york, uk"`, but not `"yorkshire"`. With
+#'   `fixed = FALSE`, a term's match must have no such character on either
+#'   side.
+#' @param fixed If `FALSE`, `terms` are regexes, in the syntax of
+#'   [par_detect()].
 #' @inheritParams par_match
 #'
 #' @returns An integer vector as long as `x`, `NA` where `x` is `NA`:
@@ -38,7 +47,8 @@
 #'   - `par_count_term()`: the number of hits in each string. Every
 #'   occurrence of every term counts, also where they overlap: `"new york"`
 #'   has two hits for `c("new york", "york")`, and a term listed twice counts
-#'   twice.
+#'   twice. For regexes, each term's matches are counted as [par_count()]
+#'   counts them, which don't overlap.
 #'
 #'   `par_which_term()` returns a list as long as `x` instead: for each
 #'   string, the positions in `terms` of every term found in it, in
@@ -55,14 +65,24 @@
 #' par_match_term("1+1=2", c("+", "("))
 #' par_count_term("good food, not bad", c("good", "bad"), whole_word = TRUE)
 #' par_which_term(c("york and new york", "rome", NA), cities)
+#' par_match_term(c("call 555-1234", "mail a@b.org"), c("\\d{3}-\\d{4}", "@"), fixed = FALSE)
 par_match_term <- function(
   x,
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
+  fixed = TRUE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  run_terms(par_match_term_rs, x, terms, ignore_case, whole_word, nthreads)
+  run_terms(
+    par_match_term_rs,
+    x,
+    terms,
+    ignore_case,
+    whole_word,
+    fixed,
+    nthreads
+  )
 }
 
 #' @rdname par_match_term
@@ -72,9 +92,18 @@ par_count_term <- function(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
+  fixed = TRUE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  run_terms(par_count_term_rs, x, terms, ignore_case, whole_word, nthreads)
+  run_terms(
+    par_count_term_rs,
+    x,
+    terms,
+    ignore_case,
+    whole_word,
+    fixed,
+    nthreads
+  )
 }
 
 #' @rdname par_match_term
@@ -84,13 +113,22 @@ par_which_term <- function(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
+  fixed = TRUE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  run_terms(par_which_term_rs, x, terms, ignore_case, whole_word, nthreads)
+  run_terms(
+    par_which_term_rs,
+    x,
+    terms,
+    ignore_case,
+    whole_word,
+    fixed,
+    nthreads
+  )
 }
 
 # Checks the arguments of par_match_term() and the like, and calls `rs`.
-run_terms <- function(rs, x, terms, ignore_case, whole_word, nthreads) {
+run_terms <- function(rs, x, terms, ignore_case, whole_word, fixed, nthreads) {
   nthreads <- check_nthreads(nthreads)
 
   if (!is.character(terms) || anyNA(terms)) {
@@ -102,10 +140,21 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, nthreads) {
   if (!is_bool(whole_word)) {
     stop("`whole_word` must be `TRUE` or `FALSE`.")
   }
+  if (!is_bool(fixed)) {
+    stop("`fixed` must be `TRUE` or `FALSE`.")
+  }
 
   if (is.factor(x) && nlevels(x) < length(x)) {
     # Matching the levels is enough. The extra `NA` is for missing values.
-    m <- run_terms(rs, levels(x), terms, ignore_case, whole_word, nthreads)
+    m <- run_terms(
+      rs,
+      levels(x),
+      terms,
+      ignore_case,
+      whole_word,
+      fixed,
+      nthreads
+    )
     na <- if (is.list(m)) list(NA_integer_) else NA
     return(index_levels(x, c(m, na), nthreads))
   }
@@ -114,5 +163,5 @@ run_terms <- function(rs, x, terms, ignore_case, whole_word, nthreads) {
     x <- as.character(x)
   }
 
-  rs(enc2utf8(x), enc2utf8(terms), ignore_case, whole_word, nthreads)
+  rs(enc2utf8(x), enc2utf8(terms), ignore_case, whole_word, fixed, nthreads)
 }

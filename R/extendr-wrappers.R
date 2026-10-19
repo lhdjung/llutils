@@ -76,37 +76,51 @@ par_count_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_count_rs, 
 #' @noRd
 par_extract_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_extract_rs, x, pattern, group, fixed, nthreads)
 
-#' Every match of `pattern` in each string replaced by `replacement`, in
-#' which `$1` or `${name}` stands for a capture group unless `fixed`.
-#' Otherwise as `par_detect_rs()`.
+#' Every match of `pattern` in each string replaced by `replacement`, or
+#' only the first unless `all`, in which `$1` or `${name}` stands for a
+#' capture group unless `fixed`. Otherwise as `par_detect_rs()`.
 #' @noRd
-par_replace_rs <- function(x, pattern, replacement, fixed, nthreads) .Call(wrap__par_replace_rs, x, pattern, replacement, fixed, nthreads)
+par_replace_rs <- function(x, pattern, replacement, fixed, all, nthreads) .Call(wrap__par_replace_rs, x, pattern, replacement, fixed, all, nthreads)
 
 #' For each string, the 1-based index of the first of `terms` it contains,
 #' or `NA`. One automaton finds every occurrence of every term in a single
 #' pass, and the lowest index wins, so term order sets priority, not where
 #' in the string a term occurs. With `whole_word`, a hit counts only if no
-#' word character touches it on either side. Strings are matched as bytes,
-#' so R should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
+#' word character touches it on either side. Unless `fixed`, terms are
+#' regexes, found in one pass by a set. Strings are matched as bytes, so R
+#' should pass both sides through `enc2utf8()` first. `NA` gives `NA`.
 #' @noRd
-par_match_term_rs <- function(x, terms, ignore_case, whole_word, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, whole_word, nthreads)
+par_match_term_rs <- function(x, terms, ignore_case, whole_word, fixed, nthreads) .Call(wrap__par_match_term_rs, x, terms, ignore_case, whole_word, fixed, nthreads)
 
 #' For each string, how many hits of `terms` it contains: every occurrence
-#' of every term, also where they overlap; otherwise as
-#' `par_match_term_rs()`.
+#' of every literal term, also where they overlap, or every match of every
+#' regex; otherwise as `par_match_term_rs()`.
 #' @noRd
-par_count_term_rs <- function(x, terms, ignore_case, whole_word, nthreads) .Call(wrap__par_count_term_rs, x, terms, ignore_case, whole_word, nthreads)
+par_count_term_rs <- function(x, terms, ignore_case, whole_word, fixed, nthreads) .Call(wrap__par_count_term_rs, x, terms, ignore_case, whole_word, fixed, nthreads)
 
 #' For each string, the 1-based indices of every term it contains, in
 #' `terms` order, each once; `NA` for `NA`. Otherwise as
 #' `par_match_term_rs()`.
 #' @noRd
-par_which_term_rs <- function(x, terms, ignore_case, whole_word, nthreads) .Call(wrap__par_which_term_rs, x, terms, ignore_case, whole_word, nthreads)
+par_which_term_rs <- function(x, terms, ignore_case, whole_word, fixed, nthreads) .Call(wrap__par_which_term_rs, x, terms, ignore_case, whole_word, fixed, nthreads)
 
 #' `findInterval(x, vec)`: how many of the sorted `vec` are at most each
 #' `x` (below it, if `left_open`), with base's adjustments at the ends.
 #' `NaN` gives `NA`. `vec` must not be empty.
 #' @noRd
 par_find_interval_rs <- function(x, vec, rightmost_closed, all_inside, left_open, nthreads) .Call(wrap__par_find_interval_rs, x, vec, rightmost_closed, all_inside, left_open, nthreads)
+
+#' `unique(x)` for an integer, double, or string vector, without
+#' attributes; `NULL` for strings that `par_match_chr()` would leave to
+#' base.
+#' @noRd
+par_unique_rs <- function(x, from_last, nthreads) .Call(wrap__par_unique_rs, x, from_last, nthreads)
+
+#' Every match of `pattern` in each string, as `par_count_rs()` finds them,
+#' or capture group `group` of each, `NA` where it took no part: a list of
+#' character vectors, `NA` where `x` or `pattern` is `NA`. Otherwise as
+#' `par_extract_rs()`.
+#' @noRd
+par_extract_all_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_extract_all_rs, x, pattern, group, fixed, nthreads)
 
 # nolint end

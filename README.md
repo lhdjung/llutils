@@ -7,7 +7,8 @@
 
 <!-- badges: end -->
 
-parvenu provides ultra-fast replacements for common R utility functions.
+parvenu provides ultra-fast replacements for common R utility
+functions.
 
 It features `match()`, `%in%`, `duplicated()`, `unique()`, and
 `findInterval()` equivalents, row matching on several key columns, regex
@@ -69,9 +70,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base         15.09s
-#> 2 stringi       8.44s
-#> 3 parvenu     20.61ms
+#> 1 base         15.12s
+#> 2 stringi       8.56s
+#> 3 parvenu    29.07ms
 plot(results)
 ```
 
@@ -120,11 +121,11 @@ results <- bench::mark(
 )
 results[, c("expression", "median")]
 #> # A tibble: 3 × 2
-#>   expression            median
-#>   <bch:expr>          <bch:tm>
-#> 1 stringi                4.93s
+#>   expression             median
+#>   <bch:expr>           <bch:tm>
+#> 1 stringi                 5.04s
 #> 2 parvenu               2.87ms
-#> 3 parvenu_ignore_case   2.83ms
+#> 3 parvenu_ignore_case   2.77ms
 plot(results)
 ```
 
@@ -133,7 +134,10 @@ plot(results)
 To count hits instead, `par_count_term()` gives the number of term
 occurrences in each string, as for scoring text against a sentiment
 lexicon, and `par_which_term()` gives every term each string contains,
-for tagging. `par_count()` counts regex matches per string.
+for tagging. `par_count()` counts regex matches per string. With
+`fixed = FALSE`, the terms are regexes, all searched in one pass: slower
+than literal terms, but several times faster than one `par_detect()` per
+term.
 
 ## General matching
 
@@ -152,9 +156,9 @@ results[, c("expression", "median")]
 #> # A tibble: 3 × 2
 #>   expression   median
 #>   <bch:expr> <bch:tm>
-#> 1 base        250.9ms
-#> 2 collapse    179.4ms
-#> 3 parvenu      15.4ms
+#> 1 base          289ms
+#> 2 collapse      232ms
+#> 3 parvenu       19ms
 plot(results)
 ```
 
@@ -178,8 +182,9 @@ in parallel, so a lookup of 10 million rows into 10 million others takes
 a fraction of a second, where pasting the columns into strings for
 `match()` takes seconds per million.
 
-`par_find_interval()` is `findInterval()` with a binary search per
-element on all cores, for binning values by sorted breaks: 10 million
+`par_find_interval()` bins values by sorted breaks, such as ages into
+age groups, with a binary search per element on all cores. It is
+`findInterval()` under a clearer name, with the same results: 10 million
 values into 10,000 breaks take a few dozen milliseconds, where base
 takes almost a second.
 
@@ -212,12 +217,13 @@ differences:
 - `NA` gives `NA`, where `grepl()` gives `FALSE`.
 
 `par_extract()` gives the first match in each string, or a capture group
-of it, which takes the place of lookaround. `par_replace()` replaces
-every match, as `gsub()` does, with `$1` instead of `\\1` for a group.
-Only R’s own thread can make R strings, so the more strings change, the
-more of the time that takes: where a tenth of a million strings change,
-it is about 8 times faster than `gsub(perl = TRUE)`, and where all of
-them do, about twice as fast.
+of it, which takes the place of lookaround, and `par_extract_all()`
+every match. `par_replace()` replaces the first match, as `sub()` does,
+and `par_replace_all()` every match, as `gsub()` does, with `$1` instead
+of `\\1` for a group. Only R’s own thread can make R strings, so the
+more strings change, the more of the time that takes: where a tenth of a
+million strings change, it is about 8 times faster than
+`gsub(perl = TRUE)`, and where all of them do, about twice as fast.
 
 ## Installation
 

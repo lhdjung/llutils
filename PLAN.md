@@ -10,7 +10,7 @@ Benchmarks are in `bench/`, run on 2026-10-17 with 8 cores. Measure after
 `pkgbuild::compile_dll(debug = FALSE)` or an install: `rextendr::document()`
 and `load_all()` build the Rust in debug mode, 5-20x slower.
 
-Note: Much of this plan was written before seeting how incredibly fast
+Note: Much of this plan was written before seeing how incredibly fast
 parvenu functions got. Don't feel shackled by it! Revise it if needed.
 
 ## Positioning
@@ -63,32 +63,35 @@ parvenu functions got. Don't feel shackled by it! Revise it if needed.
 Use cases for every function are collected in
 `vignettes/articles/use-cases.Rmd`; add to it as new ones turn up.
 
-1. **Experiment and review** what is here, then the release steps below.
+No release yet: the aim for now is a package in a good state, through
+experimenting, reviewing, and settling the interface while renaming is
+still free. The release steps at the end wait until then.
+
+1. **Experiment and review** what is here.
    A first review on 2026-10-18 compared about 150 edge cases against base
    on the Rust path (NA/NaN, -0, encodings, factors, Dates, POSIXct, data
    frame columns, zero-length inputs) and found them identical. It fixed
    unbounded `nthreads`, inputs past 2^31 - 1 in `par_duplicated()` and
    `par_match_rows()`, and far Dates in `par_match_rows()`. A second review
    the same day, of `par_unique()`, `par_which_term()`, `par_extract()`,
-   and `par_replace()`, compared about 90 more cases (bytes and mixed
+   and `par_replace_all()`, compared about 90 more cases (bytes and mixed
    encodings, empty matches, groups, replacement syntax, factor and data
    frame classes). It fixed empty matches between the bytes of one
-   character in `par_replace()` and `par_count()` (`""` in `"é"` gave
+   character in `par_replace_all()` and `par_count()` (`""` in `"é"` gave
    invalid UTF-8), subclassed factors and `contrasts` in `par_unique()`,
-   and names in `par_replace()`, which `gsub()` keeps.
+   and names in `par_replace_all()`, which `gsub()` keeps.
+2. **Names of the string functions.** `par_replace()` became
+   `par_replace_all()` on 2026-10-19: in stringr `str_replace()` replaces
+   the first match only, and base `replace()` is unrelated, while `par_`
+   plus a base name promises base's results. The verbs follow stringr
+   (`detect`, `count`, `extract`, `replace_all`), which marks them as string
+   operations without a prefix. `par_str_` was rejected, as it would
+   promise stringr's results (ICU syntax differs from Rust's); revisit
+   `par_regex_` if the regex functions grow to many more.
 
-## Open (start each when there's a concrete use)
+## Open
 
-- `par_match_term()` with regex terms, through `regex::RegexSet`. Literal
-  terms cover the dictionary case, and `ignore_case` (ASCII folding in
-  aho-corasick, Unicode in regex) and `whole_word` would mean different
-  things for regex terms, so this waits for a request.
-- `par_unique()` in Rust, to catch collapse: collect each bucket's first
-  occurrences while partitioning, instead of `x[!par_duplicated(x)]` (see
-  Known limits).
-- `sub()` (first match only) and all matches per string (a list, as
-  `stri_extract_all_regex()`). Both fit what `par_replace()` and
-  `par_which_term()` already do; wait for a use.
+Nothing at the moment. Add ideas here when a use turns up.
 
 ## Known limits
 
@@ -163,12 +166,12 @@ Use cases for every function are collected in
   non-empty match (`"a*"` in `"banana"`: 4, `gregexpr()` 6). stringi
   counts both (7). Copying `gregexpr()` isn't worth the code. At 1e6
   strings it takes 30ms against 232ms for `stri_count_regex()`.
-- `par_extract()` and `par_replace()` find matches on the threads, and
-  `par_replace()` builds the new strings there too, but only R's thread
+- `par_extract()` and `par_replace_all()` find matches on the threads, and
+  `par_replace_all()` builds the new strings there too, but only R's thread
   may make R strings (`Rf_mkCharLenCE()`, which hashes each into R's
   global string cache), so that part is serial. Making 1e6 strings takes
   about 0.4s on its own (`paste0(x, "_")`), which bounds both. Strings
-  `par_replace()` leaves unchanged are reused, not made again, and so are
+  `par_replace_all()` leaves unchanged are reused, not made again, and so are
   matches that span the whole string in `par_extract()`. At 1e6 strings:
   extracting a match that 1 in 10 strings has takes 28ms (PCRE 300ms,
   stringi 520ms); extracting a group from every string, 0.2s (stringi
@@ -177,6 +180,19 @@ Use cases for every function are collected in
   0.23-0.4s (PCRE 445ms); swapping two groups in every string, 0.45-0.6s,
   about tied with PCRE (460ms; stringi 1.2s). Where every string changes, threads
   barely help.
+- `par_replace()` is `par_replace_all()` stopped after the first match.
+  At 1e6 strings it takes 48ms where 11% of strings match (PCRE `sub()`
+  336ms, stringi 1s) and 0.26-0.28s where every string changes (PCRE
+  403ms).
+- `par_extract_all()` finds the matches `par_count()` counts, so the
+  lengths of its result are the counts, and gives `character(0)` where
+  there is none, as `regmatches()` and stringr do (stringi gives `NA`).
+  Each string's character vector is put into the list before its strings
+  are made, which keeps it from the garbage collector without a
+  `PROTECT()` per string. At 1e6 strings with 3 matches each it takes
+  0.21s (2 threads: 0.24s), against 0.43s for `stri_extract_all_regex()`
+  and 11s for `regmatches(x, gregexpr(perl = TRUE))`: making the 3e6
+  strings is most of the time.
 - Results are marked UTF-8, as R passes `x` through `enc2utf8()`, except
   those made from bytes-encoded strings. `par_extract()` gives `NA` where
   nothing matches, as stringi does, not a shorter vector, as `regmatches()`
@@ -214,6 +230,28 @@ Use cases for every function are collected in
   most of the difference is making the 1e6 vectors.
 - `ignore_case` folds ASCII letters only, which is what aho-corasick offers.
   Lowercasing both sides with `tolower()` covers the rest.
+- `fixed = FALSE` takes regex terms, compiled into one `regex::RegexSet`,
+  which says which terms match a string but not where or how often. So
+  `par_count_term()` runs each matching term's own regex, counting as
+  `par_count()` does (no overlaps). `ignore_case` there folds all of
+  Unicode, as `(?i)` does, and `whole_word` wraps each term in
+  `\b{start-half}(?:...)\b{end-half}`, which is `(?<!\w)...(?!\w)`: the
+  same rule as for literal terms, but the regex finds a match that passes
+  it, where the automaton drops hits that fail. Both differ from the
+  literal case, which is why it is an option, not the default.
+- Most of the time for many regex terms is building the set's lazy DFA,
+  in a cache per thread. At the default 2MB cache 1000 terms in 1e6
+  strings took 57s, refilling it again and again; at 16MB, 1.3s (64MB
+  saves 15% more, at 4x the memory). Each pool thread gets its own clone
+  of the set, kept with the terms, so its cache stays built between
+  calls: a clone per chunk built it again in each chunk (2-3x slower for
+  1000 terms), and one set shared by all threads contended for its caches
+  (2x slower for 10). The cache is still built once per thread, so for
+  1000 terms in 1e5 strings 2 threads take 0.37s and 8 take 0.7s (first
+  call 0.95s), against 2.1s for a `par_detect()` per term and 14s for a
+  `stri_detect_regex()` per term. For 10 and 100 terms it takes 5ms and
+  15-19ms (`par_detect()` per term 11ms and 150ms, stringi 0.14s and
+  1.6s); literal terms take 2-4ms at any count.
 - `whole_word` drops a hit if the character right before or after it is a
   letter or digit in any script, or `_` (Rust's `char::is_alphanumeric()`).
   That is PCRE's `(?<!\w)term(?!\w)`, not `\bterm\b`: the two differ only
@@ -241,15 +279,21 @@ Use cases for every function are collected in
   base does; for more columns, rows are hashed as in `par_match_rows()`.
   Any class outside factor, Date, and POSIXct goes to base, since it may
   have its own `duplicated()` method; so do matrices.
-- `par_unique()` is `x[!par_duplicated(x)]`, without names, as
-  `unique()` returns it; data frames take rows as `unique.data.frame()`
-  does, and matrices and other classes go to base. At 1e7 elements with
-  1e6 distinct it takes 66ms for integers, 74ms for doubles, and 189ms
-  for strings (base 0.44s, 0.70s, 1.7s; collapse `funique()` 35ms,
-  163ms, 99ms): collapse wins for integers and strings by about 2x, where
-  the subset after `par_duplicated()` is a third of the time.
-  `sum(!par_duplicated(x))` counts distinct integers in 63ms (collapse
-  `fnunique()` 105ms, data.table `uniqueN()` 184ms).
+- `par_unique()` marks first occurrences in a byte per element, by the
+  same buckets as `par_duplicated()`, then gathers the marked elements in
+  parallel; it was `x[!par_duplicated(x)]`, where the subset in R was a
+  third of the time. Sorting each bucket's first positions instead was
+  slower where most elements are distinct (1e7 distinct integers: 190ms
+  against 118ms for the subset). Names are dropped, as `unique()` drops
+  them; data frames take rows as `unique.data.frame()` does, and matrices
+  and other classes go to base. At 1e7 elements with 1e6 distinct it
+  takes 34-51ms for integers, 57-61ms for doubles, and 144ms for strings
+  (was 66ms, 74ms, 189ms; base 0.49s, 0.73s, 1.8s; collapse `funique()`
+  36ms, 155ms, 111ms), measured on 2026-10-19 with the machine under load
+  (load average 4-5). Strings make R's thread set each element of the
+  result, and need the scan for non-ASCII text. `length(par_unique(x))`
+  counts distinct integers in 32ms, faster than `sum(!par_duplicated(x))`
+  (72ms; collapse `fnunique()` 113ms, data.table `uniqueN()` 136ms).
 - Inputs longer than 2^31 - 1 go to base: positions are 32-bit.
 
 `par_match_rows()`:
@@ -297,16 +341,17 @@ Versions:
   passes them only from there. CI runs R 4.3 and the current release;
   locally, check both rules when R changes how it matches a class.
 
-## Release 0.1.0 (later)
+## Release 0.1.0 (not yet)
 
-Not before experimenting with and reviewing what is here.
+Only once the package is in a good state (see Next), not as soon as
+checks pass. The mechanics, for when that time comes:
 
 - Before each build for CRAN, `rextendr::vendor_crates()` writes
   `src/rust/vendor.tar.xz` (1.7MB, ignored by git), so the build needs no
   network. With it, `R CMD check --as-cran` gives only the NOTE on the
   development version number.
-- CI (Linux, macOS, Windows, and R 4.3 with Rust 1.83) is in place; check
-  that it passes once pushed, then set the version to 0.1.0 and submit.
+- CI (Linux, macOS, Windows, and R 4.3 with Rust 1.83) is in place and
+  passes. Then set the version to 0.1.0, add a NEWS.md, and submit.
 
 ## Skipped
 

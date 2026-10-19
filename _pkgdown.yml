@@ -2,3 +2,29 @@ url: ~
 template:
   bootstrap: 5
 
+reference:
+  - title: Matching and duplicates
+    desc: >
+      Drop-in replacements for base R functions. Inputs that are too small
+      or have non-standard types fall back to base R.
+  - subtitle: Matching
+    contents:
+      - par_match
+      - par_match_rows
+      - par_find_interval
+  - subtitle: Duplicates
+    contents:
+      - par_duplicated
+  - title: String operations
+    desc: >
+      Not exact base R equivalents. Threads read the strings straight from
+      R's memory.
+  - subtitle: Regular expressions
+    desc: Rust's regex syntax, not R's.
+    contents:
+      - par_detect
+      - par_extract
+  - subtitle: Dictionary lookup
+    desc: Many literal terms at once, in one pass per string.
+    contents:
+      - par_match_term

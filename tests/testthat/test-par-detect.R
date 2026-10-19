@@ -161,7 +161,7 @@ test_that("many distinct patterns, sorted by pattern, give the same results", {
   expect_identical(par_count(x, p), stringi::stri_count_regex(x, p))
   expect_identical(par_extract(x, p), stringi::stri_extract_first_regex(x, p))
   expect_identical(
-    par_replace(x, p, "_"),
+    par_replace_all(x, p, "_"),
     stringi::stri_replace_all_regex(x, p, "_")
   )
 })

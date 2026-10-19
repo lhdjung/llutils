@@ -48,7 +48,7 @@ Same results as base \code{\link[=duplicated]{duplicated()}}, but much faster fo
 large inputs. For a data frame, rows are compared, as in base.
 
 \code{par_unique()} is base \code{\link[=unique]{unique()}} on the same machinery, and
-\code{sum(!par_duplicated(x))} counts the distinct elements.
+\code{length(par_unique(x))} counts the distinct elements.
 }
 \details{
 Computed in Rust when \code{x} has at least 1e4 elements (or rows)
@@ -59,13 +59,15 @@ goes to base \code{\link[=duplicated]{duplicated()}} unchanged.
 Like \code{par_match()}, this hashes \code{x} in parallel, but it marks the
 duplicates while it builds the hash table, so it never looks the
 elements up a second time, as \code{par_match(x, x) != seq_along(x)} would.
+\code{par_unique()} collects the first occurrences instead of marking the
+duplicates, so it never subsets \code{x} by the marks either.
 }
 \examples{
 x <- c(3, 1, 3, NA, 1, NA)
 par_duplicated(x)
 par_duplicated(x, fromLast = TRUE)
 par_unique(x)
-sum(!par_duplicated(x)) # number of distinct values
+length(par_unique(x)) # number of distinct values
 
 df <- data.frame(id = c(1, 2, 1), day = c("mon", "mon", "mon"))
 par_duplicated(df)

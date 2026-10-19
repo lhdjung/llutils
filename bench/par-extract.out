@@ -1,68 +1,95 @@
 
 Extract the first match of [aeiou]{3}[0-9]   n = 1e6
 # A tibble: 4 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base_perl    295.7ms
-2 stringi      519.3ms
-3 parvenu_2     44.3ms
-4 parvenu_all   27.5ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl     296.4ms
+2 stringi       542.9ms
+3 parvenu_2     52.6ms
+4 parvenu_all   35.1ms
 
 Extract the first match of [0-9]+$   n = 1e6
 # A tibble: 4 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base_perl    246.4ms
-2 stringi      273.9ms
-3 parvenu_2     54.4ms
-4 parvenu_all   45.4ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl       259ms
+2 stringi       270.5ms
+3 parvenu_2     56.3ms
+4 parvenu_all   46.9ms
 
 Extract a group: the word before the number
 # A tibble: 4 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base_perl     15.47s
-2 stringi        4.84s
-3 parvenu_2   176.86ms
-4 parvenu_all 222.14ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl      18.23s
+2 stringi         5.21s
+3 parvenu_2   210.37ms
+4 parvenu_all 217.39ms
 
 Replace every match of [aeiou]{3}   n = 1e6
 # A tibble: 5 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base           1.31s
-2 base_perl   344.73ms
-3 stringi        1.09s
-4 parvenu_2       76ms
-5 parvenu_all  47.75ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base            1.32s
+2 base_perl    341.28ms
+3 stringi         1.51s
+4 parvenu_2    173.2ms
+5 parvenu_all  54.95ms
 
 Replace every match of [0-9]   n = 1e6
 # A tibble: 5 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base           908ms
-2 base_perl      444ms
-3 stringi           1s
-4 parvenu_2      313ms
-5 parvenu_all    228ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base            1.02s
+2 base_perl    506.08ms
+3 stringi         1.21s
+4 parvenu_2   328.06ms
+5 parvenu_all 278.95ms
 
 Replace every match of zzz   n = 1e6
 # A tibble: 5 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base         572.5ms
-2 base_perl    150.9ms
-3 stringi      991.6ms
-4 parvenu_2     29.2ms
-5 parvenu_all   22.1ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base         571.88ms
+2 base_perl    152.04ms
+3 stringi         1.06s
+4 parvenu_2    39.84ms
+5 parvenu_all  24.91ms
+
+Extract every match of [0-9]: 3 per string on average
+# A tibble: 4 × 2
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl       11.1s
+2 stringi       431.1ms
+3 parvenu_2    241.1ms
+4 parvenu_all  209.6ms
+
+Replace the first match of [aeiou]{3}   n = 1e6
+# A tibble: 4 × 2
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl     335.8ms
+2 stringi            1s
+3 parvenu_2     82.5ms
+4 parvenu_all   48.3ms
+
+Replace the first match of [0-9]   n = 1e6
+# A tibble: 4 × 2
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl       403ms
+2 stringi            1s
+3 parvenu_2      260ms
+4 parvenu_all    275ms
 
 Swap two groups
 # A tibble: 3 × 2
-  expression    median
-  <bch:expr>  <bch:tm>
-1 base_perl   459.11ms
-2 stringi        1.22s
-3 parvenu_all 495.98ms
+  expression     median
+  <bch:expr>   <bch:tm>
+1 base_perl    481.71ms
+2 stringi         1.28s
+3 parvenu_all  505.5ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20

@@ -4,7 +4,7 @@
 #'   large inputs. For a data frame, rows are compared, as in base.
 #'
 #'   `par_unique()` is base [unique()] on the same machinery, and
-#'   `sum(!par_duplicated(x))` counts the distinct elements.
+#'   `length(par_unique(x))` counts the distinct elements.
 #'
 #' @details Computed in Rust when `x` has at least 1e4 elements (or rows)
 #'   and is an integer, double, or character vector, a factor, a Date, or a
@@ -14,6 +14,8 @@
 #'   Like `par_match()`, this hashes `x` in parallel, but it marks the
 #'   duplicates while it builds the hash table, so it never looks the
 #'   elements up a second time, as `par_match(x, x) != seq_along(x)` would.
+#'   `par_unique()` collects the first occurrences instead of marking the
+#'   duplicates, so it never subsets `x` by the marks either.
 #'
 #' @param x A vector or data frame.
 #' @param incomparables Values that are never marked as duplicates, as in
@@ -36,7 +38,7 @@
 #' par_duplicated(x)
 #' par_duplicated(x, fromLast = TRUE)
 #' par_unique(x)
-#' sum(!par_duplicated(x)) # number of distinct values
+#' length(par_unique(x)) # number of distinct values
 #'
 #' df <- data.frame(id = c(1, 2, 1), day = c("mon", "mon", "mon"))
 #' par_duplicated(df)
@@ -92,19 +94,32 @@ par_unique <- function(
       drop = FALSE
     ])
   }
+  nthreads <- check_nthreads(nthreads)
   # A subclass of factor may have its own unique() method.
   plain_factor <- identical(class(x), "factor") ||
     identical(class(x), c("ordered", "factor"))
-  if (!is.null(dim(x)) || !is_dup_class(x) || (is.factor(x) && !plain_factor)) {
+  out <- if (
+    isFALSE(incomparables) &&
+      is_bool(fromLast) &&
+      length(x) >= RUST_MIN &&
+      length(x) <= .Machine$integer.max &&
+      is.null(dim(x)) &&
+      is_dup_class(x) &&
+      (!is.factor(x) || plain_factor) &&
+      (is.integer(x) || is.double(x) || is.character(x))
+  ) {
+    par_unique_rs(x, fromLast, nthreads)
+  }
+  if (is.null(out)) {
     return(unique(x, incomparables, fromLast = fromLast))
   }
-  # unique() keeps the class and time zone of Dates and POSIXct, which `[`
-  # keeps too, but drops names, and a factor keeps only its levels and class.
-  out <- x[!par_duplicated(x, incomparables, fromLast, nthreads)]
+  # unique() keeps the class and time zone of Dates and POSIXct, and a factor
+  # keeps its levels and class; everything else is dropped.
   if (is.factor(x)) {
     attributes(out) <- list(levels = levels(x), class = class(x))
-  } else {
-    names(out) <- NULL
+  } else if (is.object(x)) {
+    class(out) <- class(x)
+    attr(out, "tzone") <- attr(x, "tzone")
   }
   out
 }

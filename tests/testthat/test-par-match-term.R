@@ -293,3 +293,70 @@ test_that("par_which_term() matches factors by their levels", {
     par_which_term(as.character(f), c("d", "b", "a"))
   )
 })
+
+test_that("fixed = FALSE takes regexes", {
+  set.seed(4)
+  x <- vapply(
+    1:6000,
+    function(i) {
+      paste(sample(c(letters[1:6], " ", 0:2), 10, TRUE), collapse = "")
+    },
+    ""
+  )
+  x[c(5, 500)] <- NA
+  terms <- c("[0-9]{2}", "a.b", "^f", "c", "zz", "[0-9]")
+  detected <- unname(vapply(terms, \(t) par_detect(x, t), logical(length(x))))
+  expect_identical(
+    par_match_term(x, terms, fixed = FALSE),
+    apply(detected, 1, \(d) if (anyNA(d)) NA_integer_ else which(d)[1])
+  )
+  expect_identical(
+    par_which_term(x, terms, fixed = FALSE),
+    apply(
+      detected,
+      1,
+      \(d) if (anyNA(d)) NA_integer_ else which(d),
+      simplify = FALSE
+    )
+  )
+  expect_identical(
+    par_count_term(x, terms, fixed = FALSE),
+    Reduce(`+`, lapply(terms, \(t) par_count(x, t)))
+  )
+  # Literal terms without metacharacters give the same results as regexes,
+  # also for whole words.
+  lit <- c("ab", "a", "c d", "1")
+  for (ww in c(FALSE, TRUE)) {
+    expect_identical(
+      par_match_term(x, lit, whole_word = ww, fixed = FALSE),
+      par_match_term(x, lit, whole_word = ww),
+      info = ww
+    )
+  }
+  expect_identical(
+    par_match_term(
+      c("yorkshire", "york, uk"),
+      "y.rk",
+      whole_word = TRUE,
+      fixed = FALSE
+    ),
+    c(NA, 1L)
+  )
+})
+
+test_that("regex terms ignore case in any script, and bad ones error", {
+  e <- intToUtf8(233)
+  E <- intToUtf8(201)
+  expect_identical(
+    par_match_term(c(E, "AB"), c(e, "ab"), ignore_case = TRUE, fixed = FALSE),
+    1:2
+  )
+  expect_identical(par_match_term("1+1", "+"), 1L)
+  expect_error(par_match_term("1+1", "+", fixed = FALSE), "repetition")
+  expect_error(par_match_term("a", "a", fixed = NA), "fixed")
+  f <- factor(sample(c("a1", "b2", NA), 3e4, TRUE))
+  expect_identical(
+    par_which_term(f, c("[0-9]", "b"), fixed = FALSE),
+    par_which_term(as.character(f), c("[0-9]", "b"), fixed = FALSE)
+  )
+})

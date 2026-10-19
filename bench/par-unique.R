@@ -24,7 +24,8 @@ print(bench::mark(
   base = length(unique(xi)),
   collapse = collapse::fnunique(xi),
   data.table = data.table::uniqueN(xi),
-  parvenu_all = sum(!par_duplicated(xi)),
+  parvenu_duplicated = sum(!par_duplicated(xi)),
+  parvenu_unique = length(par_unique(xi)),
   min_iterations = 5,
   filter_gc = FALSE
 )[, c("expression", "median")])

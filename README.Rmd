@@ -108,7 +108,7 @@ results[, c("expression", "median")]
 plot(results)
 ```
 
-To count hits instead, `par_count_term()` gives the number of term occurrences in each string, as for scoring text against a sentiment lexicon, and `par_which_term()` gives every term each string contains, for tagging. `par_count()` counts regex matches per string.
+To count hits instead, `par_count_term()` gives the number of term occurrences in each string, as for scoring text against a sentiment lexicon, and `par_which_term()` gives every term each string contains, for tagging. `par_count()` counts regex matches per string. With `fixed = FALSE`, the terms are regexes, all searched in one pass: slower than literal terms, but several times faster than one `par_detect()` per term.
 
 ## General matching
 
@@ -133,7 +133,7 @@ Both sides are hashed in parallel, so a join-like lookup of 10 million keys into
 
 `par_duplicated()` is `duplicated()` on the same hash tables, built in parallel, and compares the rows of data frames as base does; `par_unique()` is `unique()` on top of it. `par_match_rows()` matches rows on several key columns at once, as in a join: it hashes whole rows in parallel, so a lookup of 10 million rows into 10 million others takes a fraction of a second, where pasting the columns into strings for `match()` takes seconds per million.
 
-`par_find_interval()` is `findInterval()` with a binary search per element on all cores, for binning values by sorted breaks: 10 million values into 10,000 breaks take a few dozen milliseconds, where base takes almost a second.
+`par_find_interval()` bins values by sorted breaks, such as ages into age groups, with a binary search per element on all cores. It is `findInterval()` under a clearer name, with the same results: 10 million values into 10,000 breaks take a few dozen milliseconds, where base takes almost a second.
 
 ## Use cases
 
@@ -152,7 +152,7 @@ Most patterns mean the same in Rust's regex crate and in PCRE. The differences:
 - Flags go in the pattern: `(?i)` ignores case.
 - `NA` gives `NA`, where `grepl()` gives `FALSE`.
 
-`par_extract()` gives the first match in each string, or a capture group of it, which takes the place of lookaround. `par_replace()` replaces every match, as `gsub()` does, with `$1` instead of `\\1` for a group. Only R's own thread can make R strings, so the more strings change, the more of the time that takes: where a tenth of a million strings change, it is about 8 times faster than `gsub(perl = TRUE)`, and where all of them do, about twice as fast.
+`par_extract()` gives the first match in each string, or a capture group of it, which takes the place of lookaround, and `par_extract_all()` every match. `par_replace()` replaces the first match, as `sub()` does, and `par_replace_all()` every match, as `gsub()` does, with `$1` instead of `\\1` for a group. Only R's own thread can make R strings, so the more strings change, the more of the time that takes: where a tenth of a million strings change, it is about 8 times faster than `gsub(perl = TRUE)`, and where all of them do, about twice as fast.
 
 ## Installation
 
