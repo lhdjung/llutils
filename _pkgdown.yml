@@ -15,6 +15,12 @@ reference:
   - subtitle: Duplicates
     contents:
       - par_duplicated
+  - subtitle: Dates, ranks, and sums
+    contents:
+      - par_as_date
+      - par_rank
+      - par_rowsum
+      - par_approx
   - title: String operations
     desc: >
       Not exact base R equivalents. Threads read the strings straight from

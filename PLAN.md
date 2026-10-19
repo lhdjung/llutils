@@ -102,24 +102,21 @@ still free. The release steps at the end wait until then.
 
 ## Open
 
-Add ideas here when a use turns up. Candidates beyond strings, measured on
-2026-10-20 (8 cores, base R, one thread):
+Add ideas here when a use turns up.
 
-- **Parsing dates and times**: `as.Date()` takes 4.6s for 1e6 ISO strings,
-  `as.POSIXct()` 15s. Bound by CPU, and the result is numbers, so no
-  strings need making on R's thread. Formats beyond ISO 8601 and time zones
-  other than UTC are the hard part.
-- **`rank()`**: 12s for 1e7 doubles (`order()` 0.32s), where ties make it
-  slow. `data.table::frank()` is fast, but a dependency.
-- **`approx()`**: 0.63s for 1e7 points into 1e4; a binary search per point,
-  as in `par_find_interval()`.
 - **Factor pairs in `par_match_rows()`**: 191ms for 1e7 rows into 1e7 with
   two factor columns, where collapse takes 90ms, probably by indexing the
   codes directly instead of hashing them.
+- **Local time zones in `par_as_posixct()`**: Rust could parse the fields
+  and leave the time zone to R's own C code, by building a POSIXlt.
+- **`par_rowsum()` against collapse**: 103ms for 1e7 values in 1e5 groups,
+  where `collapse::fsum()` takes 67ms; with 100 groups, 78ms against 30ms.
+  It runs `par_unique()`, `par_match()`, and then the sums, three passes.
 
-Measured and not worth it: `order()` and `sort()` (0.3-0.5s, and
-data.table's `forder()` is no faster here), `as.numeric()` on strings (78ms
-per 1e6), `dist()` (144ms for 5000 rows of 10).
+Measured and not worth it (2026-10-20, base R on one thread): `order()` and
+`sort()` (0.3-0.5s for 1e7 doubles, and data.table's `forder()` is no
+faster here), `as.numeric()` on strings (78ms per 1e6), `dist()` (144ms for
+5000 rows of 10).
 
 ## Known limits
 

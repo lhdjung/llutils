@@ -375,3 +375,39 @@ falls into, such as timestamps into shifts or prices into tax brackets:
 give the range starts as `vec`. With unsorted values, base searches each one
 from scratch, and the threads help most: 10 million values take tens of
 milliseconds, where base takes about a second.
+
+## Parsing dates and times
+
+Reading dates from text is one of the slowest common steps in base R: a
+million dates take `as.Date()` seconds. `par_as_date()` and
+`par_as_posixct()` return what `as.Date()` and `as.POSIXct()` return, in
+milliseconds:
+
+```{r}
+par_as_date(c("2026-01-05", "2026-02-30", NA))
+par_as_date("05.01.2026", format = "%d.%m.%Y")
+par_as_posixct("2026-01-05 08:30:00.25", tz = "UTC")
+```
+
+Times are parsed in Rust only in UTC (`tz = "UTC"` or `"GMT"`). For a local
+time zone, base R does the work, as other formats than those with `%Y`,
+`%m`, `%d`, `%H`, `%M`, and `%S` go to base R.
+
+## Ranks, group sums, and interpolation
+
+`par_rank()` returns what `rank()` returns, which is slow in base R where
+values tie. `par_rowsum()` sums values by group, as `rowsum()` does, and
+`par_approx()` interpolates as `approx()` does:
+
+```{r}
+scores <- c(ann = 3, bob = 1, cat = 3, dan = NA)
+par_rank(scores, ties.method = "min", na.last = "keep")
+
+sales <- c(10, 20, 5, 15)
+region <- c("north", "south", "north", "south")
+par_rowsum(sales, region)
+
+# Temperature at each hour, from readings at irregular times
+readings <- data.frame(hour = c(0, 2.5, 6, 9), temp = c(4, 3, 8, 12))
+par_approx(readings$hour, readings$temp, xout = 0:9)$y
+```

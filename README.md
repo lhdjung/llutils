@@ -11,15 +11,17 @@ parvenu provides ultra-fast parallel replacements for common R utility
 functions.
 
 It features equivalents of `match()`, `%in%`, `duplicated()`,
-`unique()`, and `findInterval()`, row matching on several key columns,
-regex detection, counting, extraction, and replacement, and dictionary
-lookup and replacement, on all your cores. It is written in Rust.
+`unique()`, `findInterval()`, `as.Date()`, `as.POSIXct()`, `rank()`,
+`rowsum()`, and `approx()`, row matching on several key columns, regex
+detection, counting, extraction, and replacement, and dictionary lookup
+and replacement, on all your cores. It is written in Rust.
 
-`par_match()`, `%par_in%`, `par_duplicated()`, `par_unique()`, and
-`par_find_interval()` behave exactly like base R, so they are drop-in
-replacements. `par_detect()` is `grepl()` with the syntax of Rust’s
-[regex crate](https://docs.rs/regex/latest/regex/#syntax), which never
-backtracks.
+`par_match()`, `%par_in%`, `par_duplicated()`, `par_unique()`,
+`par_find_interval()`, and the functions under [Dates, ranks, and
+sums](#dates-ranks-and-sums) behave exactly like base R, so they are
+drop-in replacements. `par_detect()` is `grepl()` with the syntax of
+Rust’s [regex crate](https://docs.rs/regex/latest/regex/#syntax), which
+never backtracks.
 
 The gains are largest where base R is slow and the work is bound by CPU:
 matching text against a large dictionary of terms, and looking up
@@ -84,9 +86,9 @@ mean(hits)
     #> # A tibble: 3 × 2
     #>   expression   median
     #>   <bch:expr> <bch:tm>
-    #> 1 base         14.95s
-    #> 2 stringi       8.47s
-    #> 3 parvenu     22.01ms
+    #> 1 base          14.9s
+    #> 2 stringi       8.45s
+    #> 3 parvenu     19.18ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-dictionary-1.png" alt="Timings on a log scale: parvenu takes milliseconds, stringi and base R take seconds." width="100%" />
 
@@ -151,9 +153,9 @@ plot(results)
     #> # A tibble: 3 × 2
     #>   expression            median
     #>   <bch:expr>          <bch:tm>
-    #> 1 stringi                4.88s
-    #> 2 parvenu_default       2.64ms
-    #> 3 parvenu_ignore_case   2.84ms
+    #> 1 stringi                4.82s
+    #> 2 parvenu_default       2.45ms
+    #> 3 parvenu_ignore_case   2.69ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-term-1.png" alt="Timings on a log scale: parvenu takes milliseconds, a stringi loop over the terms takes seconds." width="100%" />
 
@@ -197,9 +199,9 @@ plot(results)
     #> # A tibble: 3 × 2
     #>   expression   median
     #>   <bch:expr> <bch:tm>
-    #> 1 base          256ms
-    #> 2 collapse    180.7ms
-    #> 3 parvenu      16.2ms
+    #> 1 base          253ms
+    #> 2 collapse    177.9ms
+    #> 3 parvenu      14.1ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-match-1.png" alt="Timings on a log scale: parvenu is about ten times faster than collapse and base R." width="100%" />
 
@@ -227,6 +229,24 @@ age groups, with a binary search per element on all cores. It is
 `findInterval()` under a clearer name, with the same results: 10 million
 values into 10,000 breaks take a few dozen milliseconds, where base
 takes almost a second.
+
+## Dates, ranks, and sums
+
+Some of base R’s slowest functions are not about matching at all. These
+give the same results, to the last bit, and fall back to base R for what
+they don’t cover. At a million dates or ten million numbers, on 8 cores:
+
+| Function                     | Replaces                 | Time  | Base R |
+|------------------------------|--------------------------|-------|--------|
+| `par_as_date()`              | `as.Date()`              | 7ms   | 4.6s   |
+| `par_as_posixct(tz = "UTC")` | `as.POSIXct(tz = "UTC")` | 12ms  | 15s    |
+| `par_rank()`                 | `rank()`                 | 0.24s | 9.8s   |
+| `par_rowsum()`               | `rowsum()`               | 0.1s  | 1.2s   |
+| `par_approx()`               | `approx()`               | 0.1s  | 0.63s  |
+
+`par_as_posixct()` parses in Rust only in UTC; other time zones go to
+base R. `par_rank()` beats `data.table::frank()` (0.61s), while collapse
+sums groups faster than `par_rowsum()` (67ms).
 
 ## Use cases
 
