@@ -20,16 +20,16 @@ knitr::opts_chunk$set(
 # The parentheses keep GIT_INDEX_FILE out of your shell: outside them, it
 # would point every later git command at an index of just the figures.
 knitr::opts_knit$set(
-  base.url = "https://raw.githubusercontent.com/lhdjung/llutils/figures/"
+  base.url = "https://raw.githubusercontent.com/lhdjung/parvenu/figures/"
 )
 ```
 
-# llutils
+# parvenu
 
 <!-- badges: start -->
 <!-- badges: end -->
 
-llutils provides ultra-fast replacements for common R utility functions.
+parvenu provides ultra-fast replacements for common R utility functions.
 
 It features `match()`, `%in%`, `duplicated()`, `unique()`, and `findInterval()` equivalents, row matching on several key columns, regex detection, counting, extraction, and replacement, and dictionary lookup, on all your cores. It is written in Rust. `par_match()`, `%par_in%`, `par_duplicated()`, `par_unique()`, and `par_find_interval()` behave exactly like base R, so they are drop-in replacements. `par_detect()` is `grepl()` with the syntax of Rust's [regex crate](https://docs.rs/regex/latest/regex/#syntax), which never backtracks.
 
@@ -39,8 +39,8 @@ The gains are largest where base R is slow and the work is bound by CPU: matchin
 
 Which of 100,000 strings mention any of 1,000 terms? A backtracking engine tries each term at each position. `par_detect()` compiles the alternation once, into an automaton that finds all terms in one pass, and splits the strings across threads.
 
-```{r dictionary, fig.alt = "Timings on a log scale: llutils takes milliseconds, stringi and base R take seconds."}
-library(llutils)
+```{r dictionary, fig.alt = "Timings on a log scale: parvenu takes milliseconds, stringi and base R take seconds."}
+library(parvenu)
 set.seed(1)
 
 word <- function(n) {
@@ -69,7 +69,7 @@ mean(hits)
 results <- bench::mark(
   base = grepl(pattern, x, perl = TRUE),
   stringi = stringi::stri_detect_regex(x, pattern),
-  llutils = par_detect(x, pattern),
+  parvenu = par_detect(x, pattern),
   iterations = 10
 )
 results[, c("expression", "median")]
@@ -82,7 +82,7 @@ Wrap the alternation in `\b(` and `)\b` to match whole words only, or use `par_m
 
 `par_match_term()` says which term each string contains, as a position in `terms`: `match()` for substrings. If a string contains several terms, the one earliest in `terms` wins, so put specific terms such as `"new york"` before general ones such as `"york"`. The terms are literal, so they need no escaping, and `ignore_case = TRUE` ignores ASCII case at full speed. `whole_word = TRUE` skips hits inside longer words, so `"york"` matches `"york, uk"` but not `"yorkshire"`.
 
-```{r term, fig.alt = "Timings on a log scale: llutils takes milliseconds, a stringi loop over the terms takes seconds."}
+```{r term, fig.alt = "Timings on a log scale: parvenu takes milliseconds, a stringi loop over the terms takes seconds."}
 found <- par_match_term(x, terms)
 head(terms[found][!is.na(found)], 3)
 
@@ -99,8 +99,8 @@ upper <- toupper(x)
 
 results <- bench::mark(
   stringi = stringi_loop(x, terms),
-  llutils = par_match_term(x, terms),
-  llutils_ignore_case = par_match_term(upper, terms, ignore_case = TRUE),
+  parvenu = par_match_term(x, terms),
+  parvenu_ignore_case = par_match_term(upper, terms, ignore_case = TRUE),
   iterations = 3,
   filter_gc = FALSE
 )
@@ -112,14 +112,14 @@ To count hits instead, `par_count_term()` gives the number of term occurrences i
 
 ## General matching
 
-```{r match, fig.alt = "Timings on a log scale: llutils is about ten times faster than collapse and base R."}
+```{r match, fig.alt = "Timings on a log scale: parvenu is about ten times faster than collapse and base R."}
 keys <- sample.int(1e8, size = 1e6)
 x <- sample.int(1e8, size = 1e7, replace = TRUE)
 
 results <- bench::mark(
   base = match(x, keys),
   collapse = collapse::fmatch(x, keys),
-  llutils = par_match(x, keys),
+  parvenu = par_match(x, keys),
   iterations = 10,
   filter_gc = FALSE
 )
@@ -137,11 +137,11 @@ Both sides are hashed in parallel, so a join-like lookup of 10 million keys into
 
 ## Use cases
 
-The [use-cases article](https://github.com/lhdjung/llutils/blob/main/vignettes/articles/use-cases.Rmd) shows each function at work: coding free text with a keyword table, scoring text against a lexicon, filtering logs, validating identifiers, extracting and rewriting parts of strings, lookups and joins on one or several keys, finding duplicates, and binning.
+The [use-cases article](https://github.com/lhdjung/parvenu/blob/main/vignettes/articles/use-cases.Rmd) shows each function at work: coding free text with a keyword table, scoring text against a lexicon, filtering logs, validating identifiers, extracting and rewriting parts of strings, lookups and joins on one or several keys, finding duplicates, and binning.
 
 ## Threads
 
-The default is all cores, or the `RAYON_NUM_THREADS` environment variable. Every function takes `nthreads`, and `options(llutils.threads = 2)` sets the default for a session. Inputs too small to keep that many threads busy use fewer.
+The default is all cores, or the `RAYON_NUM_THREADS` environment variable. Every function takes `nthreads`, and `options(parvenu.threads = 2)` sets the default for a session. Inputs too small to keep that many threads busy use fewer.
 
 ## Regex syntax
 
@@ -156,15 +156,15 @@ Most patterns mean the same in Rust's regex crate and in PCRE. The differences:
 
 ## Installation
 
-When llutils is on CRAN, you will be able to install it as usual:
+When parvenu is on CRAN, you will be able to install it as usual:
 
 ```{r eval=FALSE}
-install.packages("llutils")
+install.packages("parvenu")
 ```
 
 The development version requires the [Rust toolchain](https://rust-lang.org/tools/install/). When Rust is installed, run:
 
 ```{r eval=FALSE}
-pak::pak("lhdjung/llutils")
-# or devtools::install_github("lhdjung/llutils")
+pak::pak("lhdjung/parvenu")
+# or devtools::install_github("lhdjung/parvenu")
 ```

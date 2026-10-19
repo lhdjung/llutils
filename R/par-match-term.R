@@ -60,7 +60,7 @@ par_match_term <- function(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   run_terms(par_match_term_rs, x, terms, ignore_case, whole_word, nthreads)
 }
@@ -72,7 +72,7 @@ par_count_term <- function(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   run_terms(par_count_term_rs, x, terms, ignore_case, whole_word, nthreads)
 }
@@ -84,7 +84,7 @@ par_which_term <- function(
   terms,
   ignore_case = FALSE,
   whole_word = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   run_terms(par_which_term_rs, x, terms, ignore_case, whole_word, nthreads)
 }

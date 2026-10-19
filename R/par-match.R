@@ -32,7 +32,7 @@
 #'   function fall back to base R, so it gets no speedup.
 #' @param nthreads A whole number: the max number of threads to use. `0` means
 #'   the `RAYON_NUM_THREADS` environment variable, or else all cores. The
-#'   default is the `llutils.threads` option, or `0` if that isn't set. Inputs
+#'   default is the `parvenu.threads` option, or `0` if that isn't set. Inputs
 #'   too small to keep that many threads busy get fewer, and more threads than
 #'   cores count as all cores.
 #'
@@ -55,7 +55,7 @@ par_match <- function(
   table,
   nomatch = NA_integer_,
   incomparables = NULL,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
   nomatch <- as.integer(nomatch)[1L]
@@ -92,7 +92,7 @@ par_match <- function(
 
 #' @rdname par_match
 #' @export
-par_in <- function(x, table, nthreads = getOption("llutils.threads", 0L)) {
+par_in <- function(x, table, nthreads = getOption("parvenu.threads", 0L)) {
   par_match(x, table, nomatch = 0L, nthreads = nthreads) > 0L
 }
 

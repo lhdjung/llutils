@@ -44,7 +44,7 @@ par_duplicated <- function(
   x,
   incomparables = FALSE,
   fromLast = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
 
@@ -82,7 +82,7 @@ par_unique <- function(
   x,
   incomparables = FALSE,
   fromLast = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   if (is.data.frame(x)) {
     # As unique.data.frame() does.

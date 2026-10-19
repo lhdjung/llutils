@@ -1,4 +1,4 @@
-# llutils: plan
+# parvenu: plan
 
 Multithreaded `match()`, `%in%`, `duplicated()`, `unique()`,
 `findInterval()`, row matching, regex detection, counting, extraction, and
@@ -11,7 +11,7 @@ Benchmarks are in `bench/`, run on 2026-10-17 with 8 cores. Measure after
 and `load_all()` build the Rust in debug mode, 5-20x slower.
 
 Note: Much of this plan was written before seeting how incredibly fast
-llutils functions got. Don't feel shackled by it! Revise it if needed.
+parvenu functions got. Don't feel shackled by it! Revise it if needed.
 
 ## Positioning
 
@@ -27,7 +27,7 @@ llutils functions got. Don't feel shackled by it! Revise it if needed.
   against a spec. `par_detect()` can't be identical, since its syntax is
   Rust's, so it carries its own name instead of claiming to be `grepl()`.
 - **A complete collection matters more than a wide margin everywhere.**
-  For someone who already has collapse, llutils is a 2-11x speedup on
+  For someone who already has collapse, parvenu is a 2-11x speedup on
   lookups of 1e5 or more elements (Dates 4x, strings 7x, integers 11x), 2x
   on factors, `duplicated()`, and row matching, and close to a tie on a
   few cases, such as strings in `duplicated()`. Below 1e5 it beats base but not collapse.
@@ -282,7 +282,7 @@ Use cases for every function are collected in
   unsorted values take 18ms into 100 breaks, 34ms into 1e4, and 96ms into
   1e6, where base takes 0.4s, 0.9s, and 2.9s, and a data.table rolling join
   about 2s. For sorted `x` base is already fast, since each search starts
-  from the last (1e4 breaks: base 25ms, llutils 28ms).
+  from the last (1e4 breaks: base 25ms, parvenu 28ms).
 - `vec` is checked in R, serially, for `NA` and order, and anything Rust
   doesn't take goes to base, which gives base's errors.
 

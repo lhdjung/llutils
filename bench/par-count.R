@@ -1,6 +1,6 @@
 # par_count() and par_count_term() against base and stringi; run after
-# installing llutils.
-library(llutils)
+# installing parvenu.
+library(parvenu)
 set.seed(1)
 word <- function(n) {
   vapply(
@@ -25,13 +25,13 @@ cat("Regex matches per string, 1e6 strings\n")
 b(
   base_perl = lengths(regmatches(x, gregexpr("[aeiou]{2}", x, perl = TRUE))),
   stringi = stringi::stri_count_regex(x, "[aeiou]{2}"),
-  llutils_2 = par_count(x, "[aeiou]{2}", nthreads = 2),
-  llutils_all = par_count(x, "[aeiou]{2}")
+  parvenu_2 = par_count(x, "[aeiou]{2}", nthreads = 2),
+  parvenu_all = par_count(x, "[aeiou]{2}")
 )
 b(
   stringi_fixed = stringi::stri_count_fixed(x, "a"),
-  llutils_2 = par_count(x, "a", fixed = TRUE, nthreads = 2),
-  llutils_all = par_count(x, "a", fixed = TRUE)
+  parvenu_2 = par_count(x, "a", fixed = TRUE, nthreads = 2),
+  parvenu_all = par_count(x, "a", fixed = TRUE)
 )
 
 cat("\nDictionary hits per string, 1e5 strings, 1000 terms\n")
@@ -46,8 +46,8 @@ stringi_loop <- function(x, terms) {
 }
 b(
   stringi_loop = stringi_loop(x5, terms),
-  llutils_2 = par_count_term(x5, terms, nthreads = 2),
-  llutils_all = par_count_term(x5, terms),
+  parvenu_2 = par_count_term(x5, terms, nthreads = 2),
+  parvenu_all = par_count_term(x5, terms),
   whole_word = par_count_term(x5, terms, whole_word = TRUE)
 )
 cat("\n")

@@ -5,8 +5,8 @@
   <bch:expr>  <bch:tm>
 1 base         437.9ms
 2 collapse      35.4ms
-3 llutils_2     83.5ms
-4 llutils_all     66ms
+3 parvenu_2     83.5ms
+4 parvenu_all     66ms
 
 1e7 elements, 1e6 distinct: double 
 # A tibble: 4 × 2
@@ -14,8 +14,8 @@
   <bch:expr>  <bch:tm>
 1 base         696.5ms
 2 collapse     162.8ms
-3 llutils_2    148.4ms
-4 llutils_all   74.4ms
+3 parvenu_2    148.4ms
+4 parvenu_all   74.4ms
 
 1e7 elements, 1e6 distinct: character 
 # A tibble: 4 × 2
@@ -23,8 +23,8 @@
   <bch:expr>  <bch:tm>
 1 base           1.71s
 2 collapse     98.85ms
-3 llutils_2   375.46ms
-4 llutils_all 188.77ms
+3 parvenu_2   375.46ms
+4 parvenu_all 188.77ms
 
 Distinct count, integers
 # A tibble: 4 × 2
@@ -33,7 +33,7 @@ Distinct count, integers
 1 base         427.1ms
 2 collapse     104.6ms
 3 data.table   184.3ms
-4 llutils_all   62.6ms
+4 parvenu_all   62.6ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
@@ -53,7 +53,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000 testthat_3.3.2    
+[1] parvenu_0.0.0.9000 testthat_3.3.2    
 
 loaded via a namespace (and not attached):
  [1] vctrs_0.7.3         cli_3.6.6           rlang_1.3.0        

@@ -9,14 +9,14 @@ par_detect(
   x,
   pattern,
   fixed = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 )
 
 par_count(
   x,
   pattern,
   fixed = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 )
 }
 \arguments{
@@ -31,7 +31,7 @@ one string, or one per string of \code{x}, as in
 
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The
-default is the \code{llutils.threads} option, or \code{0} if that isn't set. Inputs
+default is the \code{parvenu.threads} option, or \code{0} if that isn't set. Inputs
 too small to keep that many threads busy get fewer, and more threads than
 cores count as all cores.}
 }

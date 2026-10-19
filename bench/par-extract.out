@@ -5,8 +5,8 @@ Extract the first match of [aeiou]{3}[0-9]   n = 1e6
   <bch:expr>  <bch:tm>
 1 base_perl    295.7ms
 2 stringi      519.3ms
-3 llutils_2     44.3ms
-4 llutils_all   27.5ms
+3 parvenu_2     44.3ms
+4 parvenu_all   27.5ms
 
 Extract the first match of [0-9]+$   n = 1e6
 # A tibble: 4 × 2
@@ -14,8 +14,8 @@ Extract the first match of [0-9]+$   n = 1e6
   <bch:expr>  <bch:tm>
 1 base_perl    246.4ms
 2 stringi      273.9ms
-3 llutils_2     54.4ms
-4 llutils_all   45.4ms
+3 parvenu_2     54.4ms
+4 parvenu_all   45.4ms
 
 Extract a group: the word before the number
 # A tibble: 4 × 2
@@ -23,8 +23,8 @@ Extract a group: the word before the number
   <bch:expr>  <bch:tm>
 1 base_perl     15.47s
 2 stringi        4.84s
-3 llutils_2   176.86ms
-4 llutils_all 222.14ms
+3 parvenu_2   176.86ms
+4 parvenu_all 222.14ms
 
 Replace every match of [aeiou]{3}   n = 1e6
 # A tibble: 5 × 2
@@ -33,8 +33,8 @@ Replace every match of [aeiou]{3}   n = 1e6
 1 base           1.31s
 2 base_perl   344.73ms
 3 stringi        1.09s
-4 llutils_2       76ms
-5 llutils_all  47.75ms
+4 parvenu_2       76ms
+5 parvenu_all  47.75ms
 
 Replace every match of [0-9]   n = 1e6
 # A tibble: 5 × 2
@@ -43,8 +43,8 @@ Replace every match of [0-9]   n = 1e6
 1 base           908ms
 2 base_perl      444ms
 3 stringi           1s
-4 llutils_2      313ms
-5 llutils_all    228ms
+4 parvenu_2      313ms
+5 parvenu_all    228ms
 
 Replace every match of zzz   n = 1e6
 # A tibble: 5 × 2
@@ -53,8 +53,8 @@ Replace every match of zzz   n = 1e6
 1 base         572.5ms
 2 base_perl    150.9ms
 3 stringi      991.6ms
-4 llutils_2     29.2ms
-5 llutils_all   22.1ms
+4 parvenu_2     29.2ms
+5 parvenu_all   22.1ms
 
 Swap two groups
 # A tibble: 3 × 2
@@ -62,7 +62,7 @@ Swap two groups
   <bch:expr>  <bch:tm>
 1 base_perl   459.11ms
 2 stringi        1.22s
-3 llutils_all 495.98ms
+3 parvenu_all 495.98ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
@@ -82,7 +82,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000
+[1] parvenu_0.0.0.9000
 
 loaded via a namespace (and not attached):
  [1] compiler_4.5.2  magrittr_2.0.5  bench_1.1.4     cli_3.6.6      

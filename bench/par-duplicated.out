@@ -6,8 +6,8 @@
 1 base         488.2ms
 2 collapse      85.2ms
 3 data.table   167.3ms
-4 llutils_2     66.5ms
-5 llutils_all   41.6ms
+4 parvenu_2     66.5ms
+5 parvenu_all   41.6ms
 
 1e7 elements, 1e6 distinct: double 
 # A tibble: 5 × 2
@@ -16,8 +16,8 @@
 1 base         741.4ms
 2 collapse     181.5ms
 3 data.table     443ms
-4 llutils_2    126.4ms
-5 llutils_all   47.3ms
+4 parvenu_2    126.4ms
+5 parvenu_all   47.3ms
 
 1e7 elements, 1e6 distinct: character 
 # A tibble: 5 × 2
@@ -26,8 +26,8 @@
 1 base           1.74s
 2 collapse    149.95ms
 3 data.table  631.12ms
-4 llutils_2      380ms
-5 llutils_all 274.85ms
+4 parvenu_2      380ms
+5 parvenu_all 274.85ms
 
 Rows of a data frame: integer, double, and string columns, 1e7 rows
 # A tibble: 4 × 2
@@ -35,8 +35,8 @@ Rows of a data frame: integer, double, and string columns, 1e7 rows
   <bch:expr>  <bch:tm>
 1 collapse       477ms
 2 data.table     590ms
-3 llutils_2      513ms
-4 llutils_all    332ms
+3 parvenu_2      513ms
+4 parvenu_all    332ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
@@ -56,7 +56,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000
+[1] parvenu_0.0.0.9000
 
 loaded via a namespace (and not attached):
  [1] utf8_1.2.6          collapse_2.1.8      magrittr_2.0.5     

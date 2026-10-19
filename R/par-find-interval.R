@@ -34,7 +34,7 @@ par_find_interval <- function(
   left.open = FALSE,
   checkSorted = TRUE,
   checkNA = TRUE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
 

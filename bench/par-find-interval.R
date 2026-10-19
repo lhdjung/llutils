@@ -1,6 +1,6 @@
 # par_find_interval() against base and a data.table rolling join; run after
-# installing llutils.
-library(llutils)
+# installing parvenu.
+library(parvenu)
 set.seed(1)
 x <- runif(1e7)
 b <- function(...) {
@@ -19,8 +19,8 @@ for (m in c(100, 1e4, 1e6)) {
       roll = TRUE,
       x.i
     ],
-    llutils_2 = par_find_interval(x, breaks, nthreads = 2),
-    llutils_all = par_find_interval(x, breaks),
+    parvenu_2 = par_find_interval(x, breaks, nthreads = 2),
+    parvenu_all = par_find_interval(x, breaks),
     check = FALSE # data.table gives NA where base gives 0
   )
 }
@@ -29,7 +29,7 @@ xs <- sort(x)
 breaks <- sort(runif(1e4))
 b(
   base = findInterval(xs, breaks),
-  llutils_all = par_find_interval(xs, breaks)
+  parvenu_all = par_find_interval(xs, breaks)
 )
 cat("\n")
 print(sessionInfo())

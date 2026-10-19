@@ -37,7 +37,7 @@ par_extract <- function(
   pattern,
   group = 0L,
   fixed = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   if (
     !is.numeric(group) ||
@@ -63,7 +63,7 @@ par_replace <- function(
   pattern,
   replacement,
   fixed = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   if (
     !is.character(replacement) ||

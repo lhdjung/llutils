@@ -4,22 +4,22 @@ Regex matches per string, 1e6 strings
   <bch:expr>  <bch:tm>
 1 base_perl      8.71s
 2 stringi     227.61ms
-3 llutils_2       55ms
-4 llutils_all  19.94ms
+3 parvenu_2       55ms
+4 parvenu_all  19.94ms
 # A tibble: 3 × 2
   expression      median
   <bch:expr>    <bch:tm>
 1 stringi_fixed   55.7ms
-2 llutils_2       30.3ms
-3 llutils_all     11.8ms
+2 parvenu_2       30.3ms
+3 parvenu_all     11.8ms
 
 Dictionary hits per string, 1e5 strings, 1000 terms
 # A tibble: 4 × 2
   expression     median
   <bch:expr>   <bch:tm>
 1 stringi_loop    5.55s
-2 llutils_2      8.28ms
-3 llutils_all    3.63ms
+2 parvenu_2      8.28ms
+3 parvenu_all    3.63ms
 4 whole_word     3.73ms
 
 R version 4.5.2 (2025-10-31)
@@ -40,7 +40,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000
+[1] parvenu_0.0.0.9000
 
 loaded via a namespace (and not attached):
  [1] compiler_4.5.2  magrittr_2.0.5  bench_1.1.4     cli_3.6.6      

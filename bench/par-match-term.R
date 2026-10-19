@@ -1,9 +1,9 @@
 # par_match_term() against base, stringi, and AhoCorasickTrie; run after
-# installing llutils. Only stringi_loop has par_match_term()'s exact semantics
+# installing parvenu. Only stringi_loop has par_match_term()'s exact semantics
 # (first term in `terms` order). The extract + match() rows find the leftmost
 # term instead, and AhoCorasickTrie returns a nested list of every hit, timed
 # here without the R code that would turn it into term indices.
-library(llutils)
+library(parvenu)
 set.seed(1)
 word <- function(n) {
   vapply(
@@ -43,8 +43,8 @@ print(bench::mark(
   stringi_loop = stringi_loop(x, terms),
   AhoCorasickTrie = AhoCorasickTrie::AhoCorasickSearch(terms, x),
   par_detect = par_detect(x, pattern),
-  llutils_2 = par_match_term(x, terms, nthreads = 2),
-  llutils_all = par_match_term(x, terms),
+  parvenu_2 = par_match_term(x, terms, nthreads = 2),
+  parvenu_all = par_match_term(x, terms),
   check = FALSE,
   min_iterations = 3,
   filter_gc = FALSE
@@ -63,7 +63,7 @@ print(bench::mark(
   ),
   par_detect = par_detect(X, paste0("(?i)", pattern)),
   par_detect_lower = par_detect(tolower(X), pattern),
-  llutils_all = par_match_term(X, terms, ignore_case = TRUE),
+  parvenu_all = par_match_term(X, terms, ignore_case = TRUE),
   check = FALSE,
   min_iterations = 3,
   filter_gc = FALSE
@@ -110,7 +110,7 @@ cat("\nSmall inputs, 1000 terms\n")
 for (m in c(100, 1000, 1e4)) {
   r <- bench::mark(
     stringi = match(stringi::stri_extract_first_regex(x[1:m], pattern), terms),
-    llutils_all = par_match_term(x[1:m], terms),
+    parvenu_all = par_match_term(x[1:m], terms),
     check = FALSE
   )
   cat("n =", m, ":", format(r$median), "\n")

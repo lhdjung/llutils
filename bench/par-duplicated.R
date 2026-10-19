@@ -1,6 +1,6 @@
 # par_duplicated() against base, collapse, and data.table; run after
-# installing llutils.
-library(llutils)
+# installing parvenu.
+library(parvenu)
 set.seed(1)
 n <- 1e7
 b <- function(...) {
@@ -17,8 +17,8 @@ for (x in list(integers = xi, doubles = xd, strings = xs)) {
     base = duplicated(x),
     collapse = collapse::fduplicated(x),
     data.table = duplicated(data.table::data.table(x)),
-    llutils_2 = par_duplicated(x, nthreads = 2),
-    llutils_all = par_duplicated(x)
+    parvenu_2 = par_duplicated(x, nthreads = 2),
+    parvenu_all = par_duplicated(x)
   )
 }
 cat("\nRows of a data frame: integer, double, and string columns, 1e7 rows\n")
@@ -30,8 +30,8 @@ df <- data.frame(
 b(
   collapse = collapse::fduplicated(df),
   data.table = duplicated(data.table::as.data.table(df)),
-  llutils_2 = par_duplicated(df, nthreads = 2),
-  llutils_all = par_duplicated(df),
+  parvenu_2 = par_duplicated(df, nthreads = 2),
+  parvenu_all = par_duplicated(df),
   check = FALSE # collapse::fduplicated() returns an unnamed logical too, but
   # data.table checks fail on attributes
 )

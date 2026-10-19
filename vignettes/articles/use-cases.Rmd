@@ -10,10 +10,10 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(llutils)
+library(parvenu)
 ```
 
-The examples below are small so they run quickly. llutils pays off at
+The examples below are small so they run quickly. parvenu pays off at
 100,000 elements or more, where its functions take milliseconds and base R
 takes seconds.
 

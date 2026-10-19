@@ -2,7 +2,7 @@
 # nolint start
 
 #' @usage NULL
-#' @useDynLib llutils, .registration = TRUE
+#' @useDynLib parvenu, .registration = TRUE
 NULL
 
 #' @noRd

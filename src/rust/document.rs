@@ -6,13 +6,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         # nolint start\n\
         \n\
         #' @usage NULL\n\
-        #' @useDynLib llutils, .registration = TRUE\n\
+        #' @useDynLib parvenu, .registration = TRUE\n\
         NULL\n\
         \n\
     ";
     let footer = "# nolint end\n";
-    let wrappers = llutils::get_llutils_metadata()
-        .make_r_wrappers(true, "llutils")
+    let wrappers = parvenu::get_parvenu_metadata()
+        .make_r_wrappers(true, "parvenu")
         .map_err(|e| format!("failed to generate wrappers: {e}"))?;
     std::fs::write(wrapper_path, format!("{header}{wrappers}{footer}"))
         .map_err(|e| format!("failed to write {wrapper_path}: {e}"))?;

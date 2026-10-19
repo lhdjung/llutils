@@ -1,13 +1,13 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# llutils
+# parvenu
 
 <!-- badges: start -->
 
 <!-- badges: end -->
 
-llutils provides ultra-fast replacements for common R utility functions.
+parvenu provides ultra-fast replacements for common R utility functions.
 
 It features `match()`, `%in%`, `duplicated()`, `unique()`, and
 `findInterval()` equivalents, row matching on several key columns, regex
@@ -31,7 +31,7 @@ alternation once, into an automaton that finds all terms in one pass,
 and splits the strings across threads.
 
 ``` r
-library(llutils)
+library(parvenu)
 set.seed(1)
 
 word <- function(n) {
@@ -62,7 +62,7 @@ mean(hits)
 results <- bench::mark(
   base = grepl(pattern, x, perl = TRUE),
   stringi = stringi::stri_detect_regex(x, pattern),
-  llutils = par_detect(x, pattern),
+  parvenu = par_detect(x, pattern),
   iterations = 10
 )
 results[, c("expression", "median")]
@@ -71,11 +71,11 @@ results[, c("expression", "median")]
 #>   <bch:expr> <bch:tm>
 #> 1 base         15.09s
 #> 2 stringi       8.44s
-#> 3 llutils     20.61ms
+#> 3 parvenu     20.61ms
 plot(results)
 ```
 
-<img src="https://raw.githubusercontent.com/lhdjung/llutils/figures/man/figures/README-dictionary-1.png" alt="Timings on a log scale: llutils takes milliseconds, stringi and base R take seconds." width="100%" />
+<img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-dictionary-1.png" alt="Timings on a log scale: parvenu takes milliseconds, stringi and base R take seconds." width="100%" />
 
 Wrap the alternation in `\b(` and `)\b` to match whole words only, or
 use `par_match_term(whole_word = TRUE)` below. Terms that contain regex
@@ -113,8 +113,8 @@ upper <- toupper(x)
 
 results <- bench::mark(
   stringi = stringi_loop(x, terms),
-  llutils = par_match_term(x, terms),
-  llutils_ignore_case = par_match_term(upper, terms, ignore_case = TRUE),
+  parvenu = par_match_term(x, terms),
+  parvenu_ignore_case = par_match_term(upper, terms, ignore_case = TRUE),
   iterations = 3,
   filter_gc = FALSE
 )
@@ -123,12 +123,12 @@ results[, c("expression", "median")]
 #>   expression            median
 #>   <bch:expr>          <bch:tm>
 #> 1 stringi                4.93s
-#> 2 llutils               2.87ms
-#> 3 llutils_ignore_case   2.83ms
+#> 2 parvenu               2.87ms
+#> 3 parvenu_ignore_case   2.83ms
 plot(results)
 ```
 
-<img src="https://raw.githubusercontent.com/lhdjung/llutils/figures/man/figures/README-term-1.png" alt="Timings on a log scale: llutils takes milliseconds, a stringi loop over the terms takes seconds." width="100%" />
+<img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-term-1.png" alt="Timings on a log scale: parvenu takes milliseconds, a stringi loop over the terms takes seconds." width="100%" />
 
 To count hits instead, `par_count_term()` gives the number of term
 occurrences in each string, as for scoring text against a sentiment
@@ -144,7 +144,7 @@ x <- sample.int(1e8, size = 1e7, replace = TRUE)
 results <- bench::mark(
   base = match(x, keys),
   collapse = collapse::fmatch(x, keys),
-  llutils = par_match(x, keys),
+  parvenu = par_match(x, keys),
   iterations = 10,
   filter_gc = FALSE
 )
@@ -154,11 +154,11 @@ results[, c("expression", "median")]
 #>   <bch:expr> <bch:tm>
 #> 1 base        250.9ms
 #> 2 collapse    179.4ms
-#> 3 llutils      15.4ms
+#> 3 parvenu      15.4ms
 plot(results)
 ```
 
-<img src="https://raw.githubusercontent.com/lhdjung/llutils/figures/man/figures/README-match-1.png" alt="Timings on a log scale: llutils is about ten times faster than collapse and base R." width="100%" />
+<img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-match-1.png" alt="Timings on a log scale: parvenu is about ten times faster than collapse and base R." width="100%" />
 
 `par_match()` handles integer, double, character, Date, and POSIXct
 vectors, and factors by their levels. Other classes, and inputs below
@@ -186,7 +186,7 @@ takes almost a second.
 ## Use cases
 
 The [use-cases
-article](https://github.com/lhdjung/llutils/blob/main/vignettes/articles/use-cases.Rmd)
+article](https://github.com/lhdjung/parvenu/blob/main/vignettes/articles/use-cases.Rmd)
 shows each function at work: coding free text with a keyword table,
 scoring text against a lexicon, filtering logs, validating identifiers,
 extracting and rewriting parts of strings, lookups and joins on one or
@@ -196,7 +196,7 @@ several keys, finding duplicates, and binning.
 
 The default is all cores, or the `RAYON_NUM_THREADS` environment
 variable. Every function takes `nthreads`, and
-`options(llutils.threads = 2)` sets the default for a session. Inputs
+`options(parvenu.threads = 2)` sets the default for a session. Inputs
 too small to keep that many threads busy use fewer.
 
 ## Regex syntax
@@ -221,10 +221,10 @@ them do, about twice as fast.
 
 ## Installation
 
-When llutils is on CRAN, you will be able to install it as usual:
+When parvenu is on CRAN, you will be able to install it as usual:
 
 ``` r
-install.packages("llutils")
+install.packages("parvenu")
 ```
 
 The development version requires the [Rust
@@ -232,6 +232,6 @@ toolchain](https://rust-lang.org/tools/install/). When Rust is
 installed, run:
 
 ``` r
-pak::pak("lhdjung/llutils")
-# or devtools::install_github("lhdjung/llutils")
+pak::pak("lhdjung/parvenu")
+# or devtools::install_github("lhdjung/parvenu")
 ```

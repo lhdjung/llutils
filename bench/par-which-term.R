@@ -1,5 +1,5 @@
-# par_which_term() against stringi; run after installing llutils.
-library(llutils)
+# par_which_term() against stringi; run after installing parvenu.
+library(parvenu)
 set.seed(1)
 word <- function(n) {
   vapply(
@@ -32,8 +32,8 @@ for (k in c(100, 1000)) {
       paste(terms, collapse = "|")
     ),
     par_match_term = par_match_term(x, terms),
-    llutils_2 = par_which_term(x, terms, nthreads = 2),
-    llutils_all = par_which_term(x, terms),
+    parvenu_2 = par_which_term(x, terms, nthreads = 2),
+    parvenu_all = par_which_term(x, terms),
     check = FALSE,
     min_iterations = 3,
     filter_gc = FALSE

@@ -38,7 +38,7 @@ par_match_rows <- function(
   x,
   table,
   nomatch = NA_integer_,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
 

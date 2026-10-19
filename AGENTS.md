@@ -2,7 +2,7 @@
 
 ## Scope
 
-llutils is a collection of fast, multithreaded utilities for large vectors
+parvenu is a collection of fast, multithreaded utilities for large vectors
 that give base R's results, with no R package dependencies. A function
 belongs here if it is useful in itself and clearly beats base. It doesn't
 need to beat collapse or other packages by a wide margin: if collapse ties
@@ -16,7 +16,7 @@ honestly, but don't let them veto a good function.
 ## PLAN.md
 
 PLAN.md is a working record, not a set of rules. Much of it was written
-before any llutils function, so it doesn't always reflect how fast the
+before any parvenu function, so it doesn't always reflect how fast the
 package is. Revise it when it stands in the way of a good feature,
 rather than following it to the letter.
 

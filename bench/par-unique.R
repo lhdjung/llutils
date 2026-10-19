@@ -1,6 +1,6 @@
 # par_unique() against base and collapse, and distinct counts against base,
-# collapse, and data.table; run after installing llutils.
-library(llutils)
+# collapse, and data.table; run after installing parvenu.
+library(parvenu)
 set.seed(1)
 n <- 1e7
 xi <- sample.int(1e6, n, TRUE)
@@ -13,8 +13,8 @@ for (x in list(
   print(bench::mark(
     base = unique(x),
     collapse = collapse::funique(x, sort = FALSE),
-    llutils_2 = par_unique(x, nthreads = 2),
-    llutils_all = par_unique(x),
+    parvenu_2 = par_unique(x, nthreads = 2),
+    parvenu_all = par_unique(x),
     min_iterations = 5,
     filter_gc = FALSE
   )[, c("expression", "median")])
@@ -24,7 +24,7 @@ print(bench::mark(
   base = length(unique(xi)),
   collapse = collapse::fnunique(xi),
   data.table = data.table::uniqueN(xi),
-  llutils_all = sum(!par_duplicated(xi)),
+  parvenu_all = sum(!par_duplicated(xi)),
   min_iterations = 5,
   filter_gc = FALSE
 )[, c("expression", "median")])

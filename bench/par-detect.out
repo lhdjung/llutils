@@ -6,8 +6,8 @@ pattern: abc   n = 1e6
 1 base        330.06ms
 2 base_perl    75.73ms
 3 stringi     244.44ms
-4 llutils_2     13.1ms
-5 llutils_all   8.05ms
+4 parvenu_2     13.1ms
+5 parvenu_all   8.05ms
 
 pattern: [aeiou]{3}[0-9]   n = 1e6
 # A tibble: 5 × 2
@@ -16,8 +16,8 @@ pattern: [aeiou]{3}[0-9]   n = 1e6
 1 base           1.12s
 2 base_perl      1.14s
 3 stringi        1.56s
-4 llutils_2     57.6ms
-5 llutils_all  53.93ms
+4 parvenu_2     57.6ms
+5 parvenu_all  53.93ms
 
 pattern: ^q.*z\s   n = 1e6
 # A tibble: 5 × 2
@@ -26,8 +26,8 @@ pattern: ^q.*z\s   n = 1e6
 1 base           1.25s
 2 base_perl     93.7ms
 3 stringi     270.03ms
-4 llutils_2    17.26ms
-5 llutils_all  10.29ms
+4 parvenu_2    17.26ms
+5 parvenu_all  10.29ms
 
 pattern: (?i)QU[a-z]+    n = 1e6
 # A tibble: 5 × 2
@@ -36,10 +36,10 @@ pattern: (?i)QU[a-z]+    n = 1e6
 1 base         570.9ms
 2 base_perl    106.9ms
 3 stringi        274ms
-4 llutils_2     31.8ms
-5 llutils_all   17.6ms
+4 parvenu_2     31.8ms
+5 parvenu_all   17.6ms
 
-Small inputs, pattern repeated so llutils reuses the compiled regex
+Small inputs, pattern repeated so parvenu reuses the compiled regex
 n = 100 : 32.3µs 19.8µs 20.7µs 
 n = 1000 : 243.3µs  69.1µs  70.7µs 
 n = 3000 : 736µs 177µs 178µs 
@@ -52,15 +52,15 @@ One pattern per string, n = 1e6
   expression    median
   <bch:expr>  <bch:tm>
 1 stringi        2.08s
-2 llutils_2    17.85ms
-3 llutils_all  15.45ms
+2 parvenu_2    17.85ms
+3 parvenu_all  15.45ms
 9996 distinct patterns
 # A tibble: 3 × 2
   expression    median
   <bch:expr>  <bch:tm>
 1 stringi        2.67s
-2 llutils_2   243.87ms
-3 llutils_all  127.6ms
+2 parvenu_2   243.87ms
+3 parvenu_all  127.6ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
@@ -80,7 +80,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000
+[1] parvenu_0.0.0.9000
 
 loaded via a namespace (and not attached):
  [1] compiler_4.5.2  magrittr_2.0.5  bench_1.1.4     cli_3.6.6      

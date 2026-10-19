@@ -56,7 +56,7 @@ par_detect <- function(
   x,
   pattern,
   fixed = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   run_pattern(par_detect_rs, x, pattern, fixed, nthreads)
 }
@@ -67,7 +67,7 @@ par_count <- function(
   x,
   pattern,
   fixed = FALSE,
-  nthreads = getOption("llutils.threads", 0L)
+  nthreads = getOption("parvenu.threads", 0L)
 ) {
   run_pattern(par_count_rs, x, pattern, fixed, nthreads)
 }

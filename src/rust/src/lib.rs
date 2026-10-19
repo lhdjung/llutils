@@ -1261,7 +1261,7 @@ unsafe fn bytes<'a>(p: usize) -> &'a [u8] {
 }
 
 extendr_module! {
-    mod llutils;
+    mod parvenu;
     fn par_match_int;
     fn index_codes;
     fn par_match_dbl;

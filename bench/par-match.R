@@ -1,14 +1,14 @@
-# par_match() against base and collapse; run after installing llutils.
+# par_match() against base and collapse; run after installing parvenu.
 # Lookups into 1e4 keys, as in the plan's baseline, then join-like lookups
 # into a table as long as `x`.
-library(llutils)
+library(parvenu)
 set.seed(1)
 b <- function(x, table) {
   print(bench::mark(
     base = match(x, table),
     collapse = collapse::fmatch(x, table),
-    llutils_2 = par_match(x, table, nthreads = 2),
-    llutils_all = par_match(x, table),
+    parvenu_2 = par_match(x, table, nthreads = 2),
+    parvenu_all = par_match(x, table),
     min_iterations = 3,
     filter_gc = FALSE
   )[, c("expression", "median")])

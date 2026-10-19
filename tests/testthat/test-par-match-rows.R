@@ -1,4 +1,4 @@
-withr::local_options(llutils.threads = 2) # CRAN allows at most 2 cores
+withr::local_options(parvenu.threads = 2) # CRAN allows at most 2 cores
 
 # The definition, for columns whose printed values are exact: match() on
 # rows pasted into strings.

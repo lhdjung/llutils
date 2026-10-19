@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(llutils)
+library(parvenu)
 
-test_check("llutils")
+test_check("parvenu")

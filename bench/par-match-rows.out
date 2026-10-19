@@ -6,8 +6,8 @@ Two integer columns, 1e7 rows into 1e7; first column up to 10000
 1 collapse    423.61ms
 2 vctrs          1.48s
 3 data.table      1.9s
-4 llutils_2   441.89ms
-5 llutils_all 243.62ms
+4 parvenu_2   441.89ms
+5 parvenu_all 243.62ms
 
 Two integer columns, 1e7 rows into 1e7; first column up to 1e+07 
 # A tibble: 5 × 2
@@ -16,8 +16,8 @@ Two integer columns, 1e7 rows into 1e7; first column up to 1e+07
 1 collapse     294.24ms
 2 vctrs        999.62ms
 3 data.table      3.42s
-4 llutils_2    272.98ms
-5 llutils_all  161.45ms
+4 parvenu_2    272.98ms
+5 parvenu_all  161.45ms
 
 Add a string column
 # A tibble: 3 × 2
@@ -25,14 +25,14 @@ Add a string column
   <bch:expr>  <bch:tm>
 1 collapse    449.82ms
 2 vctrs          1.07s
-3 llutils_all 180.16ms
+3 parvenu_all 180.16ms
 
 Pasted keys, as in base R, 1e6 rows
 # A tibble: 2 × 2
   expression    median
   <bch:expr>  <bch:tm>
 1 base_paste     2.48s
-2 llutils_all  18.45ms
+2 parvenu_all  18.45ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
@@ -52,7 +52,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000
+[1] parvenu_0.0.0.9000
 
 loaded via a namespace (and not attached):
  [1] utf8_1.2.6          collapse_2.1.8      magrittr_2.0.5     

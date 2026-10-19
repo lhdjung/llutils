@@ -1,4 +1,4 @@
-Package: llutils
+Package: parvenu
 Title: Multithreaded Matching and Regex Detection for Large Vectors
 Version: 0.0.0.9000
 Authors@R: person("Lukas", "Jung", , "jung-lukas@gmx.net", role = c("aut", "cre"))
@@ -25,6 +25,6 @@ Suggests:
 Config/testthat/edition: 3
 Config/rextendr/version: 0.5.0
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.83.0, xz
-URL: https://github.com/lhdjung/llutils
-BugReports: https://github.com/lhdjung/llutils/issues
+URL: https://github.com/lhdjung/parvenu
+BugReports: https://github.com/lhdjung/parvenu/issues
 Config/Needs/website: rmarkdown

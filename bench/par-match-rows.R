@@ -1,6 +1,6 @@
 # par_match_rows() against collapse, vctrs, data.table, and pasted keys; run
-# after installing llutils.
-library(llutils)
+# after installing parvenu.
+library(parvenu)
 set.seed(1)
 n <- 1e7
 b <- function(...) {
@@ -22,8 +22,8 @@ for (hi in c(FALSE, TRUE)) {
     collapse = collapse::fmatch(x, table),
     vctrs = vctrs::vec_match(x, table),
     data.table = dt_match(x, table),
-    llutils_2 = par_match_rows(x, table, nthreads = 2),
-    llutils_all = par_match_rows(x, table),
+    parvenu_2 = par_match_rows(x, table, nthreads = 2),
+    parvenu_all = par_match_rows(x, table),
     check = FALSE
   )
 }
@@ -33,14 +33,14 @@ table$s <- as.character(table$b)
 b(
   collapse = collapse::fmatch(x, table),
   vctrs = vctrs::vec_match(x, table),
-  llutils_all = par_match_rows(x, table)
+  parvenu_all = par_match_rows(x, table)
 )
 cat("\nPasted keys, as in base R, 1e6 rows\n")
 x6 <- x[1:1e6, ]
 t6 <- table[1:1e6, ]
 b(
   base_paste = match(paste(x6$a, x6$b, x6$s), paste(t6$a, t6$b, t6$s)),
-  llutils_all = par_match_rows(x6, t6),
+  parvenu_all = par_match_rows(x6, t6),
   check = FALSE
 )
 cat("\n")

@@ -5,8 +5,8 @@ join-like integers, x and table both 1e+06
   <bch:expr>  <bch:tm>
 1 base         33.41ms
 2 collapse     23.12ms
-3 llutils_2    15.84ms
-4 llutils_all   6.96ms
+3 parvenu_2    15.84ms
+4 parvenu_all   6.96ms
 
 join-like character, both 1e+06 
 # A tibble: 4 × 2
@@ -14,8 +14,8 @@ join-like character, both 1e+06
   <bch:expr>  <bch:tm>
 1 base         105.8ms
 2 collapse        17ms
-3 llutils_2     29.3ms
-4 llutils_all   13.6ms
+3 parvenu_2     29.3ms
+4 parvenu_all   13.6ms
 
 join-like integers, x and table both 1e+07 
 # A tibble: 4 × 2
@@ -23,8 +23,8 @@ join-like integers, x and table both 1e+07
   <bch:expr>  <bch:tm>
 1 base         937.1ms
 2 collapse     434.7ms
-3 llutils_2    199.3ms
-4 llutils_all   98.4ms
+3 parvenu_2    199.3ms
+4 parvenu_all   98.4ms
 
 join-like character, both 1e+07 
 # A tibble: 4 × 2
@@ -32,8 +32,8 @@ join-like character, both 1e+07
   <bch:expr>  <bch:tm>
 1 base            2.2s
 2 collapse       430ms
-3 llutils_2    394.6ms
-4 llutils_all  218.2ms
+3 parvenu_2    394.6ms
+4 parvenu_all  218.2ms
 
 integers, n = 1e+03 
 # A tibble: 4 × 2
@@ -41,8 +41,8 @@ integers, n = 1e+03
   <bch:expr>  <bch:tm>
 1 base         118.5µs
 2 collapse      18.4µs
-3 llutils_2     41.1µs
-4 llutils_all   44.5µs
+3 parvenu_2     41.1µs
+4 parvenu_all   44.5µs
 
 integers, n = 1e+04 
 # A tibble: 4 × 2
@@ -50,8 +50,8 @@ integers, n = 1e+04
   <bch:expr>  <bch:tm>
 1 base         129.6µs
 2 collapse      36.5µs
-3 llutils_2     86.1µs
-4 llutils_all   90.3µs
+3 parvenu_2     86.1µs
+4 parvenu_all   90.3µs
 
 integers, n = 1e+05 
 # A tibble: 4 × 2
@@ -59,8 +59,8 @@ integers, n = 1e+05
   <bch:expr>  <bch:tm>
 1 base          1.09ms
 2 collapse    568.26µs
-3 llutils_2   219.47µs
-4 llutils_all 255.39µs
+3 parvenu_2   219.47µs
+4 parvenu_all 255.39µs
 
 integers, n = 1e+06 
 # A tibble: 4 × 2
@@ -68,8 +68,8 @@ integers, n = 1e+06
   <bch:expr>  <bch:tm>
 1 base         11.89ms
 2 collapse      8.38ms
-3 llutils_2     1.64ms
-4 llutils_all 775.88µs
+3 parvenu_2     1.64ms
+4 parvenu_all 775.88µs
 
 integers, n = 1e+07 
 # A tibble: 4 × 2
@@ -77,8 +77,8 @@ integers, n = 1e+07
   <bch:expr>  <bch:tm>
 1 base         119.2ms
 2 collapse     87.82ms
-3 llutils_2    15.83ms
-4 llutils_all   7.83ms
+3 parvenu_2    15.83ms
+4 parvenu_all   7.83ms
 
 integers, n = 1e+08 
 # A tibble: 4 × 2
@@ -86,8 +86,8 @@ integers, n = 1e+08
   <bch:expr>  <bch:tm>
 1 base            1.3s
 2 collapse     885.3ms
-3 llutils_2      181ms
-4 llutils_all   90.3ms
+3 parvenu_2      181ms
+4 parvenu_all   90.3ms
 
 doubles, n = 1e7
 # A tibble: 4 × 2
@@ -95,8 +95,8 @@ doubles, n = 1e7
   <bch:expr>  <bch:tm>
 1 base         170.7ms
 2 collapse     107.2ms
-3 llutils_2     27.2ms
-4 llutils_all   13.2ms
+3 parvenu_2     27.2ms
+4 parvenu_all   13.2ms
 
 integer against double, n = 1e7
 # A tibble: 4 × 2
@@ -104,8 +104,8 @@ integer against double, n = 1e7
   <bch:expr>  <bch:tm>
 1 base         181.6ms
 2 collapse     119.1ms
-3 llutils_2     29.3ms
-4 llutils_all   14.1ms
+3 parvenu_2     29.3ms
+4 parvenu_all   14.1ms
 
 character, n = 1e7
 # A tibble: 4 × 2
@@ -113,8 +113,8 @@ character, n = 1e7
   <bch:expr>  <bch:tm>
 1 base         252.5ms
 2 collapse      78.4ms
-3 llutils_2     17.1ms
-4 llutils_all   10.9ms
+3 parvenu_2     17.1ms
+4 parvenu_all   10.9ms
 
 factor (100 levels), n = 1e7
 # A tibble: 4 × 2
@@ -122,8 +122,8 @@ factor (100 levels), n = 1e7
   <bch:expr>  <bch:tm>
 1 base        117.38ms
 2 collapse       8.9ms
-3 llutils_2     7.93ms
-4 llutils_all   4.48ms
+3 parvenu_2     7.93ms
+4 parvenu_all   4.48ms
 
 Date, n = 1e7
 # A tibble: 4 × 2
@@ -131,8 +131,8 @@ Date, n = 1e7
   <bch:expr>  <bch:tm>
 1 base           11.7s
 2 collapse      88.9ms
-3 llutils_2     46.8ms
-4 llutils_all   24.9ms
+3 parvenu_2     46.8ms
+4 parvenu_all   24.9ms
 
 POSIXct, n = 1e7
 # A tibble: 4 × 2
@@ -140,8 +140,8 @@ POSIXct, n = 1e7
   <bch:expr>  <bch:tm>
 1 base         158.4ms
 2 collapse      87.3ms
-3 llutils_2     15.7ms
-4 llutils_all    6.3ms
+3 parvenu_2     15.7ms
+4 parvenu_all    6.3ms
 
 R version 4.5.2 (2025-10-31)
 Platform: aarch64-apple-darwin20
@@ -161,7 +161,7 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] llutils_0.0.0.9000
+[1] parvenu_0.0.0.9000
 
 loaded via a namespace (and not attached):
  [1] utf8_1.2.6      collapse_2.1.8  magrittr_2.0.5  glue_1.8.1     

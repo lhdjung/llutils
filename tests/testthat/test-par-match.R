@@ -1,4 +1,4 @@
-withr::local_options(llutils.threads = 2) # CRAN allows at most 2 cores
+withr::local_options(parvenu.threads = 2) # CRAN allows at most 2 cores
 
 # Long enough for two threads.
 big <- function(v) rep_len(v, 2e4)

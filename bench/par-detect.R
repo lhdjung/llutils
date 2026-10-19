@@ -1,5 +1,5 @@
-# par_detect() against base and stringi; run after installing llutils.
-library(llutils)
+# par_detect() against base and stringi; run after installing parvenu.
+library(parvenu)
 set.seed(1)
 words <- vapply(
   1:1e4,
@@ -18,19 +18,19 @@ for (pat in c("abc", "[aeiou]{3}[0-9]", "^q.*z\\s", "(?i)QU[a-z]+ ")) {
     base = grepl(perl, x, ignore.case = perl != pat),
     base_perl = grepl(perl, x, ignore.case = perl != pat, perl = TRUE),
     stringi = stringi::stri_detect_regex(x, pat),
-    llutils_2 = par_detect(x, pat, nthreads = 2),
-    llutils_all = par_detect(x, pat),
+    parvenu_2 = par_detect(x, pat, nthreads = 2),
+    parvenu_all = par_detect(x, pat),
     min_iterations = 3,
     filter_gc = FALSE
   )[, c("expression", "median")])
 }
-cat("\nSmall inputs, pattern repeated so llutils reuses the compiled regex\n")
+cat("\nSmall inputs, pattern repeated so parvenu reuses the compiled regex\n")
 for (n in c(100, 1000, 3000, 1e4, 3e4)) {
   y <- x[1:n]
   r <- bench::mark(
     base_perl = grepl("[aeiou]{3}[0-9]", y, perl = TRUE),
-    llutils_2 = par_detect(y, "[aeiou]{3}[0-9]", nthreads = 2),
-    llutils_all = par_detect(y, "[aeiou]{3}[0-9]"),
+    parvenu_2 = par_detect(y, "[aeiou]{3}[0-9]", nthreads = 2),
+    parvenu_all = par_detect(y, "[aeiou]{3}[0-9]"),
     check = FALSE
   )
   cat("n =", n, ":", format(r$median), "\n")
@@ -47,8 +47,8 @@ for (p in list(p10, p1e4)) {
   cat(length(unique(p)), "distinct patterns\n")
   print(bench::mark(
     stringi = stringi::stri_detect_regex(x, p),
-    llutils_2 = par_detect(x, p, nthreads = 2),
-    llutils_all = par_detect(x, p),
+    parvenu_2 = par_detect(x, p, nthreads = 2),
+    parvenu_all = par_detect(x, p),
     min_iterations = 3,
     filter_gc = FALSE
   )[, c("expression", "median")])
