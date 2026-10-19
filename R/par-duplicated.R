@@ -87,12 +87,24 @@ par_unique <- function(
   nthreads = getOption("parvenu.threads", 0L)
 ) {
   if (is.data.frame(x)) {
-    # As unique.data.frame() does.
-    return(x[
-      !par_duplicated(x, incomparables, fromLast, nthreads),
-      ,
-      drop = FALSE
-    ])
+    keep <- !par_duplicated(x, incomparables, fromLast, nthreads)
+    if (!identical(class(x), "data.frame")) {
+      # As unique.data.frame() does. Subclasses may have their own method.
+      return(x[keep, , drop = FALSE])
+    }
+    # `[.data.frame` gives the same, but spends most of its time checking
+    # the new row names for duplicates, which kept rows can't have.
+    keep <- which(keep)
+    out <- lapply(x, function(col) {
+      if (is.null(dim(col))) col[keep] else col[keep, , drop = FALSE]
+    })
+    attributes(out) <- attributes(x)
+    attr(out, "row.names") <- if (.row_names_info(x) < 0L) {
+      keep
+    } else {
+      attr(x, "row.names")[keep]
+    }
+    return(out)
   }
   nthreads <- check_nthreads(nthreads)
   # A subclass of factor may have its own unique() method.

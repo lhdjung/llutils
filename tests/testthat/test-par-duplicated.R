@@ -99,3 +99,27 @@ test_that("par_unique() agrees with unique()", {
     }
   }
 })
+
+test_that("par_unique() on data frames gives what subsetting gives", {
+  set.seed(2)
+  n <- 3e4
+  x <- data.frame(a = sample(5, n, TRUE), b = sample(c("x", "y"), n, TRUE))
+  x$m <- matrix(sample(2, 2 * n, TRUE), n)
+  x$d <- data.frame(p = sample(2, n, TRUE))
+  x$f <- factor(sample(letters[1:3], n, TRUE))
+  for (x in list(
+    x,
+    `rownames<-`(x, paste0("r", seq_len(n))),
+    x[0, ],
+    structure(x, foo = 1)
+  )) {
+    for (from_last in c(FALSE, TRUE)) {
+      expected <- x[!par_duplicated(x, fromLast = from_last), , drop = FALSE]
+      expect_identical(par_unique(x, fromLast = from_last), expected)
+      expect_identical(
+        par_unique(x, fromLast = from_last),
+        unique(x, fromLast = from_last)
+      )
+    }
+  }
+})

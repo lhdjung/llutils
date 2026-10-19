@@ -326,7 +326,13 @@ Nothing at the moment. Add ideas here when a use turns up.
   slower where most elements are distinct (1e7 distinct integers: 190ms
   against 118ms for the subset). Names are dropped, as `unique()` drops
   them; data frames take rows as `unique.data.frame()` does, and matrices
-  and other classes go to base. At 1e7 elements with 1e6 distinct it
+  and other classes go to base. Plain data frames are rebuilt from their
+  subset columns, since `[.data.frame` spent 60% of its time on
+  `anyDuplicated()` of the new row names, which kept rows can't have: 1e7
+  rows of three columns took 627ms, now 324ms (collapse `funique()` 532ms,
+  data.table 1.07s). Subclasses keep `[`: a tibble's takes 120ms, about
+  what the rebuild would. Gathering the columns in Rust would save about
+  35ms. At 1e7 elements with 1e6 distinct it
   takes 34-51ms for integers, 57-61ms for doubles, and 144ms for strings
   (was 66ms, 74ms, 189ms; base 0.49s, 0.73s, 1.8s; collapse `funique()`
   36ms, 155ms, 111ms), measured on 2026-10-19 with the machine under load
