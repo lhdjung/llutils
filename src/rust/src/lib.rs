@@ -1788,6 +1788,353 @@ fn par_find_interval_rs(
     out
 }
 
+/// A part of a time format that `parse_time()` reads as R's `strptime()`
+/// does: `%Y`, `%m`, `%d`, `%H`, `%M`, `%S`, `%OS`, whitespace, which
+/// matches any amount, and other ASCII characters, which match themselves.
+#[derive(Clone, Copy)]
+enum Part {
+    Year,
+    Month,
+    Day,
+    Hour,
+    Min,
+    Sec,
+    SecFrac,
+    Space,
+    Lit(u8),
+}
+
+/// The parts of `format`; `None` if it has any other, or lacks the year,
+/// month, or day, where R fills in what is missing in ways not copied here.
+fn time_format(format: &[u8]) -> Option<Vec<Part>> {
+    let mut parts = Vec::new();
+    let mut i = 0;
+    while i < format.len() {
+        let (part, len) = match &format[i..] {
+            [b'%', b'Y', ..] => (Part::Year, 2),
+            [b'%', b'm', ..] => (Part::Month, 2),
+            [b'%', b'd', ..] => (Part::Day, 2),
+            [b'%', b'H', ..] => (Part::Hour, 2),
+            [b'%', b'M', ..] => (Part::Min, 2),
+            [b'%', b'S', ..] => (Part::Sec, 2),
+            [b'%', b'O', b'S', ..] => (Part::SecFrac, 3),
+            [b'%', ..] => return None,
+            [c, ..] if is_space(*c) => (Part::Space, 1),
+            [c, ..] if c.is_ascii() => (Part::Lit(*c), 1),
+            _ => return None,
+        };
+        parts.push(part);
+        i += len;
+    }
+    let has = |f: fn(&Part) -> bool| parts.iter().any(f);
+    (has(|p| matches!(p, Part::Year))
+        && has(|p| matches!(p, Part::Month))
+        && has(|p| matches!(p, Part::Day)))
+    .then_some(parts)
+}
+
+/// C's `isspace()`.
+fn is_space(c: u8) -> bool {
+    c == b' ' || (9..=13).contains(&c)
+}
+
+/// What `parse_time()` makes of a string.
+enum Parsed {
+    Time(f64),
+    Na,
+    /// Something `strtod()` leaves to R.
+    Unsupported,
+}
+
+/// A string read with `parts` as `strptime()` reads it in UTC, then turned
+/// into seconds since 1970 as `as.POSIXct()` does, or days as `as.Date()`
+/// does if `date`. As in R: numbers may start with spaces and take up to
+/// their width, a format's whitespace matches any amount, text after the
+/// format is ignored, numbers take all the digits their width allows, even
+/// past their range, `%H` takes 24 for 24:00:00, the next day, and `%OS`
+/// leaves the seconds at 0 where it reads no number from 0 to 61.
+fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
+    // R's `get_number()`.
+    let number = |p: &mut usize, from: i32, to: i32, width: u32| -> Option<i32> {
+        while s.get(*p) == Some(&b' ') {
+            *p += 1;
+        }
+        let digit = |p: usize| {
+            s.get(p)
+                .filter(|c| c.is_ascii_digit())
+                .map(|c| (c - b'0') as i32)
+        };
+        let mut val = digit(*p)?;
+        *p += 1;
+        let mut n = width - 1;
+        while n > 0 {
+            let Some(d) = digit(*p) else { break };
+            val = val * 10 + d;
+            *p += 1;
+            n -= 1;
+        }
+        (from..=to).contains(&val).then_some(val)
+    };
+    let (mut year, mut mon, mut day, mut hour, mut min, mut sec) = (0, 1, 1, 0, 0, 0);
+    let mut psecs = 0.0;
+    let mut p = 0;
+    for part in parts {
+        let field = match part {
+            Part::Space => {
+                while s.get(p).is_some_and(|&c| is_space(c)) {
+                    p += 1;
+                }
+                continue;
+            }
+            Part::Lit(c) => {
+                if s.get(p) != Some(c) {
+                    return Parsed::Na;
+                }
+                p += 1;
+                continue;
+            }
+            Part::SecFrac => {
+                match strtod(s, p) {
+                    Err(()) => return Parsed::Unsupported,
+                    Ok(Some((v, end))) if (0.0..=61.0).contains(&v) => {
+                        sec = v as i32;
+                        psecs = v;
+                        p = end;
+                    }
+                    Ok(_) => {}
+                }
+                continue;
+            }
+            Part::Year => (&mut year, number(&mut p, 0, 9999, 4)),
+            Part::Month => (&mut mon, number(&mut p, 1, 12, 2)),
+            Part::Day => (&mut day, number(&mut p, 1, 31, 2)),
+            Part::Hour => (&mut hour, number(&mut p, 0, 24, 2)),
+            Part::Min => (&mut min, number(&mut p, 0, 59, 2)),
+            Part::Sec => (&mut sec, number(&mut p, 0, 61, 2)),
+        };
+        match field {
+            (f, Some(v)) => *f = v,
+            (_, None) => return Parsed::Na,
+        }
+    }
+    // R's `validate_tm()`.
+    let days_in = |mon: i32, year: i32| {
+        let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+        [31, 28 + leap as i32, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mon as usize - 1]
+    };
+    if sec > 60 {
+        return Parsed::Na;
+    }
+    if hour == 24 && min == 0 && sec == 0 {
+        hour = 0;
+        day += 1;
+        if day > days_in(mon, year) {
+            (mon, day) = (mon + 1, 1);
+            if mon == 13 {
+                (year, mon) = (year + 1, 1);
+            }
+        }
+    }
+    if hour > 23 || day > days_in(mon, year) {
+        return Parsed::Na;
+    }
+    let days = days_from_civil(year, mon, day);
+    if date {
+        return Parsed::Time(days as f64);
+    }
+    // As `as.POSIXct()`: whole seconds, then the fraction `strptime()` kept.
+    let secs = sec as f64 + (psecs - psecs.floor());
+    let whole = (sec + min * 60 + hour * 3600) as f64 + days as f64 * 86400.0;
+    Parsed::Time(whole + (secs - secs.floor()))
+}
+
+/// Days from 1970-01-01 to a date of the proleptic Gregorian calendar, as
+/// R counts them.
+fn days_from_civil(year: i32, mon: i32, day: i32) -> i64 {
+    let y = year as i64 - (mon <= 2) as i64;
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let m = mon as i64;
+    let doy = (153 * (m + if m > 2 { -3 } else { 9 }) + 2) / 5 + day as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+/// R's `R_strtod()` on `s` from `p`, as `strptime()` reads seconds: the
+/// number and where it ends, or `None` for no number, or NaN or infinity,
+/// which `%OS` leaves alone. `Err` for hexadecimal, more than 15 digits, or
+/// an exponent beyond 22, where R's long doubles could round differently.
+#[allow(clippy::result_unit_err)]
+fn strtod(s: &[u8], mut p: usize) -> Result<Option<(f64, usize)>, ()> {
+    let at = |p: usize| s.get(p).copied().unwrap_or(0);
+    while is_space(at(p)) {
+        p += 1;
+    }
+    let sign = match at(p) {
+        b'-' => {
+            p += 1;
+            -1.0
+        }
+        b'+' => {
+            p += 1;
+            1.0
+        }
+        _ => 1.0,
+    };
+    let rest = &s[p.min(s.len())..];
+    let starts = |w: &[u8]| rest.len() >= w.len() && rest[..w.len()].eq_ignore_ascii_case(w);
+    if starts(b"nan") || starts(b"inf") {
+        return Ok(None);
+    }
+    if rest.len() > 2 && rest[0] == b'0' && (rest[1] | 0x20) == b'x' {
+        return Err(());
+    }
+    let (mut ans, mut digits, mut expn) = (0.0f64, 0, 0i32);
+    while at(p).is_ascii_digit() {
+        ans = 10.0 * ans + (at(p) - b'0') as f64;
+        (p, digits) = (p + 1, digits + 1);
+    }
+    if at(p) == b'.' {
+        p += 1;
+        while at(p).is_ascii_digit() {
+            ans = 10.0 * ans + (at(p) - b'0') as f64;
+            (p, digits, expn) = (p + 1, digits + 1, expn - 1);
+        }
+    }
+    if digits == 0 {
+        return Ok(None);
+    }
+    if digits > 15 {
+        return Err(());
+    }
+    if at(p) | 0x20 == b'e' {
+        p += 1;
+        let exp_sign = match at(p) {
+            b'-' => {
+                p += 1;
+                -1
+            }
+            b'+' => {
+                p += 1;
+                1
+            }
+            _ => 1,
+        };
+        let mut n = 0;
+        while at(p).is_ascii_digit() {
+            n = if n < 9999 {
+                n * 10 + (at(p) - b'0') as i32
+            } else {
+                n
+            };
+            p += 1;
+        }
+        expn += exp_sign * n;
+    }
+    if expn.abs() > 22 {
+        return Err(());
+    }
+    // Powers of 10 up to 22 are exact, by squaring as in R.
+    let (mut p10, mut fac, mut n) = (10.0f64, 1.0f64, expn.unsigned_abs());
+    while n > 0 {
+        if n & 1 == 1 {
+            fac *= p10;
+        }
+        (n, p10) = (n >> 1, p10 * p10);
+    }
+    if expn < 0 {
+        ans /= fac;
+    } else if ans != 0.0 {
+        ans *= fac;
+    }
+    Ok(Some((sign * ans, p)))
+}
+
+/// `as.Date()` (if `date`) or `as.POSIXct(tz = "UTC")` on strings: the
+/// days or seconds, `NA` where a string doesn't parse. If `try_formats`,
+/// the format is the first of `formats` that reads, for a date, the first
+/// string that isn't `NA` or empty, else every string that isn't `NA`.
+/// `NULL` where R must decide, as for a format or a number `parse_time()`
+/// doesn't take, or no format fitting, which is an error in R.
+/// @noRd
+#[extendr]
+fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthreads: i32) -> Robj {
+    let x = unsafe { charsxps(&x) };
+    let Some(formats) = unsafe { charsxps(&formats) }
+        .iter()
+        .map(|&f| time_format(unsafe { bytes(f) }))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return ().into();
+    };
+    let na_ptr = unsafe { R_NaString } as usize;
+    let unsupported = std::sync::atomic::AtomicBool::new(false);
+    let parse_all = |parts: &[Part]| {
+        let mut out = vec![NA_REAL; x.len()];
+        per_string(
+            &mut out,
+            x,
+            NA_REAL,
+            nthreads,
+            || (),
+            |_, _, s| match parse_time(s, parts, date) {
+                Parsed::Time(v) => v,
+                Parsed::Na => NA_REAL,
+                Parsed::Unsupported => {
+                    unsupported.store(true, std::sync::atomic::Ordering::Relaxed);
+                    NA_REAL
+                }
+            },
+        );
+        out
+    };
+    let unsupported = || unsupported.load(std::sync::atomic::Ordering::Relaxed);
+    let out = if !try_formats {
+        Some(parse_all(&formats[0]))
+    } else if date {
+        // Empty strings count as `NA` here.
+        let first = x
+            .iter()
+            .find(|&&p| p != na_ptr && unsafe { !bytes(p).is_empty() });
+        match first {
+            None => Some(vec![NA_REAL; x.len()]),
+            Some(&p) => {
+                let mut buf = Vec::new();
+                let s = unsafe { utf8(p, &mut buf) };
+                let mut chosen = None;
+                for f in &formats {
+                    match parse_time(s, f, date) {
+                        Parsed::Time(_) => {
+                            chosen = Some(f);
+                            break;
+                        }
+                        Parsed::Unsupported => return ().into(),
+                        Parsed::Na => {}
+                    }
+                }
+                chosen.map(|f| parse_all(f))
+            }
+        }
+    } else if x.iter().all(|&p| p == na_ptr) {
+        Some(vec![NA_REAL; x.len()])
+    } else {
+        formats.iter().find_map(|f| {
+            let out = parse_all(f);
+            let all = pool(nthreads).install(|| {
+                out.par_iter()
+                    .zip(x)
+                    .with_min_len(MATCH_PER_THREAD)
+                    .all(|(v, &p)| p == na_ptr || !v.is_nan())
+            });
+            (all || unsupported()).then_some(out)
+        })
+    };
+    match out {
+        Some(out) if !unsupported() => Doubles::from_values(out).into(),
+        _ => ().into(),
+    }
+}
+
 /// Whether a character counts as part of a word for `whole_word`: a letter
 /// or digit in any script, or `_`, as in a Unicode `\w`. `None` (the edge of
 /// the string, or bytes that aren't UTF-8) doesn't.
@@ -1883,4 +2230,5 @@ extendr_module! {
     fn par_extract_all_rs;
     fn par_locate_rs;
     fn par_replace_term_rs;
+    fn par_parse_time_rs;
 }

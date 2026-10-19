@@ -143,4 +143,13 @@ par_locate_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_lo
 #' @noRd
 par_replace_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads, replacement) .Call(wrap__par_replace_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads, replacement)
 
+#' `as.Date()` (if `date`) or `as.POSIXct(tz = "UTC")` on strings: the
+#' days or seconds, `NA` where a string doesn't parse. If `try_formats`,
+#' the format is the first of `formats` that reads, for a date, the first
+#' string that isn't `NA` or empty, else every string that isn't `NA`. `NULL` where R must decide, as for a format or
+#' a number `parse_time()` doesn't take, or no format fitting, which is an
+#' error in R.
+#' @noRd
+par_parse_time_rs <- function(x, formats, try_formats, date, nthreads) .Call(wrap__par_parse_time_rs, x, formats, try_formats, date, nthreads)
+
 # nolint end

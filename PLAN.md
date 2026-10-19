@@ -397,6 +397,31 @@ per 1e6), `dist()` (144ms for 5000 rows of 10).
   and 138ms for stringi. No `par_locate_all()` yet: it would make a matrix
   per string on R's thread.
 
+`par_as_date()` and `par_as_posixct()`:
+
+- A parser of `%Y`, `%m`, `%d`, `%H`, `%M`, `%S`, and `%OS`, written from
+  R's behaviour, which fuzzing against base checks: numbers may follow
+  spaces and take every digit their width allows, even past their range
+  (day "84" is `NA`, not day 8); text after the format is ignored;
+  `"24:00:00"` is midnight of the next day, even on February 30; `%OS`
+  leaves the seconds at 0 where it reads no number from 0 to 61, and reads
+  signs, exponents, and NaN as `R_strtod()` does. Formats with other
+  specifiers, or without a year, month, and day, go to base.
+- Fractional seconds are computed as `R_strtod()` does on doubles: digits
+  accumulated, then divided by a power of 10. Where R is built with long
+  doubles (x86-64), R divides in 80 bits and rounds twice, so the fraction
+  can differ in its last bit; that shows only for times within seconds of
+  1970. More than 15 digits, an exponent beyond 22, or hexadecimal go to
+  base, where long doubles could round differently.
+- `tryFormats` work as in base: for dates, the first format that reads the
+  first string that isn't `NA` or empty; for times, the first that reads
+  every string that isn't `NA`. Where none fits, base runs to give its
+  error, or `NA`s with `optional = TRUE`.
+- Times are parsed only in UTC (`"UTC"` or `"GMT"`): other zones need the
+  time zone database, and go to base.
+- At 1e6 strings: dates 7ms (base 4.6s, `data.table::as.IDate()` 4.6s, as
+  it calls base), times 12ms (base 15s).
+
 `par_find_interval()`:
 
 - A binary search (`partition_point()`) per element, in parallel. 1e7
