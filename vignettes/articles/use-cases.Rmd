@@ -337,6 +337,18 @@ orders$goal <- targets$goal[i]
 orders
 ```
 
+`par_match_rows()` takes the first match, which suits a lookup table with
+one row per key. When a key can repeat on both sides, `par_match_rows_all()`
+returns every matching pair, as a many-to-many join. Joined with itself, a
+table gives its groups of equal rows, such as numeric columns in published
+data that are copies of each other:
+
+```{r}
+keys <- data.frame(diff1 = c(0.1, 0.3, 0.1), diff2 = c(0.2, 0.2, 0.2))
+pairs <- par_match_rows_all(keys, keys)
+pairs[pairs$x < pairs$table, ] # each pair of equal rows once
+```
+
 ## Finding duplicates
 
 `par_duplicated()` returns what `duplicated()` returns, so it finds repeated

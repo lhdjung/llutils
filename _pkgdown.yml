@@ -11,6 +11,7 @@ reference:
     contents:
       - par_match
       - par_match_rows
+      - par_match_all
       - par_find_interval
   - subtitle: Duplicates and sets
     contents:
