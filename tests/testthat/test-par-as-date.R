@@ -79,3 +79,12 @@ test_that("tryFormats pick the format as base does", {
     as.POSIXct(hex, tz = "UTC", format = "%Y-%m-%d %H:%M:%OS")
   )
 })
+
+test_that("tz = \"\" is parsed in Rust where the session is in UTC", {
+  x <- rep(c("2024-03-05 14:30:00", "2024-03-05 24:00:00", NA), 1e4)
+  withr::local_timezone("UTC")
+  expect_identical(par_as_posixct(x), as.POSIXct(x))
+  expect_identical(par_as_posixct(x, tz = ""), as.POSIXct(x, tz = ""))
+  withr::local_timezone("Europe/Berlin")
+  expect_identical(par_as_posixct(x), as.POSIXct(x))
+})

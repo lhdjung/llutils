@@ -70,7 +70,7 @@ is ignored, \code{"24:00:00"} is midnight of the next day, and \code{"2020-1-5"}
 is a date.
 
 Everything else goes to base R: other formats, time zones other than
-\code{"UTC"} and \code{"GMT"}, inputs that aren't strings or factors, fewer than
+\code{"UTC"} and \code{"GMT"} (or \code{""} in a session whose time zone is UTC), inputs that aren't strings or factors, fewer than
 1e4 strings, and seconds written in hexadecimal or with more than 15
 digits. So does an input that no format fits, which base R reports.
 Factors are turned into strings first.

@@ -12,7 +12,7 @@
 #'   is a date.
 #'
 #'   Everything else goes to base R: other formats, time zones other than
-#'   `"UTC"` and `"GMT"`, inputs that aren't strings or factors, fewer than
+#'   `"UTC"` and `"GMT"` (or `""` in a session whose time zone is UTC), inputs that aren't strings or factors, fewer than
 #'   1e4 strings, and seconds written in hexadecimal or with more than 15
 #'   digits. So does an input that no format fits, which base R reports.
 #'   Factors are turned into strings first.
@@ -43,6 +43,7 @@ par_as_date <- function(
 ) {
   nthreads <- check_nthreads(nthreads)
   out <- parse_time(x, format, tryFormats, TRUE, nthreads)
+
   if (is.null(out)) {
     return(
       if (missing(format)) {
@@ -52,8 +53,10 @@ par_as_date <- function(
       }
     )
   }
+
   names(out) <- names(x)
   class(out) <- "Date"
+
   out
 }
 
@@ -76,9 +79,14 @@ par_as_posixct <- function(
   nthreads = getOption("parvenu.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
-  out <- if (identical(tz, "UTC") || identical(tz, "GMT")) {
+
+  utc <- identical(tz, "UTC") ||
+    identical(tz, "GMT") ||
+    (identical(tz, "") && session_utc())
+  out <- if (utc) {
     parse_time(x, format, tryFormats, FALSE, nthreads)
   }
+
   if (is.null(out)) {
     return(
       if (missing(format)) {
@@ -88,10 +96,23 @@ par_as_posixct <- function(
       }
     )
   }
+
   names(out) <- names(x)
   class(out) <- c("POSIXct", "POSIXt")
   attr(out, "tzone") <- tz
+
   out
+}
+
+# Whether the session's time zone, which `tz = ""` means, is UTC, as on most
+# servers and CI machines. `Sys.timezone()` caches its answer, so TZ is read
+# first in case it changed.
+session_utc <- function() {
+  tz <- Sys.getenv("TZ")
+  if (!nzchar(tz)) {
+    tz <- Sys.timezone()
+  }
+  isTRUE(tz %in% c("UTC", "GMT", "Etc/UTC", "Etc/GMT"))
 }
 
 # Days or seconds, or NULL where base must take over.
@@ -99,8 +120,10 @@ parse_time <- function(x, format, tryFormats, date, nthreads) {
   if (is.factor(x)) {
     x <- as.character(x)
   }
+
   try_formats <- missing(format)
   formats <- if (try_formats) tryFormats else format
+
   if (
     is.character(x) &&
       length(x) >= RUST_MIN &&
