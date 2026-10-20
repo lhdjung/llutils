@@ -29,11 +29,11 @@ too small to keep that many threads busy get fewer, and more threads than
 cores count as all cores.}
 }
 \value{
-As \code{\link[=rank]{rank()}}: the ranks, a double vector for \code{"average"} and an
+As \code{\link[base:rank]{base::rank()}}: the ranks, a double vector for \code{"average"} and an
 integer one otherwise, with the names of \code{x}.
 }
 \description{
-Like \code{\link[=rank]{rank()}}, with the same results, but the values are
+Like \code{\link[base:rank]{base::rank()}}, with the same results, but the values are
 sorted on several threads. Base R's \code{rank()} is slow where values tie:
 it takes seconds for a million doubles.
 }

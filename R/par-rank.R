@@ -1,6 +1,6 @@
 #' Rank values, in parallel
 #'
-#' @description Like [rank()], with the same results, but the values are
+#' @description Like [base::rank()], with the same results, but the values are
 #'   sorted on several threads. Base R's `rank()` is slow where values tie:
 #'   it takes seconds for a million doubles.
 #'
@@ -11,7 +11,7 @@
 #' @inheritParams base::rank
 #' @inheritParams par_match
 #'
-#' @returns As [rank()]: the ranks, a double vector for `"average"` and an
+#' @returns As [base::rank()]: the ranks, a double vector for `"average"` and an
 #'   integer one otherwise, with the names of `x`.
 #'
 #' @export

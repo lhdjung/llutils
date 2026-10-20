@@ -26,7 +26,7 @@ par_in(x, table, nthreads = getOption("parvenu.threads", 0L))
 \item{nomatch}{The value returned where there is no match, coerced to
 integer.}
 
-\item{incomparables}{Values that cannot be matched, as in base \code{\link[=match]{match()}}.
+\item{incomparables}{Values that cannot be matched, as in base \code{\link[base:match]{base::match()}}.
 \code{NULL} or \code{FALSE} means none. Note that using this argument makes the
 function fall back to base R, so it gets no speedup.}
 
@@ -48,7 +48,7 @@ in \code{x} is \code{TRUE} if \code{table} contains \code{NA}, and \code{FALSE} 
 }
 }
 \description{
-Same results as base \code{\link[=match]{match()}} and \code{\%in\%}, but much faster for
+Same results as base \code{\link[base:match]{base::match()}} and \code{\%in\%}, but much faster for
 large inputs. Use as drop-in replacements:
 \itemize{
 \item \code{par_match()} for \code{match()}.
@@ -66,12 +66,12 @@ Speedups result from a Rust implementation using
 These functions are computed in parallel when \code{x} or \code{table} has at least
 1e4 elements and both sides are integer, double (in any mix), character,
 Date, or POSIXct. Factors are matched by their levels. Anything else goes
-to base \code{\link[=match]{match()}} unchanged. Strings are matched by their pointers, which
+to base \code{\link[base:match]{base::match()}} unchanged. Strings are matched by their pointers, which
 the threads read straight from R's memory, as data.table does.
 
 \code{incomparables} has some quirks and is rarely used, so it gets no Rust
 implementation: if it is anything other than \code{NULL} or \code{FALSE}, the call
-goes to base \code{\link[=match]{match()}}.
+goes to base \code{\link[base:match]{base::match()}}.
 }
 \examples{
 par_match(c(3, 1, 9), 1:5, nthreads = 2)
