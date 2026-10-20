@@ -27,12 +27,36 @@ The gains are largest where base R is slow and the work is bound by CPU:
 matching text against a large dictionary of terms, and looking up
 millions of keys.
 
+Timed on 8 cores, against base R (the sections below and `bench/` have
+the details, and comparisons with collapse, stringi, and data.table):
+
+| Function | Replaces | Task | Time | Base R | Speedup |
+|----|----|----|----|----|----|
+| `par_match_term()` | `grepl(perl = TRUE)` on an alternation | 1,000 terms in 100,000 strings | 2.7ms | 15s | 5500x |
+| `par_detect()` | `grepl(perl = TRUE)` | a regex in 1 million strings | 54ms | 1.1s | 21x |
+| `par_match()` | `match()` | 10 million strings in 10,000 keys | 11ms | 0.25s | 23x |
+| `par_match()` | `match()` | 10 million integers in 10,000 keys | 8ms | 0.12s | 15x |
+| `par_match_rows()` | `match()` on pasted columns | 1 million rows on two key columns | 18ms | 2.5s | 134x |
+| `par_duplicated()` | `duplicated()` | 10 million integers | 42ms | 0.49s | 12x |
+| `par_unique()` | `unique()` | 10 million integers | 51ms | 0.57s | 11x |
+| `par_find_interval()` | `findInterval()` | 10 million values into 10,000 breaks | 34ms | 0.92s | 27x |
+
 ## Dictionary matching
 
 Which of 100,000 strings mention any of 1,000 terms? A backtracking
 engine tries each term at each position. `par_detect()` compiles the
 alternation once, into an automaton that finds all terms in one pass,
 and splits the strings across threads.
+
+``` r
+library(parvenu)
+
+texts <- c("flights to new york", "a walk in yorkshire", "rain in paris", "a quiet day")
+par_detect(texts, "york|paris")
+#> [1]  TRUE  TRUE  TRUE FALSE
+```
+
+Timed on 100,000 strings and 1,000 terms, against base R and stringi:
 
 <details>
 
@@ -42,7 +66,6 @@ Show code
 </summary>
 
 ``` r
-library(parvenu)
 set.seed(1)
 
 word <- function(n) {
@@ -75,20 +98,12 @@ plot(results)
 
 </details>
 
-``` r
-hits <- par_detect(x, pattern)
-head(x[hits], 3)
-#> [1] "ezwyrblt xhvokbru 627" "xwyayuxt ntapthgt 259" "xomhfess pvcbbxzc 906"
-mean(hits)
-#> [1] 0.18929
-```
-
     #> # A tibble: 3 × 2
     #>   expression   median
     #>   <bch:expr> <bch:tm>
-    #> 1 base          14.9s
-    #> 2 stringi       8.45s
-    #> 3 parvenu     19.18ms
+    #> 1 base         14.91s
+    #> 2 stringi       8.35s
+    #> 3 parvenu     18.32ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-dictionary-1.png" alt="Timings on a log scale: parvenu takes milliseconds, stringi and base R take seconds." width="100%" />
 
@@ -113,10 +128,14 @@ hits inside longer words, so `"york"` matches `"york, uk"` but not
 `"happ"` in `"happiness"`.
 
 ``` r
-found <- par_match_term(x, terms)
-head(terms[found][!is.na(found)], 3)
-#> [1] "xhvokbru" "ntapthgt" "xomhfess"
+places <- c("new york", "york", "paris")
+par_match_term(texts, places)
+#> [1]  1  2  3 NA
+par_match_term(texts, places, whole_word = TRUE)
+#> [1]  1 NA  3 NA
 ```
+
+Timed on the same data, against a stringi search per term:
 
 <details>
 
@@ -139,8 +158,8 @@ upper <- toupper(x)
 
 results <- bench::mark(
   stringi = stringi_loop(x, terms),
-  parvenu_default = par_match_term(x, terms),
-  parvenu_ignore_case = par_match_term(upper, terms, ignore_case = TRUE),
+  `parvenu (default)` = par_match_term(x, terms),
+  `parvenu (ignore case)` = par_match_term(upper, terms, ignore_case = TRUE),
   iterations = 10,
   filter_gc = FALSE
 )
@@ -151,11 +170,11 @@ plot(results)
 </details>
 
     #> # A tibble: 3 × 2
-    #>   expression            median
-    #>   <bch:expr>          <bch:tm>
-    #> 1 stringi                4.82s
-    #> 2 parvenu_default       2.45ms
-    #> 3 parvenu_ignore_case   2.69ms
+    #>   expression              median
+    #>   <bch:expr>            <bch:tm>
+    #> 1 stringi                  4.96s
+    #> 2 parvenu (default)       2.65ms
+    #> 3 parvenu (ignore case)   2.58ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-term-1.png" alt="Timings on a log scale: parvenu takes milliseconds, a stringi loop over the terms takes seconds." width="100%" />
 
@@ -199,9 +218,9 @@ plot(results)
     #> # A tibble: 3 × 2
     #>   expression   median
     #>   <bch:expr> <bch:tm>
-    #> 1 base          253ms
-    #> 2 collapse    177.9ms
-    #> 3 parvenu      14.1ms
+    #> 1 base        253.1ms
+    #> 2 collapse    181.7ms
+    #> 3 parvenu      19.1ms
 
 <img src="https://raw.githubusercontent.com/lhdjung/parvenu/figures/man/figures/README-match-1.png" alt="Timings on a log scale: parvenu is about ten times faster than collapse and base R." width="100%" />
 
@@ -236,13 +255,13 @@ Some of base R’s slowest functions are not about matching at all. These
 give the same results, to the last bit, and fall back to base R for what
 they don’t cover. At a million dates or ten million numbers, on 8 cores:
 
-| Function                     | Replaces                 | Time  | Base R |
-|------------------------------|--------------------------|-------|--------|
-| `par_as_date()`              | `as.Date()`              | 7ms   | 4.6s   |
-| `par_as_posixct(tz = "UTC")` | `as.POSIXct(tz = "UTC")` | 12ms  | 15s    |
-| `par_rank()`                 | `rank()`                 | 0.24s | 9.8s   |
-| `par_rowsum()`               | `rowsum()`               | 0.1s  | 1.2s   |
-| `par_approx()`               | `approx()`               | 0.1s  | 0.63s  |
+| Function | Replaces | Task | Time | Base R | Speedup |
+|----|----|----|----|----|----|
+| `par_as_date()` | `as.Date()` | 1 million dates | 7ms | 4.6s | 657x |
+| `par_as_posixct(tz = "UTC")` | `as.POSIXct(tz = "UTC")` | 1 million times | 12ms | 15s | 1250x |
+| `par_rank()` | `rank()` | 10 million doubles | 0.24s | 9.8s | 41x |
+| `par_rowsum()` | `rowsum()` | 10 million values in 100,000 groups | 0.1s | 1.2s | 12x |
+| `par_approx()` | `approx()` | 10 million points into 10,000 | 0.1s | 0.63s | 6x |
 
 `par_as_posixct()` parses in Rust only in UTC; other time zones go to
 base R. `par_rank()` beats `data.table::frank()` (0.61s), while collapse
