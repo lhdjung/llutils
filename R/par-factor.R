@@ -1,7 +1,7 @@
 #' Make a factor, or count values, in parallel
 #'
-#' @description `par_factor()` is base [base::factor()] with the same results, and
-#'   `par_table()` is base [base::table()]. Both spend most of their time finding
+#' @description `par_factor()` is [base::factor()] with the same results, and
+#'   `par_table()` is [base::table()]. Both spend most of their time finding
 #'   the distinct values and the position of each element among them, which
 #'   here [par_unique()] and [par_match()] do on several threads; sorting
 #'   the levels stays with base R.

@@ -1,6 +1,6 @@
 #' Set operations, in parallel
 #'
-#' @description Same results as base [base::union()], [base::intersect()], and
+#' @description Same results as [base::union()], [base::intersect()], and
 #'   [base::setdiff()], but much faster for large inputs: the distinct elements
 #'   come from [par_unique()] and the lookups from [par_match()], so each
 #'   takes about a tenth of base's time at 1e7 elements.

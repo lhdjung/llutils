@@ -72,8 +72,8 @@ cores count as all cores.}
 names of \code{x}. \code{par_table()}: a \code{table}, as \code{\link[base:table]{base::table()}} returns it.
 }
 \description{
-\code{par_factor()} is base \code{\link[base:factor]{base::factor()}} with the same results, and
-\code{par_table()} is base \code{\link[base:table]{base::table()}}. Both spend most of their time finding
+\code{par_factor()} is \code{\link[base:factor]{base::factor()}} with the same results, and
+\code{par_table()} is \code{\link[base:table]{base::table()}}. Both spend most of their time finding
 the distinct values and the position of each element among them, which
 here \code{\link[=par_unique]{par_unique()}} and \code{\link[=par_match]{par_match()}} do on several threads; sorting
 the levels stays with base R.

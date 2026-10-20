@@ -26,7 +26,7 @@ A vector without duplicates, as the base functions return it:
 the elements of \code{x} and \code{y}, of both, or of \code{x} only.
 }
 \description{
-Same results as base \code{\link[base:sets]{base::union()}}, \code{\link[base:sets]{base::intersect()}}, and
+Same results as \code{\link[base:sets]{base::union()}}, \code{\link[base:sets]{base::intersect()}}, and
 \code{\link[base:sets]{base::setdiff()}}, but much faster for large inputs: the distinct elements
 come from \code{\link[=par_unique]{par_unique()}} and the lookups from \code{\link[=par_match]{par_match()}}, so each
 takes about a tenth of base's time at 1e7 elements.
