@@ -11,6 +11,7 @@ par_factor(
   labels = levels,
   exclude = NA,
   ordered = is.ordered(x),
+  nmax = NA,
   nthreads = getOption("parvenu.threads", 0L)
 )
 
@@ -44,6 +45,9 @@ par_table(
 
 \item{ordered}{logical flag to determine if the levels should be regarded
     as ordered (in the order given).}
+
+\item{nmax}{Ignored: a hint for base's hash table, kept so that the
+arguments are in base's order.}
 
 \item{nthreads}{A whole number: the max number of threads to use. \code{0} means
 the \code{RAYON_NUM_THREADS} environment variable, or else all cores. The

@@ -15,6 +15,8 @@
 #'   1e7 of them either way.
 #'
 #' @param x A vector, as in [base::factor()].
+#' @param nmax Ignored: a hint for base's hash table, kept so that the
+#'   arguments are in base's order.
 #' @inheritParams base::factor
 #' @inheritParams base::table
 #' @inheritParams par_match
@@ -35,6 +37,7 @@ par_factor <- function(
   labels = levels,
   exclude = NA,
   ordered = is.ordered(x),
+  nmax = NA,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
   nthreads <- check_nthreads(nthreads)
