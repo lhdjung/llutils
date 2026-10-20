@@ -68,10 +68,13 @@ par_match_rows <- function(
       day[j] <- dates_by_day()
       a <- as_dbl(a)
       b <- as_dbl(b)
-    } else if (is.factor(a) && is.factor(b)) {
+    } else if (
+      is.factor(a) && is.factor(b) && !anyNA(c(levels(a), levels(b)))
+    ) {
       # Codes stand in for the levels, which as.character() would copy into
       # every element: `a`'s become `b`'s, and levels `b` lacks become 0,
-      # which no code of `b` is.
+      # which no code of `b` is. A level that is `NA` would equal an `NA`
+      # code as a string, so such factors are matched as strings below.
       m <- c(match(levels(a), levels(b), nomatch = 0L), NA)
       a <- index_codes(a, m, nthreads)
     } else {
@@ -98,14 +101,15 @@ par_match_rows <- function(
 
   out <- par_match_rows_rs(x, table, day, nomatch, nthreads)
 
-  if (is.null(out)) {
-    # Base matches Dates beyond 1e10 days by their printed numbers.
-    for (j in which(day)) {
-      x[[j]] <- par_match(x0[[j]], table0[[j]], nthreads = nthreads)
-      table[[j]] <- par_match(table0[[j]], table0[[j]], nthreads = nthreads)
-    }
-    out <- par_match_rows_rs(x, table, logical(length(x)), nomatch, nthreads)
+  if (!is.null(out)) {
+    return(out)
   }
 
-  out
+  # Base matches Dates beyond 1e10 days by their printed numbers.
+  for (j in which(day)) {
+    x[[j]] <- par_match(x0[[j]], table0[[j]], nthreads = nthreads)
+    table[[j]] <- par_match(table0[[j]], table0[[j]], nthreads = nthreads)
+  }
+
+  par_match_rows_rs(x, table, logical(length(x)), nomatch, nthreads)
 }

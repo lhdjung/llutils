@@ -53,6 +53,9 @@ par_find_interval <- function(
     length(x) < RUST_MIN ||
       !is_num(x) ||
       !is_num(vec) ||
+      # Classes whose numbers aren't their as.double(), such as integer64.
+      !is_dup_class(x) ||
+      !is_dup_class(vec) ||
       length(vec) == 0L ||
       length(vec) > .Machine$integer.max ||
       !is_bool(rightmost.closed) ||

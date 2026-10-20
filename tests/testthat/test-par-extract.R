@@ -222,10 +222,8 @@ test_that("par_locate() agrees with regexpr()", {
       dimnames = list(c("a", "b"), c("start", "end"))
     )
   )
-  expect_identical(
-    par_locate(factor(c("x1", "y", "x1")), "[0-9]")[, "start"],
-    c(2L, NA, 2L)
-  )
+  f <- factor(c(a = "x1", b = "y", c = "x1"))
+  expect_identical(par_locate(f, "[0-9]")[, "start"], c(a = 2L, b = NA, c = 2L))
 })
 
 test_that("latin1 strings, converted on the threads, give UTF-8's results", {

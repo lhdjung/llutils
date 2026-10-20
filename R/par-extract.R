@@ -89,12 +89,13 @@ par_locate <- function(
   fixed = FALSE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
+  nm <- names(x)
   if (is.factor(x)) {
     x <- as.character(x) # a matrix can't be indexed by the levels
   }
   out <- run_extract(par_locate_rs, x, pattern, group, fixed, nthreads)
   dim(out) <- c(length(x), 2L)
-  dimnames(out) <- list(names(x), c("start", "end"))
+  dimnames(out) <- list(nm, c("start", "end"))
   out
 }
 

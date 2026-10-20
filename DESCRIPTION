@@ -23,6 +23,7 @@ Imports:
 Suggests: 
     ggbeeswarm,
     ggplot2,
+    bit64,
     stringi,
     testthat (>= 3.0.0),
     withr

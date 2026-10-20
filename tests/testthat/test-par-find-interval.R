@@ -35,4 +35,10 @@ test_that("other inputs go to findInterval()", {
   expect_error(par_find_interval(x, c(2, 1)), "sorted")
   expect_error(par_find_interval(x, c(1, NA)), "sorted")
   expect_error(par_find_interval(x, 1, nthreads = -1), "nthreads")
+  skip_if_not_installed("bit64")
+  big <- bit64::as.integer64(sample(1e6, 2e4, TRUE))
+  expect_identical(
+    par_find_interval(big, c(10, 1e5)),
+    findInterval(big, c(10, 1e5))
+  )
 })

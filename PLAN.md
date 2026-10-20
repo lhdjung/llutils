@@ -91,6 +91,13 @@ still free. The release steps at the end wait until then.
    `x` anywhere instead of being an error), and `(?x)` terms ending in a
    comment, which swallowed it. `par_extract()` and `par_extract_all()`
    now keep names, as `regmatches()` does.
+   A fourth review on 2026-10-20, of the R-side fallbacks of every function
+   (classes, names, `tryFormats`, strptime quirks, data frame row names,
+   ties in `findInterval()`), found three differences from base and fixed
+   them: `par_match_rows()` matched a factor with an `NA` level by codes,
+   where as strings the level equals an `NA` code; `par_find_interval()`
+   read integer64 and other classed doubles by their bits, where base takes
+   `as.double()`; and `par_locate()` dropped the names of a factor.
 2. **Names of the string functions.** `par_replace()` became
    `par_replace_all()` on 2026-10-19: in stringr `str_replace()` replaces
    the first match only, and base `replace()` is unrelated, while `par_`

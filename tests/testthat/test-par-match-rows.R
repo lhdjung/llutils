@@ -105,3 +105,14 @@ test_that("factor pairs match by level, whatever the levels' order", {
     match(as.character(a), as.character(b))
   )
 })
+
+test_that("a factor with an NA level matches as its strings do", {
+  n <- 3e4
+  a <- factor(sample(c("a", "b", NA), n, TRUE), exclude = NULL)
+  b <- factor(sample(c("a", "b", NA), n, TRUE))
+  key <- function(l) paste(as.character(l[[1]]), l[[2]])
+  x <- list(a, rep(1L, n))
+  table <- list(b, rep(1L, n))
+  expect_identical(par_match_rows(x, table), match(key(x), key(table)))
+  expect_identical(par_match_rows(table, x), match(key(table), key(x)))
+})
