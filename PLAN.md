@@ -123,7 +123,13 @@ Add ideas here when a use turns up.
 Measured and not worth it (2026-10-20, base R on one thread): `order()` and
 `sort()` (0.3-0.5s for 1e7 doubles, and data.table's `forder()` is no
 faster here), `as.numeric()` on strings (78ms per 1e6), `dist()` (144ms for
-5000 rows of 10).
+5000 rows of 10), `cut()` (0.27s for 1e7 doubles, and `par_find_interval()`
+plus the factor in R was slower), `strsplit()` (0.19s per 1e6 with
+`fixed = TRUE`), `duplicated()` on matrix rows (0.23s for 1e6 rows of 3),
+`nchar()` and `tabulate()` (25-30ms), `format()` of 1e6 Dates (0.95s, but
+making the strings on R's thread would be half of it). `trimws()` takes 1s
+per 1e6 strings, where `par_replace_all(x, "^\\s+|\\s+$", "")` takes 0.45s
+with the same result, which is a use case, not a function.
 
 ## Known limits
 
