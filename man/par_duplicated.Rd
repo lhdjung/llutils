@@ -3,6 +3,7 @@
 \name{par_duplicated}
 \alias{par_duplicated}
 \alias{par_unique}
+\alias{par_any_duplicated}
 \title{Multithreaded \code{duplicated()}}
 \usage{
 par_duplicated(
@@ -13,6 +14,13 @@ par_duplicated(
 )
 
 par_unique(
+  x,
+  incomparables = FALSE,
+  fromLast = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+)
+
+par_any_duplicated(
   x,
   incomparables = FALSE,
   fromLast = FALSE,
@@ -41,6 +49,8 @@ element per row of a data frame): \code{TRUE} where an equal element (or row)
 comes earlier, or later if \code{fromLast = TRUE}.
 \item \code{par_unique()}: \code{x} without those elements (or rows), as \code{\link[=unique]{unique()}}
 returns it.
+\item \code{par_any_duplicated()}: an integer, the position of the first \code{TRUE}
+of \code{par_duplicated()}, the last if \code{fromLast = TRUE}, or \code{0L}.
 }
 }
 \description{
@@ -49,6 +59,9 @@ large inputs. For a data frame, rows are compared, as in base.
 
 \code{par_unique()} is base \code{\link[=unique]{unique()}} on the same machinery, and
 \code{length(par_unique(x))} counts the distinct elements.
+\code{par_any_duplicated()} is base \code{\link[=anyDuplicated]{anyDuplicated()}}: the position of the
+first duplicate, or \code{0} if there is none, which base takes as long to
+find as all of them.
 }
 \details{
 Computed in Rust when \code{x} has at least 1e4 elements (or rows)
@@ -68,6 +81,7 @@ par_duplicated(x)
 par_duplicated(x, fromLast = TRUE)
 par_unique(x)
 length(par_unique(x)) # number of distinct values
+par_any_duplicated(x)
 
 df <- data.frame(id = c(1, 2, 1), day = c("mon", "mon", "mon"))
 par_duplicated(df)

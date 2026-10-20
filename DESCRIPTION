@@ -1,5 +1,5 @@
 Package: parvenu
-Title: Multithreaded Matching and Regex Detection for Large Vectors
+Title: Multithreaded Versions of Base R Functions for Large Vectors
 Version: 0.0.0.9001
 Authors@R: person("Lukas", "Jung", , "jung-lukas@gmx.net", role = c("aut", "cre"))
 Description: Multithreaded versions of match(), %in%, duplicated(),
@@ -11,7 +11,8 @@ Description: Multithreaded versions of match(), %in%, duplicated(),
     the syntax of Rust's regex crate. Dictionary lookup finds which of many
     literal terms or regexes each string contains, how many hits it has, or
     replaces them all, in one pass per string. as.Date(), as.POSIXct() in
-    UTC, rank(), rowsum(), and approx() give base R's results too.
+    UTC, rank(), rowsum(), approx(), factor(), table(), anyDuplicated(),
+    union(), intersect(), and setdiff() give base R's results too.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

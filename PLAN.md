@@ -1,7 +1,7 @@
 # parvenu: plan
 
 Multithreaded `match()`, `%in%`, `duplicated()`, `unique()`,
-`findInterval()`, row matching, regex detection, counting, location,
+`findInterval()`, row matching, `factor()`, `table()`, set operations, regex detection, counting, location,
 extraction, and replacement, and dictionary lookup and replacement
 (`par_match_term()`, `par_count_term()`, `par_which_term()`,
 `par_replace_term()`) in Rust. Open work
@@ -458,6 +458,24 @@ faster here), `as.numeric()` on strings (78ms per 1e6), `dist()` (144ms for
   where C compilers fuse it and R's results depend on it, and not on
   x86-64, where they don't.
 - 1e7 points into 1e4 take 96ms (base 0.63s). `na.rm = FALSE` goes to base.
+
+`par_factor()`, `par_table()`, `par_union()`, `par_intersect()`,
+`par_setdiff()`, `par_any_duplicated()` (added 2026-10-20):
+
+- Copies of base's R code with `par_unique()` and `par_match()` in place
+  of `unique()` and `match()`, so the results are base's by construction;
+  `par_table()` carries all of `table()`'s `exclude` and `useNA` logic.
+  The set operations follow R 4.5's definitions (`.set_ops_need_as_vector()`),
+  which R 4.3 differ from only for classes that `[0]` changes.
+- At 1e7 elements, 8 cores: `union()`, `intersect()`, and `setdiff()` take
+  0.48-0.75s in base, here 55ms; `anyDuplicated()` of distinct values
+  0.44s, here 39ms (collapse `any_duplicated()` 178ms). `factor()` of
+  strings in 1e5 levels 0.76s, here 0.47s, most of it `order()` collating
+  the levels (collapse `qF()` 0.13s, with its own order); of integers in
+  1e6 levels 0.85s, here 0.3s, most of it `as.character()` of the levels
+  forced by `levels<-`. `table()` of integers 1.0s, here 0.44s, the rest
+  `as.integer()`, `is.na<-`, and `tabulate()` in R; of strings 0.89s, here
+  0.66s.
 
 `par_find_interval()`:
 

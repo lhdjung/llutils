@@ -12,11 +12,13 @@ reference:
       - par_match
       - par_match_rows
       - par_find_interval
-  - subtitle: Duplicates
+  - subtitle: Duplicates and sets
     contents:
       - par_duplicated
-  - subtitle: Dates, ranks, and sums
+      - par_union
+  - subtitle: Factors, dates, ranks, and sums
     contents:
+      - par_factor
       - par_as_date
       - par_rank
       - par_rowsum

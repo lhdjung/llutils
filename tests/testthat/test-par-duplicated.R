@@ -123,3 +123,26 @@ test_that("par_unique() on data frames gives what subsetting gives", {
     }
   }
 })
+
+test_that("par_any_duplicated() agrees with anyDuplicated()", {
+  set.seed(11)
+  n <- 3e4
+  xs <- list(
+    sample(n), # none
+    c(sample(n), 1L),
+    sample(c(runif(100), NA), n, TRUE),
+    as.character(sample(n)),
+    data.frame(a = sample(n), b = sample(n)),
+    data.frame(a = sample(2, n, TRUE), b = sample(2, n, TRUE)),
+    matrix(sample(4, 2 * n, TRUE), ncol = 2),
+    1:5
+  )
+  for (x in xs) {
+    for (fl in c(FALSE, TRUE)) {
+      expect_identical(
+        par_any_duplicated(x, fromLast = fl),
+        anyDuplicated(x, fromLast = fl)
+      )
+    }
+  }
+})

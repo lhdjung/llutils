@@ -5,6 +5,9 @@
 #'
 #'   `par_unique()` is base [unique()] on the same machinery, and
 #'   `length(par_unique(x))` counts the distinct elements.
+#'   `par_any_duplicated()` is base [anyDuplicated()]: the position of the
+#'   first duplicate, or `0` if there is none, which base takes as long to
+#'   find as all of them.
 #'
 #' @details Computed in Rust when `x` has at least 1e4 elements (or rows)
 #'   and is an integer, double, or string vector, a factor, a Date, or a
@@ -30,6 +33,8 @@
 #'   comes earlier, or later if `fromLast = TRUE`.
 #'   - `par_unique()`: `x` without those elements (or rows), as [unique()]
 #'   returns it.
+#'   - `par_any_duplicated()`: an integer, the position of the first `TRUE`
+#'   of `par_duplicated()`, the last if `fromLast = TRUE`, or `0L`.
 #'
 #' @export
 #'
@@ -39,6 +44,7 @@
 #' par_duplicated(x, fromLast = TRUE)
 #' par_unique(x)
 #' length(par_unique(x)) # number of distinct values
+#' par_any_duplicated(x)
 #'
 #' df <- data.frame(id = c(1, 2, 1), day = c("mon", "mon", "mon"))
 #' par_duplicated(df)
@@ -134,6 +140,25 @@ par_unique <- function(
     attr(out, "tzone") <- attr(x, "tzone")
   }
   out
+}
+
+#' @rdname par_duplicated
+#' @export
+par_any_duplicated <- function(
+  x,
+  incomparables = FALSE,
+  fromLast = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+) {
+  w <- which(par_duplicated(x, incomparables, fromLast, nthreads))
+  # Base scans from the end with `fromLast`, so it finds the last one.
+  if (!length(w)) {
+    0L
+  } else if (fromLast) {
+    w[length(w)]
+  } else {
+    w[1L]
+  }
 }
 
 # Classes whose duplicated() method compares the underlying values, as Rust
