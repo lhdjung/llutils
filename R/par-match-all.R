@@ -79,8 +79,8 @@ match_all <- function(x_group, table_group) {
     stop("More than 2^31 - 1 pairs match.")
   }
 
-  data.frame(
+  list2DF(list(
     x = rep(matched, counts),
     table = by_group[sequence(counts, from = run_starts[x_group[matched]])]
-  )
+  ))
 }
