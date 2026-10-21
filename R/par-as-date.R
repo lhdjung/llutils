@@ -12,9 +12,10 @@
 #'   is a date.
 #'
 #'   Everything else goes to base R: other formats, time zones other than
-#'   `"UTC"` and `"GMT"` (or `""` in a session whose time zone is UTC), inputs that aren't strings or factors, fewer than
-#'   1e4 strings, and seconds written in hexadecimal or with more than 15
-#'   digits. So does an input that no format fits, which base R reports.
+#'   `"UTC"` and `"GMT"` (or `""` in a session whose time zone is UTC),
+#'   inputs that aren't strings or factors, fewer than 1e4 strings, and
+#'   seconds written in hexadecimal, with more than 15 digits, or as
+#'   `nan(...)`. So does an input that no format fits, which base R reports.
 #'   Factors are turned into strings first.
 #'
 #' @param x A string vector, or a factor.
