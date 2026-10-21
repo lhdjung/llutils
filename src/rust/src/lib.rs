@@ -1896,12 +1896,15 @@ fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
             Part::SecFrac => {
                 match strtod(s, p) {
                     Err(()) => return Parsed::Unsupported,
-                    Ok(Some((v, end))) if (0.0..=61.0).contains(&v) => {
-                        sec = v as i32;
-                        psecs = v;
+                    // R moves past the number even where it keeps 0.
+                    Ok(Some((v, end))) => {
+                        if (0.0..=61.0).contains(&v) {
+                            sec = v as i32;
+                            psecs = v;
+                        }
                         p = end;
                     }
-                    Ok(_) => {}
+                    Ok(None) => {}
                 }
                 continue;
             }
@@ -1961,9 +1964,10 @@ fn days_from_civil(year: i32, mon: i32, day: i32) -> i64 {
 }
 
 /// R's `R_strtod()` on `s` from `p`, as `strptime()` reads seconds: the
-/// number and where it ends, or `None` for no number, or NaN or infinity,
-/// which `%OS` leaves alone. `Err` for hexadecimal, more than 15 digits, or
-/// an exponent beyond 22, where R's long doubles could round differently.
+/// number and where it ends, which may be NaN or infinity, or `None` for no
+/// number. `Err` for hexadecimal, more than 15 digits, or an exponent beyond
+/// 22, where R's long doubles could round differently, and for `nan(...)`,
+/// whose end C's `strtod()` decides.
 #[allow(clippy::result_unit_err)]
 fn strtod(s: &[u8], mut p: usize) -> Result<Option<(f64, usize)>, ()> {
     let at = |p: usize| s.get(p).copied().unwrap_or(0);
@@ -1983,8 +1987,15 @@ fn strtod(s: &[u8], mut p: usize) -> Result<Option<(f64, usize)>, ()> {
     };
     let rest = &s[p.min(s.len())..];
     let starts = |w: &[u8]| rest.len() >= w.len() && rest[..w.len()].eq_ignore_ascii_case(w);
-    if starts(b"nan") || starts(b"inf") {
-        return Ok(None);
+    if starts(b"nan") {
+        if rest.get(3) == Some(&b'(') {
+            return Err(());
+        }
+        return Ok(Some((f64::NAN, p + 3)));
+    }
+    if starts(b"inf") {
+        let len = if starts(b"infinity") { 8 } else { 3 };
+        return Ok(Some((sign * f64::INFINITY, p + len)));
     }
     if rest.len() > 2 && rest[0] == b'0' && (rest[1] | 0x20) == b'x' {
         return Err(());
@@ -2007,19 +2018,11 @@ fn strtod(s: &[u8], mut p: usize) -> Result<Option<(f64, usize)>, ()> {
     if digits > 15 {
         return Err(());
     }
-    if at(p) | 0x20 == b'e' {
-        p += 1;
-        let exp_sign = match at(p) {
-            b'-' => {
-                p += 1;
-                -1
-            }
-            b'+' => {
-                p += 1;
-                1
-            }
-            _ => 1,
-        };
+    // Without a digit, the `e` and its sign are not part of the number.
+    let sign_len = matches!(at(p + 1), b'-' | b'+') as usize;
+    if at(p) | 0x20 == b'e' && at(p + 1 + sign_len).is_ascii_digit() {
+        let exp_sign = if at(p + 1) == b'-' { -1 } else { 1 };
+        p += 1 + sign_len;
         let mut n = 0;
         while at(p).is_ascii_digit() {
             n = if n < 9999 {

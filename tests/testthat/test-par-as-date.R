@@ -23,7 +23,12 @@ test_that("par_as_date() and par_as_posixct() agree with base on messy strings",
       "60.5",
       "1e1",
       "5e",
+      "5e+",
       "nan",
+      "inf",
+      "Infinity",
+      "-inf",
+      "75",
       "",
       "12.3456789"
     )),
@@ -32,6 +37,8 @@ test_that("par_as_date() and par_as_posixct() agree with base on messy strings",
   x[sample(n, 100)] <- NA
   for (format in c(
     "%Y-%m-%d %H:%M:%OS",
+    # strptime() moves past seconds it rejects, to the "Z"
+    "%Y-%m-%d %H:%M:%OSZ",
     "%Y-%m-%d %H:%M:%S",
     "%Y/%m/%d %H:%M",
     " %Y-%m-%d%H"
@@ -77,6 +84,11 @@ test_that("tryFormats pick the format as base does", {
   expect_identical(
     par_as_posixct(hex, tz = "UTC", format = "%Y-%m-%d %H:%M:%OS"),
     as.POSIXct(hex, tz = "UTC", format = "%Y-%m-%d %H:%M:%OS")
+  )
+  nan <- c("2020-01-01 12:34:nan(1)Z", x)
+  expect_identical(
+    par_as_posixct(nan, tz = "UTC", format = "%Y-%m-%d %H:%M:%OSZ"),
+    as.POSIXct(nan, tz = "UTC", format = "%Y-%m-%d %H:%M:%OSZ")
   )
 })
 
