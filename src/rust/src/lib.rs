@@ -2255,10 +2255,18 @@ fn rank<T: Sync, K: Ord + Copy + Send + Sync>(
 /// column of `x`. As in R, each group's rows are added in their order, so
 /// the sums are R's to the bit, and integer sums that overflow give `NA`.
 /// The rows are split by group as `par_duplicated()` splits elements, and
-/// each thread sums its own groups.
+/// each thread sums its own groups. The sums are written through a pointer,
+/// so codes outside the groups, or a `x` that isn't a whole number of rows,
+/// are an error rather than a write out of bounds.
 /// @noRd
 #[extendr]
-fn par_rowsum_rs(x: Robj, codes: &[i32], ng: i32, na_rm: bool, nthreads: i32) -> Robj {
+fn par_rowsum_rs(
+    x: Robj,
+    codes: &[i32],
+    ng: i32,
+    na_rm: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
     fn sums<T: Copy + Send + Sync>(
         x: &[T],
         codes: &[i32],
@@ -2290,8 +2298,18 @@ fn par_rowsum_rs(x: Robj, codes: &[i32], ng: i32, na_rm: bool, nthreads: i32) ->
         });
         out
     }
-    let (pool, ng) = (pool(nthreads), ng as usize);
-    if let Some(v) = x.as_real_slice() {
+    let pool = pool(nthreads);
+    let ok = pool.install(|| {
+        codes
+            .par_iter()
+            .with_min_len(MATCH_PER_THREAD)
+            .all(|&c| 1 <= c && c <= ng)
+    });
+    if !ok || x.len() % codes.len().max(1) != 0 {
+        return Err(Error::Other("malformed groups".into()));
+    }
+    let ng = ng as usize;
+    Ok(if let Some(v) = x.as_real_slice() {
         let add = |s: &mut f64, v: f64| {
             if !na_rm || !v.is_nan() {
                 *s += v
@@ -2315,7 +2333,7 @@ fn par_rowsum_rs(x: Robj, codes: &[i32], ng: i32, na_rm: bool, nthreads: i32) ->
         };
         let v = x.as_integer_slice().unwrap();
         Integers::from_values(sums(v, codes, ng, 0, add, &pool)).into()
-    }
+    })
 }
 
 /// `approx()`'s interpolation at each of `xout`, from `x` sorted, without

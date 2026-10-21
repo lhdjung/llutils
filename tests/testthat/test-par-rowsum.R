@@ -30,3 +30,9 @@ test_that("par_rowsum() agrees with rowsum() to the bit", {
   }
   expect_warning(par_rowsum(xs[[1]], groups[[1]]), "missing values")
 })
+
+test_that("Rust refuses codes outside the groups", {
+  expect_error(par_rowsum_rs(c(1, 2), c(1L, 3L), 2L, FALSE, 1L), "malformed")
+  expect_error(par_rowsum_rs(c(1, 2), c(1L, NA), 2L, FALSE, 1L), "malformed")
+  expect_error(par_rowsum_rs(c(1, 2, 3), 1:2, 2L, FALSE, 1L), "malformed")
+})
