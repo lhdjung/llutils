@@ -62,6 +62,15 @@ test_that("ignore_case folds case in any script", {
   x <- c("\u039f\u0394\u039f\u03a3", "\u212a", "Stra\u00dfe")
   terms <- c("\u03bf\u03b4\u03bf\u03c2", "k", "STRASSE")
   expect_identical(par_match_term(x, terms, ignore_case = TRUE), c(1L, 2L, NA))
+  # "\u0130" lowercases to "i" and a combining dot, and "i" is only part of it
+  expect_identical(
+    par_match_term("\u0130stanbul", "i", ignore_case = TRUE),
+    NA_integer_
+  )
+  expect_identical(
+    par_replace_term("\u0130stanbul", "i", "X", ignore_case = TRUE),
+    "\u0130stanbul"
+  )
   # Lowercased strings keep word bounds
   x <- c(paste0(E, "COLES"), paste0("L'", E, "COLE"), paste0("- ", E, "COLE"))
   expect_identical(

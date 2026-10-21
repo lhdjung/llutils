@@ -1379,6 +1379,12 @@ impl<'a> Search<'a> {
                 };
                 for m in hits(ac, t, bounds) {
                     let (i, j) = if folded {
+                        // A hit on part of a character that lowercases to
+                        // several, as "i" in "İ", is none.
+                        let inside = |k: usize| k > 0 && at[k] == at[k - 1];
+                        if inside(m.start()) || inside(m.end()) {
+                            continue;
+                        }
                         (at[m.start()] as usize, at[m.end()] as usize)
                     } else {
                         (m.start(), m.end())
