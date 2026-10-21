@@ -26,13 +26,15 @@ check_nthreads <- function(nthreads) {
 }
 
 # A data frame or list of columns as an unnamed list of equal-length
-# vectors.
+# vectors. Lists count, such as POSIXlt and list columns, which par_match()
+# compares element by element; data frames don't.
 as_columns <- function(x, arg) {
   if (!is.list(x) || length(x) == 0L) {
     stop("`", arg, "` must be a data frame or a list of columns.")
   }
   x <- unname(as.list(x))
-  if (length(unique(lengths(x))) != 1L || !all(vapply(x, is.atomic, NA))) {
+  is_column <- function(v) is.atomic(v) || (is.list(v) && !is.data.frame(v))
+  if (length(unique(lengths(x))) != 1L || !all(vapply(x, is_column, NA))) {
     stop("The columns of `", arg, "` must be vectors of the same length.")
   }
   x

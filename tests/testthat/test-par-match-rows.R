@@ -55,6 +55,20 @@ test_that("columns pair as par_match() pairs vectors", {
     par_match_rows(list(c(TRUE, NA)), list(c(NA, TRUE))),
     c(2L, 1L)
   )
+  # So do POSIXlt and list columns, which are lists
+  lt <- as.POSIXlt(.POSIXct(c(0, 60, 120), "UTC"))
+  expect_identical(
+    par_match_rows(list(lt, 1:3), list(lt[3:1], 3:1)),
+    c(3L, 2L, 1L)
+  )
+  expect_identical(
+    par_match_rows(list(list(1, "a")), list(list("a", 2, 1))),
+    c(3L, 1L)
+  )
+  expect_error(
+    par_match_rows(list(data.frame(a = 1:2)), list(1:2)),
+    "must be vectors"
+  )
   e <- intToUtf8(233)
   expect_identical(
     par_match_rows(
