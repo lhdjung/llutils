@@ -49,7 +49,9 @@ par_rowsum <- function(
   if (reorder) {
     groups <- sort(groups, na.last = TRUE, method = "quick")
   }
-  codes <- par_match(group, groups, nthreads = nthreads)
+  # Base finds each row's group by its raw value, not as match() compares
+  # classed ones, such as difftime by its printed number.
+  codes <- par_match(unclass(group), unclass(groups), nthreads = nthreads)
   out <- par_rowsum_rs(x, codes, length(groups), na.rm, nthreads)
   dim(out) <- c(length(groups), NCOL(x))
   dimnames(out) <- list(as.character(groups), colnames(x))

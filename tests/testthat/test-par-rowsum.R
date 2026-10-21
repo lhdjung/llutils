@@ -5,7 +5,10 @@ test_that("par_rowsum() agrees with rowsum() to the bit", {
     sample(c(1:300, NA), n, TRUE),
     sample(c(letters, NA), n, TRUE),
     sample(c(0.5, 1, -0, 0, NaN, NA), n, TRUE),
-    factor(sample(letters[1:5], n, TRUE), levels = letters[5:1])
+    factor(sample(letters[1:5], n, TRUE), levels = letters[5:1]),
+    # Groups match by their numbers, not as match() compares these
+    as.difftime(sample(c(1, 1 + 2^-50), n, TRUE), units = "secs"),
+    .Date(sample(c(1, 1.5, 2), n, TRUE))
   )
   xs <- list(
     c(rnorm(n - 3) * 1e10, NA, NaN, Inf),
