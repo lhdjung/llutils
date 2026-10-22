@@ -326,6 +326,11 @@ test_that("an empty term matches only between characters", {
     c(3L, 2L, 3L, 1L)
   )
   expect_identical(par_match_term(e, "", whole_word = TRUE), NA_integer_)
+  # The automaton reports it twice after two bytes of another term.
+  expect_identical(
+    par_count_term(c("xab ", paste0(e, e)), c("abc", e, "")),
+    c(5L, 5L)
+  )
 })
 
 test_that("par_which_term() gives every term grepl(fixed = TRUE) finds", {

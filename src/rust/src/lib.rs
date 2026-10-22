@@ -1477,7 +1477,14 @@ fn hits<'a>(
     s: &'a [u8],
     bounds: Bounds,
 ) -> impl Iterator<Item = aho_corasick::Match> + 'a {
+    // The automaton reports an empty term twice at a position it reaches
+    // through two or more bytes of another term; the repeat is dropped.
+    let mut last = None;
     ac.find_overlapping_iter(s)
+        .filter(move |m| {
+            let hit = (m.pattern(), m.start(), m.end());
+            std::mem::replace(&mut last, Some(hit)) != Some(hit)
+        })
         .filter(move |m| !splits_char(s, m.start(), m.end()))
         .filter(move |m| !bounds.joins(s, m.start(), m.end()))
 }
