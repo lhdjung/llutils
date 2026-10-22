@@ -4,6 +4,7 @@
 \alias{par_match_term}
 \alias{par_count_term}
 \alias{par_which_term}
+\alias{par_match_term_all}
 \title{Find which term each string contains, in parallel}
 \usage{
 par_match_term(
@@ -26,6 +27,15 @@ par_count_term(
 )
 
 par_which_term(
+  x,
+  terms,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  fixed = TRUE,
+  nthreads = getOption("parvenu.threads", 0L)
+)
+
+par_match_term_all(
   x,
   terms,
   ignore_case = FALSE,
@@ -89,6 +99,12 @@ sum of the weights of the hits, \code{0} if none.
 string, the positions in \code{terms} of every term found in it, in
 increasing order and each once, \code{integer(0)} if none, or \code{NA} where \code{x}
 is \code{NA}.
+
+\code{par_match_term_all()} returns a data frame with one row per pair,
+sorted by \code{x} and then by \code{term}: \code{x}, a position in \code{x}, \code{term}, a
+position in \code{terms} found there, and \code{n}, the number of its hits, as
+\code{par_count_term()} counts them. Strings with no term, and \code{NA}, have
+no rows.
 }
 \description{
 For each string in \code{x}:
@@ -101,6 +117,8 @@ strings against a lexicon, such as positive and negative words. With
 words from -5 to 5.
 \item \code{par_which_term()} gives every term each string contains, not just the
 first, for tagging: an abstract with every drug it names.
+\item \code{par_match_term_all()} gives every pair of a string and a term it
+contains, with the number of hits: a document-term matrix in long form.
 }
 }
 \details{
@@ -140,6 +158,8 @@ par_count_term("happy, unhappy, happiness", "happ", whole_word = "start")
 par_count_term("good food, not bad", c("good", "bad"), weights = c(1, -2))
 
 par_which_term(c("york and new york", "rome", NA), cities)
+
+par_match_term_all(c("york and new york", "rome", NA), cities)
 
 par_match_term(c("call 555-1234", "mail a@b.org"), c("\\\\d{3}-\\\\d{4}", "@"), fixed = FALSE)
 }

@@ -552,3 +552,57 @@ test_that("par_replace_term() ignores case in any script, and expands groups", {
     "John Smith; Jane Doe"
   )
 })
+
+test_that("par_match_term_all() pairs strings with the terms they contain", {
+  # The definition: every (string, term) with a count from par_count_term().
+  pairs <- function(x, terms, ...) {
+    counts <- vapply(
+      terms,
+      function(t) par_count_term(x, t, ...),
+      integer(length(x))
+    )
+    hits <- which(counts > 0, arr.ind = TRUE)
+    hits <- hits[order(hits[, 1], hits[, 2]), , drop = FALSE]
+    list2DF(list(
+      x = unname(hits[, 1]),
+      term = unname(hits[, 2]),
+      n = unname(counts[hits])
+    ))
+  }
+  set.seed(3)
+  e <- intToUtf8(233)
+  x <- vapply(
+    1:6000,
+    function(i) paste(sample(c(letters[1:6], " ", e), 10, TRUE), collapse = ""),
+    ""
+  )
+  x[c(5, 500)] <- NA
+  terms <- c("abc", "a", "fed", "bb", "ab", "a", "", "zz", e)
+  expect_identical(par_match_term_all(x, terms), pairs(x, terms))
+  expect_identical(par_match_term_all(x[1:10], terms), pairs(x[1:10], terms))
+  expect_identical(par_match_term_all(factor(x), terms), pairs(x, terms))
+  f <- factor(rep(c("ab", NA, "cd", "ab"), 5000), levels = c("cd", "ab", "zz"))
+  expect_identical(
+    par_match_term_all(f, c("d", "b", "a")),
+    pairs(as.character(f), c("d", "b", "a"))
+  )
+  expect_identical(
+    par_match_term_all(x, c("a\\d", "b+"), fixed = FALSE, whole_word = TRUE),
+    pairs(x, c("a\\d", "b+"), fixed = FALSE, whole_word = TRUE)
+  )
+  expect_identical(
+    par_match_term_all(
+      c("york and new york", "rome", NA),
+      c("new york", "york")
+    ),
+    list2DF(list(x = c(1L, 1L), term = 1:2, n = c(1L, 2L)))
+  )
+  expect_identical(
+    par_match_term_all(c("yorkshire", "York"), "york", TRUE, whole_word = TRUE),
+    list2DF(list(x = 2L, term = 1L, n = 1L))
+  )
+  expect_identical(
+    par_match_term_all(character(), "a"),
+    list2DF(list(x = integer(), term = integer(), n = integer()))
+  )
+})

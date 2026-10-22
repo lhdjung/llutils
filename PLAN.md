@@ -266,6 +266,11 @@ with the same result, which is a use case, not a function.
   overlapping ones included, so a term listed twice counts twice. At 1e5
   strings and 1000 terms it takes 3.1ms, against 4.9s for a
   `stri_count_fixed()` per term.
+- `par_match_term_all()` counts each string's hits per term on the
+  threads, as `par_count_term()` does, and R's thread copies the pairs
+  into three integer vectors: 0.16s for 1e6 strings, the same as
+  `par_which_term()`. A factor's pairs come from its levels, repeated
+  for the elements of each level.
 - `par_which_term()` collects each string's hits on the threads, sorted
   and deduplicated, into a `Vec` per string, then makes one integer vector
   per string on R's thread. At 1e5 strings of four words and 1000 terms it

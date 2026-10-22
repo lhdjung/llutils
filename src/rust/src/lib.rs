@@ -1854,6 +1854,79 @@ fn par_which_term_rs(
     Ok(res)
 }
 
+/// Every pair of a string and a term it contains, with how many hits the
+/// term has in it, as `par_count_term_rs()` counts them: a list of three
+/// integer vectors, the 1-based positions in `x` and in `terms` and the
+/// counts, sorted by the first and then the second. `NA` has no pairs.
+/// Otherwise as `par_match_term_rs()`.
+/// @noRd
+#[extendr]
+fn par_match_term_all_rs(
+    x: Robj,
+    terms: Robj,
+    ignore_case: bool,
+    word_start: bool,
+    word_end: bool,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
+    let bounds = Bounds {
+        start: word_start,
+        end: word_end,
+    };
+    let m = compile_terms(&terms, ignore_case, bounds, fixed)?;
+    let x = unsafe { charsxps(&x) };
+    let mut out: Vec<Vec<(u32, u32)>> = vec![Vec::new(); x.len()];
+    per_string(
+        &mut out,
+        x,
+        Vec::new(),
+        nthreads,
+        || Search::new(&m),
+        |search, _, s| {
+            let mut t = Vec::new();
+            search.each(s, bounds, true, |i, _, _| {
+                t.push(i);
+                true
+            });
+            t.sort_unstable();
+            let mut pairs: Vec<(u32, u32)> = Vec::new();
+            for i in t {
+                match pairs.last_mut() {
+                    Some((j, n)) if *j == i => *n = n.saturating_add(1),
+                    _ => pairs.push((i, 1)),
+                }
+            }
+            pairs
+        },
+    );
+    let total: usize = out.iter().map(|v| v.len()).sum();
+    if total > i32::MAX as usize {
+        return Err(Error::Other("More than 2^31 - 1 pairs match.".into()));
+    }
+    let (mut xs, mut ts, mut ns) = (
+        Vec::with_capacity(total),
+        Vec::with_capacity(total),
+        Vec::with_capacity(total),
+    );
+    for (i, pairs) in out.iter().enumerate() {
+        for &(t, n) in pairs {
+            xs.push(i as i32 + 1);
+            ts.push(t as i32 + 1);
+            ns.push(n.min(i32::MAX as u32) as i32);
+        }
+    }
+    Ok(List::from_names_and_values(
+        ["x", "term", "n"],
+        [
+            Integers::from_values(xs),
+            Integers::from_values(ts),
+            Integers::from_values(ns),
+        ],
+    )?
+    .into())
+}
+
 /// `findInterval(x, vec)`: how many of the sorted `vec` are at most each
 /// `x` (below it, if `left_open`), with base's adjustments at the ends.
 /// `NaN` gives `NA`. `vec` must not be empty.
@@ -2790,6 +2863,7 @@ extendr_module! {
     fn par_match_term_rs;
     fn par_count_term_rs;
     fn par_which_term_rs;
+    fn par_match_term_all_rs;
     fn par_find_interval_rs;
     fn par_unique_rs;
     fn par_extract_all_rs;

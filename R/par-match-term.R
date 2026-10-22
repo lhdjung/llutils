@@ -10,6 +10,8 @@
 #'   words from -5 to 5.
 #' - `par_which_term()` gives every term each string contains, not just the
 #'   first, for tagging: an abstract with every drug it names.
+#' - `par_match_term_all()` gives every pair of a string and a term it
+#'   contains, with the number of hits: a document-term matrix in long form.
 #'
 #' @details Terms are literal, as in `grepl(fixed = TRUE)`, so no character
 #'   needs escaping by default. However, with `fixed = FALSE`, the terms are
@@ -71,6 +73,12 @@
 #'   increasing order and each once, `integer(0)` if none, or `NA` where `x`
 #'   is `NA`.
 #'
+#'   `par_match_term_all()` returns a data frame with one row per pair,
+#'   sorted by `x` and then by `term`: `x`, a position in `x`, `term`, a
+#'   position in `terms` found there, and `n`, the number of its hits, as
+#'   `par_count_term()` counts them. Strings with no term, and `NA`, have
+#'   no rows.
+#'
 #' @export
 #'
 #' @examples
@@ -91,6 +99,8 @@
 #' par_count_term("good food, not bad", c("good", "bad"), weights = c(1, -2))
 #'
 #' par_which_term(c("york and new york", "rome", NA), cities)
+#'
+#' par_match_term_all(c("york and new york", "rome", NA), cities)
 #'
 #' par_match_term(c("call 555-1234", "mail a@b.org"), c("\\d{3}-\\d{4}", "@"), fixed = FALSE)
 par_match_term <- function(
@@ -165,6 +175,48 @@ par_which_term <- function(
     fixed,
     nthreads
   )
+}
+
+#' @rdname par_match_term
+#' @export
+par_match_term_all <- function(
+  x,
+  terms,
+  ignore_case = FALSE,
+  whole_word = FALSE,
+  fixed = TRUE,
+  nthreads = getOption("parvenu.threads", 0L)
+) {
+  if (is.factor(x) && nlevels(x) < length(x)) {
+    # The pairs of the levels, repeated for the elements of each level.
+    lv <- par_match_term_all(
+      levels(x),
+      terms,
+      ignore_case,
+      whole_word,
+      fixed,
+      nthreads
+    )
+    sizes <- tabulate(lv$x, nlevels(x))
+    codes <- as.integer(x)
+    i <- which(!is.na(codes))
+    counts <- sizes[codes[i]]
+    rows <- sequence(counts, from = cumsum(c(1L, sizes))[codes[i]])
+    return(list2DF(list(
+      x = rep.int(i, counts),
+      term = lv$term[rows],
+      n = lv$n[rows]
+    )))
+  }
+  list2DF(run_terms(
+    par_match_term_all_rs,
+    x,
+    terms,
+    ignore_case,
+    whole_word,
+    fixed,
+    nthreads
+  ))
 }
 
 #' Replace dictionary terms, in parallel

@@ -107,6 +107,14 @@ par_count_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed
 #' @noRd
 par_which_term_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads) .Call(wrap__par_which_term_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads)
 
+#' Every pair of a string and a term it contains, with how many hits the
+#' term has in it, as `par_count_term_rs()` counts them: a list of three
+#' integer vectors, the 1-based positions in `x` and in `terms` and the
+#' counts, sorted by the first and then the second. `NA` has no pairs.
+#' Otherwise as `par_match_term_rs()`.
+#' @noRd
+par_match_term_all_rs <- function(x, terms, ignore_case, word_start, word_end, fixed, nthreads) .Call(wrap__par_match_term_all_rs, x, terms, ignore_case, word_start, word_end, fixed, nthreads)
+
 #' `findInterval(x, vec)`: how many of the sorted `vec` are at most each
 #' `x` (below it, if `left_open`), with base's adjustments at the ends.
 #' `NaN` gives `NA`. `vec` must not be empty.
