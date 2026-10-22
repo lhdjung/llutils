@@ -12,8 +12,11 @@ test_that("par_duplicated() agrees with duplicated() on vectors", {
     factor(sample(c(letters, NA), n, TRUE)),
     as.Date("2026-01-01") + sample(0:3, n, TRUE) / 2, # not matched by day
     as.POSIXct("2026-01-01", tz = "UTC") + sample(1e3, n, TRUE),
-    sample.int(1000, 2e4, TRUE) # one map, on one thread
+    sample.int(1000, 2e4, TRUE), # one map, on one thread
+    # A subclass of factor with its own method goes to base
+    structure(factor(sample(letters, n, TRUE)), class = c("dupf", "factor"))
   )
+  .S3method("duplicated", "dupf", function(x, ...) rep(TRUE, length(x)))
   for (x in xs) {
     for (fl in c(FALSE, TRUE)) {
       expect_identical(

@@ -72,7 +72,7 @@ par_duplicated <- function(
         par_duplicated_rows_rs(unname(cols), fromLast, nthreads)
       }
     } else if (length(x) >= RUST_MIN && is.null(dim(x)) && is_dup_class(x)) {
-      if (is.integer(x) || is.double(x) || is.character(x) || is.factor(x)) {
+      if (is.integer(x) || is.double(x) || is.character(x) || plain_factor(x)) {
         par_duplicated_rs(x, fromLast, nthreads)
       }
     }
@@ -114,9 +114,6 @@ par_unique <- function(
     return(out)
   }
   nthreads <- check_nthreads(nthreads)
-  # A subclass of factor may have its own unique() method.
-  plain_factor <- identical(class(x), "factor") ||
-    identical(class(x), c("ordered", "factor"))
   out <- if (
     isFALSE(incomparables) &&
       is_bool(fromLast) &&
@@ -124,8 +121,7 @@ par_unique <- function(
       length(x) <= .Machine$integer.max &&
       is.null(dim(x)) &&
       is_dup_class(x) &&
-      (!is.factor(x) || plain_factor) &&
-      (is.integer(x) || is.double(x) || is.character(x) || is.factor(x))
+      (is.integer(x) || is.double(x) || is.character(x) || plain_factor(x))
   ) {
     par_unique_rs(x, fromLast, nthreads)
   }
@@ -171,6 +167,12 @@ par_any_duplicated <- function(
   } else {
     w[1L]
   }
+}
+
+# A factor that isn't a subclass, which may have its own duplicated() or
+# unique() method.
+plain_factor <- function(x) {
+  identical(class(x), "factor") || identical(class(x), c("ordered", "factor"))
 }
 
 # Classes whose duplicated() method compares the underlying values, as Rust

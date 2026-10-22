@@ -79,11 +79,12 @@ twice, comes out as in base. That code runs on only two times per
 calendar day for the days that have no change of clock, and on every
 time of the days that do.
 
-Everything else goes to base R: other formats, month names in other
-locales, inputs that aren't strings or factors, fewer than 1e4
-strings, \code{tryFormats} with \verb{\%z} in a time zone other than UTC, and
-seconds written in hexadecimal, with more than 15 digits, or as
-\code{nan(...)}. So does an input that no format fits, which base R reports.
+Everything else goes to base R: other formats, several formats in
+\code{format}, month names in other locales, inputs that aren't strings or
+factors, fewer than 1e4 strings, \code{tryFormats} with \verb{\%z} in a time zone
+other than UTC, spaces other than ASCII ones, and seconds written in
+hexadecimal, with more than 15 digits, or as \code{nan(...)}. So does an
+input that no format fits, which base R reports.
 Factors are turned into strings first.
 }
 \examples{

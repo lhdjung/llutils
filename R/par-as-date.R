@@ -21,11 +21,12 @@
 #'   calendar day for the days that have no change of clock, and on every
 #'   time of the days that do.
 #'
-#'   Everything else goes to base R: other formats, month names in other
-#'   locales, inputs that aren't strings or factors, fewer than 1e4
-#'   strings, `tryFormats` with `%z` in a time zone other than UTC, and
-#'   seconds written in hexadecimal, with more than 15 digits, or as
-#'   `nan(...)`. So does an input that no format fits, which base R reports.
+#'   Everything else goes to base R: other formats, several formats in
+#'   `format`, month names in other locales, inputs that aren't strings or
+#'   factors, fewer than 1e4 strings, `tryFormats` with `%z` in a time zone
+#'   other than UTC, spaces other than ASCII ones, and seconds written in
+#'   hexadecimal, with more than 15 digits, or as `nan(...)`. So does an
+#'   input that no format fits, which base R reports.
 #'   Factors are turned into strings first.
 #'
 #' @param x A string vector, or a factor.
@@ -100,7 +101,12 @@ par_as_posixct <- function(
     (identical(tz, "") && session_utc())
   out <- if (utc) {
     parse_time(x, format, tryFormats, FALSE, nthreads)
-  } else if (is_string(tz) && is.character(formats)) {
+  } else if (
+    is_string(tz) &&
+      is.character(formats) &&
+      # strptime() recycles several formats along `x`.
+      (missing(format) || length(format) == 1L)
+  ) {
     if (!any(grepl("%z", formats, fixed = TRUE))) {
       local_time(x, formats, missing(format), tz, nthreads)
     } else if (!missing(format)) {
@@ -162,8 +168,17 @@ parse_time <- function(x, format, tryFormats, date, nthreads, split = FALSE) {
 }
 
 # Whether strptime() reads the English month names and AM/PM that Rust does.
+# It takes them from the C library, as format() does, and some English
+# locales differ: glibc's en_GB abbreviates September as "Sept".
 english_time <- function() {
-  grepl("^(C|POSIX|en_|English)", Sys.getlocale("LC_TIME"))
+  up <- function(x, f) toupper(format(x, f))
+  months <- ISOdate(2000, 1:12, 1)
+  identical(up(months, "%b"), toupper(month.abb)) &&
+    identical(up(months, "%B"), toupper(month.name)) &&
+    identical(
+      up(ISOdatetime(2000, 1, 1, c(1, 13), 0, 0, "UTC"), "%p"),
+      c("AM", "PM")
+    )
 }
 
 # Seconds of the times of `x` read with `formats` and placed in `tz`, or
@@ -204,6 +219,13 @@ local_secs <- function(secs, frac, tz, nthreads) {
     attr(lt, "tzone") <- tz
     lt$isdst <- -1L
     lt$gmtoff <- NA_integer_
+    # As base: strptime() keeps the isdst that a first mktime() decides,
+    # and as.POSIXct() passes it to a second. With R's own time-zone code
+    # the result is the same either way; the C library's mktime() may place
+    # a time that doesn't exist differently given -1.
+    isdst <- as.POSIXlt(as.POSIXct(lt, tz), tz)$isdst
+    isdst[is.na(isdst)] <- -1L
+    lt$isdst <- isdst
     as.double(as.POSIXct(lt, tz))
   }
   days <- floor(secs / 86400)

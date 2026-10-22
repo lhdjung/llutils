@@ -2127,6 +2127,12 @@ fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
                 while s.get(p).is_some_and(|&c| is_space(c)) {
                     p += 1;
                 }
+                // R reads UTF-8 as wide characters, and its `iswspace()`
+                // takes some Unicode spaces too, which ones depending on
+                // the platform; so R decides.
+                if s.get(p).is_some_and(|&c| c >= 0x80) {
+                    return Parsed::Unsupported;
+                }
                 continue;
             }
             Part::Lit(c) => {

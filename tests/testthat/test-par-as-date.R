@@ -217,6 +217,7 @@ test_that("month names in other locales go to base", {
     error = function(e) FALSE
   )
   skip_if_not(ok, "no de_DE.UTF-8 locale")
+  expect_false(english_time())
   s <- rep(c("05 Mar 2024", "05 März 2024", "05 Mai 2024", NA), 2500)
   expect_identical(par_as_date(s, "%d %b %Y"), as.Date(s, "%d %b %Y"))
   s <- rep("2020-01-01 1 PM", 1e4)
@@ -293,4 +294,44 @@ test_that("other time zones give base's instants, also at changes of clock", {
     par_as_posixct(z, tz = tz, tryFormats = "%FT%T%z"),
     as.POSIXct(z, tz = tz, tryFormats = "%FT%T%z")
   )
+})
+
+test_that("several formats go to base, which recycles them along `x`", {
+  x <- rep(
+    c("2024-03-05 14:30:00", "2024-10-27 02:30:00", NA),
+    length.out = 1e4
+  )
+  f <- c("%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
+  for (tz in c("UTC", "Europe/Berlin")) {
+    expect_identical(
+      par_as_posixct(x, tz = tz, format = f),
+      as.POSIXct(x, tz = tz, format = f)
+    )
+  }
+  expect_identical(par_as_date(x, format = f), as.Date(x, format = f))
+})
+
+test_that("spaces other than ASCII ones are left to base", {
+  # strptime() reads UTF-8 as wide characters, and iswspace() takes some of
+  # these, which ones depending on the platform.
+  x <- rep(
+    c(
+      "2020-01-01 12:34:00",
+      "2020-01-01　12:34:00",
+      "2020-01-01 12:34:00",
+      "2020-01-01 12:34:00",
+      "2020-01-01 12:34:00　"
+    ),
+    length.out = 1e4
+  )
+  f <- "%Y-%m-%d %H:%M:%S"
+  expect_identical(
+    par_as_posixct(x, tz = "UTC", format = f),
+    as.POSIXct(x, tz = "UTC", format = f)
+  )
+  expect_identical(
+    par_as_posixct(x, tz = "Europe/Berlin", format = f),
+    as.POSIXct(x, tz = "Europe/Berlin", format = f)
+  )
+  expect_identical(par_as_date(x, format = f), as.Date(x, format = f))
 })

@@ -207,6 +207,11 @@ test_that("all keep names, as regmatches(), sub(), and gsub() do", {
     par_extract_all(f, "[0-9]"),
     regmatches(f, gregexpr("[0-9]", f))
   )
+  expect_null(rownames(par_extract(f, "([0-9])", group = 0:1)))
+  expect_null(rownames(par_locate(f, "[0-9]")))
+  expect_null(names(par_locate_all(f, "[0-9]")))
+  expect_null(names(regexpr("[0-9]", f)))
+  expect_null(names(gregexpr("[0-9]", f)))
 })
 
 test_that("par_locate() agrees with regexpr()", {
@@ -230,8 +235,9 @@ test_that("par_locate() agrees with regexpr()", {
       dimnames = list(c("a", "b"), c("start", "end"))
     )
   )
+  # A factor's names go, as with regexpr()
   f <- factor(c(a = "x1", b = "y", c = "x1"))
-  expect_identical(par_locate(f, "[0-9]")[, "start"], c(a = 2L, b = NA, c = 2L))
+  expect_identical(par_locate(f, "[0-9]")[, "start"], c(2L, NA, 2L))
 })
 
 test_that("latin1 strings, converted on the threads, give UTF-8's results", {

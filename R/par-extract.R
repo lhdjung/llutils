@@ -74,13 +74,13 @@ par_extract <- function(
   nthreads = getOption("parvenu.threads", 0L)
 ) {
   if (length(group) > 1L) {
-    nm <- names(x)
     if (is.factor(x)) {
-      x <- as.character(x) # a matrix can't be indexed by the levels
+      # A matrix can't be indexed by the levels; the names go, as below.
+      x <- as.character(x)
     }
     out <- run_extract(par_extract_rs, x, pattern, group, fixed, nthreads, TRUE)
     dim(out) <- c(length(x), length(group))
-    rownames(out) <- nm
+    rownames(out) <- names(x)
     return(out)
   }
   out <- run_extract(par_extract_rs, x, pattern, group, fixed, nthreads)
@@ -113,13 +113,13 @@ par_locate <- function(
   fixed = FALSE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  nm <- names(x)
   if (is.factor(x)) {
-    x <- as.character(x) # a matrix can't be indexed by the levels
+    # A matrix can't be indexed by the levels, and regexpr() drops the names.
+    x <- as.character(x)
   }
   out <- run_extract(par_locate_rs, x, pattern, group, fixed, nthreads)
   dim(out) <- c(length(x), 2L)
-  dimnames(out) <- list(nm, c("start", "end"))
+  dimnames(out) <- list(names(x), c("start", "end"))
   out
 }
 
@@ -132,12 +132,11 @@ par_locate_all <- function(
   fixed = FALSE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
-  nm <- names(x)
   if (is.factor(x)) {
-    x <- as.character(x) # as in par_locate()
+    x <- as.character(x) # as in par_locate(); gregexpr() drops the names
   }
   out <- run_extract(par_locate_all_rs, x, pattern, group, fixed, nthreads)
-  names(out) <- nm
+  names(out) <- names(x)
   out
 }
 
