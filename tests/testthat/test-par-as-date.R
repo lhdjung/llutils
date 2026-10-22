@@ -70,6 +70,7 @@ test_that("tryFormats pick the format as base does", {
   expect_identical(par_as_date(factor(days)), as.Date(factor(days)))
   named <- setNames(days, seq_along(days))
   expect_identical(par_as_date(named), as.Date(named))
+  expect_identical(par_as_date(factor(named)), as.Date(factor(named)))
   expect_error(par_as_date(c("x", days)), "unambiguous")
   expect_identical(
     par_as_date(c("x", days), optional = TRUE),

@@ -230,7 +230,7 @@ par_replace_term <- function(
   replacement <- enc2utf8(replacement)
   rs <- function(...) par_replace_term_rs(..., replacement)
   out <- run_terms(rs, x, terms, ignore_case, whole_word, fixed, nthreads)
-  names(out) <- names(x) # as gsub() keeps them
+  names(out) <- if (!is.factor(x)) names(x) # as gsub() keeps them
   out
 }
 

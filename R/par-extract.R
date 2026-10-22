@@ -62,7 +62,9 @@ par_extract <- function(
   nthreads = getOption("parvenu.threads", 0L)
 ) {
   out <- run_extract(par_extract_rs, x, pattern, group, fixed, nthreads)
-  names(out) <- names(x) # as regmatches() keeps them
+  # As regmatches() keeps them, except on a factor, where as.character()
+  # drops them.
+  names(out) <- if (!is.factor(x)) names(x)
   out
 }
 
@@ -156,6 +158,7 @@ run_replace <- function(x, pattern, replacement, fixed, all, nthreads) {
     par_replace_rs(x, pattern, replacement, fixed, all, nthreads)
   }
   out <- run_pattern(rs, x, pattern, fixed, nthreads)
-  names(out) <- names(x) # as sub() and gsub() keep them
+  # As sub() and gsub() keep them, except on a factor.
+  names(out) <- if (!is.factor(x)) names(x)
   out
 }

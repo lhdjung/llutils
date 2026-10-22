@@ -199,6 +199,14 @@ test_that("all keep names, as regmatches(), sub(), and gsub() do", {
     par_extract_all(x, "[0-9]"),
     regmatches(x, gregexpr("[0-9]", x))
   )
+  f <- factor(x)
+  expect_identical(par_replace_all(f, "[0-9]", "#"), gsub("[0-9]", "#", f))
+  expect_identical(par_replace_term(f, "x", "#"), gsub("x", "#", f))
+  expect_identical(par_extract(f, "[0-9]"), c("1", NA))
+  expect_identical(
+    par_extract_all(f, "[0-9]"),
+    regmatches(f, gregexpr("[0-9]", f))
+  )
 })
 
 test_that("par_locate() agrees with regexpr()", {

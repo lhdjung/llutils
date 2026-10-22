@@ -55,7 +55,7 @@ par_as_date <- function(
     )
   }
 
-  names(out) <- names(x)
+  names(out) <- if (!is.factor(x)) names(x) # as.character() drops a factor's
   class(out) <- "Date"
 
   out
