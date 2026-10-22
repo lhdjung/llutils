@@ -60,8 +60,9 @@ large inputs. For a data frame, rows are compared, as in base.
 \code{par_unique()} is base \code{\link[=unique]{unique()}} on the same machinery, and
 \code{length(par_unique(x))} counts the distinct elements.
 \code{par_any_duplicated()} is base \code{\link[=anyDuplicated]{anyDuplicated()}}: the position of the
-first duplicate, or \code{0} if there is none, which base takes as long to
-find as all of them.
+first duplicate, or \code{0} if there is none. Base stops at the first, so
+it is quick where one comes early; this checks the first 65536
+elements (the last, with \code{fromLast}) that way before marking all.
 }
 \details{
 Computed in Rust when \code{x} has at least 1e4 elements (or rows)

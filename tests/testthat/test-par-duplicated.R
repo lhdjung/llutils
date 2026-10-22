@@ -135,7 +135,15 @@ test_that("par_any_duplicated() agrees with anyDuplicated()", {
     data.frame(a = sample(n), b = sample(n)),
     data.frame(a = sample(2, n, TRUE), b = sample(2, n, TRUE)),
     matrix(sample(4, 2 * n, TRUE), ncol = 2),
-    1:5
+    1:5,
+    # Long enough for the first elements to be checked on their own
+    sample(2e5),
+    replace(sample(2e5), c(10, 20), 7L),
+    replace(sample(2e5), c(10, 2e5 - 5), 7L),
+    replace(as.character(sample(2e5)), c(3, 2e5), "x"),
+    replace(sample(2e5), c(2e5 - 1, 2e5), 3L),
+    factor(replace(as.character(sample(2e5)), c(100, 2e5 - 100), "x")),
+    setNames(replace(sample(2e5), c(5, 7e4), 3L), rep("a", 2e5))
   )
   for (x in xs) {
     for (fl in c(FALSE, TRUE)) {

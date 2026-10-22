@@ -6,8 +6,9 @@
 #'   `par_unique()` is base [unique()] on the same machinery, and
 #'   `length(par_unique(x))` counts the distinct elements.
 #'   `par_any_duplicated()` is base [anyDuplicated()]: the position of the
-#'   first duplicate, or `0` if there is none, which base takes as long to
-#'   find as all of them.
+#'   first duplicate, or `0` if there is none. Base stops at the first, so
+#'   it is quick where one comes early; this checks the first 65536
+#'   elements (the last, with `fromLast`) that way before marking all.
 #'
 #' @details Computed in Rust when `x` has at least 1e4 elements (or rows)
 #'   and is an integer, double, or string vector, a factor, a Date, or a
@@ -150,6 +151,17 @@ par_any_duplicated <- function(
   fromLast = FALSE,
   nthreads = getOption("parvenu.threads", 0L)
 ) {
+  # A duplicate within the first elements (or the last, with `fromLast`) is
+  # the first overall, so base's early stop is kept where it is quick.
+  slice <- 65536L
+  n <- length(x)
+  if (is.atomic(x) && is.null(dim(x)) && n > 2L * slice) {
+    i <- if (isTRUE(fromLast)) seq.int(n - slice + 1L, n) else seq_len(slice)
+    w <- anyDuplicated(x[i], incomparables, fromLast = fromLast)
+    if (w) {
+      return(i[w])
+    }
+  }
   w <- which(par_duplicated(x, incomparables, fromLast, nthreads))
   # Base scans from the end with `fromLast`, so it finds the last one.
   if (!length(w)) {
