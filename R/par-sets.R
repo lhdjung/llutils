@@ -66,10 +66,12 @@ par_setdiff <- function(x, y, nthreads = getOption("parvenu.threads", 0L)) {
 }
 
 # base:::.set_ops_need_as_vector (R 4.5): whether the set operations work on
-# the plain vectors, rather than keeping the classes of `x` and `y`.
+# the plain vectors, rather than keeping the classes of `x` and `y`. Before
+# R 4.5.0, they always did.
 set_ops_need_as_vector <- function(x, y) {
   class0 <- function(v) class(tryCatch(v[0L], error = identity))
-  length(dim(x)) >= 2L ||
+  getRversion() < "4.5.0" ||
+    length(dim(x)) >= 2L ||
     length(dim(y)) >= 2L ||
     (!isa(x, class(y)) && !isa(y, class(x))) ||
     !identical(class0(x), class(x)) ||

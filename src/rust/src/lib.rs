@@ -2805,7 +2805,8 @@ fn last_char(s: &[u8]) -> Option<char> {
 /// A string's bytes, by its pointer, as UTF-8: a latin1 string is converted
 /// into `buf` as `enc2utf8()` converts it, so R needn't run that first, on
 /// one thread. R reads latin1 as Windows-1252, and writes the 5 bytes that
-/// has no character for as `<81>` and the like.
+/// has no character for as `<81>` and the like, or on Windows as the latin1
+/// control characters.
 unsafe fn utf8(p: usize, buf: &mut Vec<u8>) -> &[u8] {
     // R never marks an ASCII string as latin1.
     if Rf_getCharCE(p as SEXP) != 2 {
@@ -2818,7 +2819,9 @@ unsafe fn utf8(p: usize, buf: &mut Vec<u8>) -> &[u8] {
         } else {
             b as char
         };
-        if c == '\0' {
+        if c == '\0' && cfg!(windows) {
+            buf.extend_from_slice((b as char).encode_utf8(&mut [0; 4]).as_bytes());
+        } else if c == '\0' {
             buf.extend_from_slice(format!("<{b:02x}>").as_bytes());
         } else {
             buf.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes());
