@@ -71,8 +71,9 @@ par_detect_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_detect_rs
 par_count_rs <- function(x, pattern, fixed, nthreads) .Call(wrap__par_count_rs, x, pattern, fixed, nthreads)
 
 #' The first match of `pattern` in each string, or its capture group
-#' `group` (0 for the whole match); `NA` where there is none. Otherwise as
-#' `par_detect_rs()`.
+#' `group` (0 for the whole match); `NA` where there is none. With several
+#' groups, a string vector of the strings' first group, then their second,
+#' and so on: a matrix for R to shape. Otherwise as `par_detect_rs()`.
 #' @noRd
 par_extract_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_extract_rs, x, pattern, group, fixed, nthreads)
 
@@ -134,6 +135,15 @@ par_extract_all_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__p
 #' Otherwise as `par_extract_rs()`.
 #' @noRd
 par_locate_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_locate_rs, x, pattern, group, fixed, nthreads)
+
+#' Where every match of `pattern` is in each string, as `par_count_rs()`
+#' finds them, or capture group `group` of each: a list of integer
+#' matrices with columns `start` and `end`, a row per match, as
+#' `par_locate_rs()` counts positions, `NA` where the group took no part;
+#' one row of `NA` where `x` or `pattern` is `NA`. Otherwise as
+#' `par_extract_rs()`.
+#' @noRd
+par_locate_all_rs <- function(x, pattern, group, fixed, nthreads) .Call(wrap__par_locate_all_rs, x, pattern, group, fixed, nthreads)
 
 #' Every hit of `terms` in each string replaced by its `replacement`, one
 #' per term or one for all: the leftmost hit first, the earliest term

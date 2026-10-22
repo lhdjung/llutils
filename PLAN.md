@@ -402,8 +402,14 @@ with the same result, which is a use case, not a function.
   Returns a matrix, as stringi's `stri_locate_first_regex()` does; a
   factor goes through `as.character()`, since a matrix can't be indexed by
   levels. At 1e6 strings: 18ms, against 80ms for `regexpr(perl = TRUE)`
-  and 138ms for stringi. No `par_locate_all()` yet: it would make a matrix
-  per string on R's thread.
+  and 138ms for stringi.
+- `par_locate_all()` makes a matrix per string on R's thread, which is
+  most of its time: 0.5s for 1e6 strings with 3 matches each, where
+  stringi takes 0.57s and `gregexpr(perl = TRUE)` 2.3s. The matrices
+  share one `dimnames` and, up to 16 rows, one `dim`.
+- `par_extract()` with several groups makes the matrix in one search:
+  0.3s for 1e6 strings and 4 groups, against 0.55s for one call per
+  group and 0.6s for `stri_match_first_regex()`.
 
 `par_as_date()` and `par_as_posixct()`:
 

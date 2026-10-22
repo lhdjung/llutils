@@ -255,3 +255,88 @@ test_that("latin1 strings, converted on the threads, give UTF-8's results", {
     )
   }
 })
+
+test_that("several groups give a matrix from one search", {
+  skip_if_not_installed("stringi")
+  p <- "([a-c]+)( )?([0-9])"
+  m <- unname(stringi::stri_match_first_regex(x, p))
+  expect_identical(par_extract(x, p, group = 0:3), m)
+  expect_identical(par_extract(x, p, group = c(3, 1)), m[, c(4, 2)])
+  expect_identical(par_extract(x[1:10], p, group = 1:3), m[1:10, 2:4])
+  expect_identical(par_extract(factor(x), p, group = 0:1), m[, 1:2])
+  expect_identical(
+    par_extract(c(a = "ab 1", b = "zz"), p, group = 0:1),
+    matrix(c("ab 1", NA, "ab", NA), 2, dimnames = list(c("a", "b"), NULL))
+  )
+  expect_identical(
+    par_extract(c("abc1", "abc1"), c(p, NA), group = 0:1),
+    matrix(c("abc1", NA, "abc", NA), 2)
+  )
+  expect_identical(
+    par_extract(character(), "(a)", group = 0:1),
+    matrix(character(), 0, 2)
+  )
+  expect_error(par_extract("a", "(a)", group = 0:2), "no group 2")
+  expect_error(par_extract("a", "a", group = c(0, -1)), "group")
+  expect_error(par_extract_all("a", "(a)", group = 0:1), "single")
+})
+
+test_that("par_locate_all() gives where every match is", {
+  skip_if_not_installed("stringi")
+  locate_all <- function(x, p, g = 0) {
+    l <- stringi::stri_locate_all_regex(
+      x,
+      p,
+      omit_no_match = TRUE,
+      capture_groups = g > 0
+    )
+    lapply(l, function(m) {
+      if (g > 0) {
+        m <- attr(m, "capture_groups")[[g]]
+      }
+      storage.mode(m) <- "integer"
+      m
+    })
+  }
+  for (p in c("[0-9]+", "a.c", "^b", "[a-c]", "\\b")) {
+    expect_identical(par_locate_all(x, p), locate_all(x, p), info = p)
+  }
+  expect_identical(
+    par_locate_all(x[1:10], "[0-9]"),
+    locate_all(x[1:10], "[0-9]")
+  )
+  p <- "([a-c]+)( )?([0-9])"
+  for (g in 1:3) {
+    expect_identical(par_locate_all(x, p, group = g), locate_all(x, p, g))
+  }
+  # Empty matches as par_count() counts them
+  expect_identical(
+    lengths(par_locate_all(x, "a*"))[!is.na(x)],
+    2L * par_count(x, "a*")[!is.na(x)]
+  )
+  m <- function(...) {
+    matrix(c(...), ncol = 2, dimnames = list(NULL, c("start", "end")))
+  }
+  e <- intToUtf8(233)
+  expect_identical(
+    par_locate_all(paste0(e, "a", e), e),
+    list(m(1L, 3L, 1L, 3L))
+  )
+  expect_identical(
+    par_locate_all(c("a1b22", "none", NA), "[0-9]+"),
+    list(m(2L, 4L, 2L, 5L), m(integer()), m(NA_integer_, NA_integer_))
+  )
+  expect_identical(
+    par_locate_all(c("a.c.", "abc"), ".", fixed = TRUE),
+    list(m(2L, 4L, 2L, 4L), m(integer()))
+  )
+  expect_identical(
+    names(par_locate_all(c(p = "ab", q = "b"), "b")),
+    c("p", "q")
+  )
+  expect_identical(
+    par_locate_all(factor(c("ab", "b")), "b"),
+    par_locate_all(c("ab", "b"), "b")
+  )
+  expect_identical(par_locate_all(character(), "a"), list())
+})

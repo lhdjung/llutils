@@ -4,6 +4,7 @@
 \alias{par_extract}
 \alias{par_extract_all}
 \alias{par_locate}
+\alias{par_locate_all}
 \alias{par_replace}
 \alias{par_replace_all}
 \title{Extract or replace regex matches, in parallel}
@@ -25,6 +26,14 @@ par_extract_all(
 )
 
 par_locate(
+  x,
+  pattern,
+  group = 0L,
+  fixed = FALSE,
+  nthreads = getOption("parvenu.threads", 0L)
+)
+
+par_locate_all(
   x,
   pattern,
   group = 0L,
@@ -56,7 +65,8 @@ one string, or one per string of \code{x}, as in
 \code{\link[stringi:stri_detect]{stringi::stri_detect_regex()}}. Each distinct pattern is compiled once.}
 
 \item{group}{The capture group to extract: 0 for the whole match, 1 for
-the first group, and so on.}
+the first group, and so on. \code{par_extract()} also takes several, such as
+\code{0:3}, and gives a matrix with a column per group, from one search.}
 
 \item{fixed}{If \code{TRUE}, \code{pattern} is found as it is, as in
 \code{grepl(fixed = TRUE)}: no character has a special meaning.}
@@ -76,7 +86,10 @@ group named \verb{1a}. R's \verb{\\\\1} is not a group here.}
 A string vector as long as \code{x}, \code{NA} where \code{x} or \code{pattern}
 is \code{NA}, and for \code{par_extract()}, also where nothing matches, or the
 group took no part in the match. All keep the names of \code{x}, as
-\code{\link[=regmatches]{regmatches()}}, \code{\link[=sub]{sub()}}, and \code{\link[=gsub]{gsub()}} do.
+\code{\link[=regmatches]{regmatches()}}, \code{\link[=sub]{sub()}}, and \code{\link[=gsub]{gsub()}} do. With several groups,
+\code{par_extract()} returns a string matrix with a row per string, named
+as \code{x} is, and a column per group, as
+\code{\link[stringi:stri_match]{stringi::stri_match_first_regex()}} does.
 
 \code{par_extract_all()} returns a list as long as \code{x} instead: for each
 string, a string vector of its matches, \code{character(0)} if none, or
@@ -89,14 +102,20 @@ columns \code{start} and \code{end}, positions of characters, as in
 \code{\link[stringi:stri_locate]{stringi::stri_locate_first_regex()}}: an empty match has \code{end} one less
 than \code{start}. \code{NA} where there is no match, or the group took no part in
 it.
+
+\code{par_locate_all()} returns a list as long as \code{x} instead: for each
+string, such a matrix with a row per match, no rows if none, or one row
+of \code{NA} where \code{x} or \code{pattern} is \code{NA}.
 }
 \description{
 \code{par_extract()} gives the first match of \code{pattern} in each
 string, like \code{regmatches(x, regexpr(pattern, x))} but with \code{NA} where
 nothing matches, or a capture group of it, which takes the place of
-lookaround. \code{par_extract_all()} gives every match, like
-\code{regmatches(x, gregexpr(pattern, x))}. \code{par_locate()} gives where the
-first match is instead, like \code{regexpr(pattern, x)}.
+lookaround, or several groups at once, as a matrix. \code{par_extract_all()}
+gives every match, like \code{regmatches(x, gregexpr(pattern, x))}.
+\code{par_locate()} gives where the first match is instead, like
+\code{regexpr(pattern, x)}, and \code{par_locate_all()} where every match is,
+like \code{gregexpr(pattern, x)}.
 
 \code{par_replace()} replaces the first match, like
 \code{sub(pattern, replacement, x)}, and \code{par_replace_all()} every match, like
@@ -114,8 +133,10 @@ unchanged are not copied.
 x <- c("born 1999 in Oslo", "no year", NA)
 par_extract(x, "[0-9]{4}")
 par_extract(x, "born ([0-9]+)", group = 1)
+par_extract(x, "born ([0-9]+) in (\\\\w+)", group = 1:2)
 par_extract_all(c("#rstats and #rust", "none", NA), "#(\\\\w+)", group = 1)
 par_locate(x, "[0-9]{4}")
+par_locate_all(x, "[a-z]+")
 par_replace(x, "[0-9]", "#")
 par_replace_all(x, "[0-9]", "#")
 par_replace_all("Smith, John", "(\\\\w+), (\\\\w+)", "$2 $1")

@@ -18,7 +18,10 @@ extern "C" {
     fn INTEGER(x: SEXP) -> *mut c_int;
     fn SET_STRING_ELT(x: SEXP, i: isize, v: SEXP);
     fn SET_VECTOR_ELT(x: SEXP, i: isize, v: SEXP) -> SEXP;
+    fn Rf_setAttrib(x: SEXP, name: SEXP, v: SEXP) -> SEXP;
     static R_NaString: SEXP;
+    static R_DimSymbol: SEXP;
+    static R_DimNamesSymbol: SEXP;
 }
 
 const NA_INT: i32 = i32::MIN;
@@ -1032,30 +1035,51 @@ fn span(m: Option<regex::bytes::Match>) -> Piece {
 }
 
 /// The first match of `pattern` in each string, or its capture group
-/// `group` (0 for the whole match); `NA` where there is none. Otherwise as
-/// `par_detect_rs()`.
+/// `group` (0 for the whole match); `NA` where there is none. With several
+/// groups, a string vector of the strings' first group, then their second,
+/// and so on: a matrix for R to shape. Otherwise as `par_detect_rs()`.
 /// @noRd
 #[extendr]
 fn par_extract_rs(
     x: Robj,
     pattern: Robj,
-    group: i32,
+    group: &[i32],
     fixed: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Robj> {
     let p = patterns(&pattern, fixed, nthreads)?;
-    check_group(&p, group)?;
-    let g = group as usize;
+    for &g in group {
+        check_group(&p, g)?;
+    }
     let x = unsafe { charsxps(&x) };
-    let mut out = vec![Piece::Na; x.len()];
-    per_pattern(&mut out, x, &p, Piece::Na, nthreads, |re, s| {
-        span(if g == 0 {
-            re.find(s)
-        } else {
-            re.captures(s).and_then(|c| c.get(g))
-        })
+    if let [g] = *group {
+        let g = g as usize;
+        let mut out = vec![Piece::Na; x.len()];
+        per_pattern(&mut out, x, &p, Piece::Na, nthreads, |re, s| {
+            span(if g == 0 {
+                re.find(s)
+            } else {
+                re.captures(s).and_then(|c| c.get(g))
+            })
+        });
+        return strings(x, out);
+    }
+    let na = vec![Piece::Na; group.len()];
+    let mut out = vec![na.clone(); x.len()];
+    per_pattern(&mut out, x, &p, na, nthreads, |re, s| {
+        match re.captures(s) {
+            None => vec![Piece::Na; group.len()],
+            Some(c) => group.iter().map(|&g| span(c.get(g as usize))).collect(),
+        }
     });
-    strings(x, out)
+    let n = x.len();
+    let res: Robj = Strings::new(n * group.len()).into();
+    for (i, (pieces, &p)) in out.into_iter().zip(x).enumerate() {
+        for (j, piece) in pieces.into_iter().enumerate() {
+            unsafe { SET_STRING_ELT(res.get(), (i + n * j) as isize, string(piece, p)?) };
+        }
+    }
+    Ok(res)
 }
 
 /// Where the first match of `pattern` is in each string, or its capture
@@ -1092,6 +1116,80 @@ fn par_locate_rs(
     Ok(Integers::from_values(
         col(0).chain(col(1)).collect::<Vec<_>>(),
     ))
+}
+
+/// Where every match of `pattern` is in each string, as `par_count_rs()`
+/// finds them, or capture group `group` of each: a list of integer
+/// matrices with columns `start` and `end`, a row per match, as
+/// `par_locate_rs()` counts positions, `NA` where the group took no part;
+/// one row of `NA` where `x` or `pattern` is `NA`. Otherwise as
+/// `par_extract_rs()`.
+/// @noRd
+#[extendr]
+fn par_locate_all_rs(
+    x: Robj,
+    pattern: Robj,
+    group: i32,
+    fixed: bool,
+    nthreads: i32,
+) -> extendr_api::Result<Robj> {
+    let p = patterns(&pattern, fixed, nthreads)?;
+    check_group(&p, group)?;
+    let g = group as usize;
+    let x = unsafe { charsxps(&x) };
+    let mut out: Vec<Option<Vec<[i32; 2]>>> = vec![None; x.len()];
+    per_pattern(&mut out, x, &p, None, nthreads, |re, s| {
+        let whole = |m: &regex::bytes::Match| !splits_char(s, m.start(), m.end());
+        let spans: Vec<Option<(usize, usize)>> = if g == 0 {
+            re.find_iter(s)
+                .filter(whole)
+                .map(|m| Some((m.start(), m.end())))
+                .collect()
+        } else {
+            re.captures_iter(s)
+                .filter(|c| whole(&c.get(0).unwrap()))
+                .map(|c| c.get(g).map(|m| (m.start(), m.end())))
+                .collect()
+        };
+        // The matches come in order, so the characters are counted once.
+        let (mut at, mut chars) = (0, 0);
+        let mut upto = |b: usize| {
+            chars += s[at..b].iter().filter(|&&c| c & 0xC0 != 0x80).count() as i32;
+            at = b;
+            chars
+        };
+        Some(
+            spans
+                .into_iter()
+                .map(|m| m.map_or([NA_INT; 2], |(a, b)| [upto(a) + 1, upto(b)]))
+                .collect(),
+        )
+    });
+    // Only R's thread may make R vectors. The matrices share their
+    // `dimnames`, and those with few rows their `dim`, as attributes may be.
+    let dimnames: Robj = List::from_values([Robj::from(()), Robj::from(["start", "end"])]).into();
+    let dims: Vec<Robj> = (0..=16).map(|m| Robj::from([m as i32, 2])).collect();
+    let res: Robj = List::new(out.len()).into();
+    for (i, rows) in out.into_iter().enumerate() {
+        let rows = rows.unwrap_or(vec![[NA_INT; 2]]);
+        unsafe {
+            let m = rows.len();
+            let v = Rf_allocVector(13, 2 * m as isize);
+            SET_VECTOR_ELT(res.get(), i as isize, v);
+            let ints = INTEGER(v);
+            for (k, [a, b]) in rows.into_iter().enumerate() {
+                *ints.add(k) = a;
+                *ints.add(m + k) = b;
+            }
+            let dim = match dims.get(m) {
+                Some(dim) => dim.clone(),
+                None => Robj::from([m as i32, 2]),
+            };
+            Rf_setAttrib(v, R_DimSymbol, dim.get());
+            Rf_setAttrib(v, R_DimNamesSymbol, dimnames.get());
+        }
+    }
+    Ok(res)
 }
 
 /// Every match of `pattern` in each string, as `par_count_rs()` finds them,
@@ -2696,6 +2794,7 @@ extendr_module! {
     fn par_unique_rs;
     fn par_extract_all_rs;
     fn par_locate_rs;
+    fn par_locate_all_rs;
     fn par_replace_term_rs;
     fn par_parse_time_rs;
     fn par_rank_rs;
