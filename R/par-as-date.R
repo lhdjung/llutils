@@ -201,13 +201,16 @@ local_time <- function(x, formats, try_formats, tz, nthreads) {
 
 # Seconds since 1970 of local times in `tz`, given as the whole seconds they
 # would be in UTC and the fractions, added last as base adds them. R's C
-# code places a local time, as as.POSIXct() does for a
-# POSIXlt, in about 4us, so it places only the ends of the calendar days
-# used and of their neighbours: a day whose offset from UTC is the same at
-# both its ends, and at the ends of the days next to it, has no change of
-# clock in it or at its edges, so its times are placed by subtracting the
-# offset. The times of the other days go through the C code one by one,
-# which decides the times that don't exist or occur twice as base does.
+# code places a local time, as as.POSIXct() does for a POSIXlt, in about
+# 4us, so it places only the ends of the calendar days used and of their
+# neighbours: a day whose offset from UTC is the same at both its ends, and
+# at the ends of the days next to it, has no change of clock in it or at
+# its edges, so its times are placed by subtracting the offset. The times of
+# the other days go through base's own strptime() and as.POSIXct(), since
+# what they make of a time that doesn't exist or occurs twice depends on
+# the R version and the C library's mktime(): glibc's gives NA for the day
+# Pacific/Apia skipped in 2011, and before R 4.4.0, strptime() passed on
+# the isdst of a first mktime().
 # ponytail: a day whose clock changes twice, back to the same offset, would
 # be placed by that offset; no zone has had one.
 local_secs <- function(secs, frac, tz, nthreads) {
@@ -219,17 +222,23 @@ local_secs <- function(secs, frac, tz, nthreads) {
     attr(lt, "tzone") <- tz
     lt$isdst <- -1L
     lt$gmtoff <- NA_integer_
-    # Before R 4.4.0, strptime() kept the isdst that a first mktime()
-    # decided, and as.POSIXct() passed it to a second, which the C
-    # library's mktime() may place differently from -1 where the time
-    # doesn't exist. Since then it keeps -1 there (PR#18581), so one
-    # mktime() gives base's result.
-    if (getRversion() < "4.4.0") {
-      isdst <- as.POSIXlt(as.POSIXct(lt, tz), tz)$isdst
-      isdst[is.na(isdst)] <- -1L
-      lt$isdst <- isdst
-    }
     as.double(as.POSIXct(lt, tz))
+  }
+  as_base <- function(s) {
+    if (!length(s)) {
+      return(s)
+    }
+    lt <- as.POSIXlt(.POSIXct(s, "UTC"))
+    x <- sprintf(
+      "%04d-%02d-%02d %02d:%02d:%02d",
+      lt$year + 1900L,
+      lt$mon + 1L,
+      lt$mday,
+      lt$hour,
+      lt$min,
+      as.integer(lt$sec)
+    )
+    as.double(as.POSIXct(strptime(x, "%Y-%m-%d %H:%M:%S", tz), tz))
   }
   days <- floor(secs / 86400)
   used <- par_unique(days[!is.na(days)], nthreads = nthreads)
@@ -247,6 +256,6 @@ local_secs <- function(secs, frac, tz, nthreads) {
   k <- par_match(days, used, nthreads = nthreads)
   out <- secs + start[i][k]
   hard <- which(!plain[k])
-  out[hard] <- place(secs[hard])
+  out[hard] <- as_base(secs[hard])
   out + frac
 }

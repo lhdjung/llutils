@@ -448,9 +448,12 @@ with the same result, which is a use case, not a function.
   4us per time, on only two times per calendar day: a day whose offset
   is the same at both ends, and at the ends of its neighbours, has no
   change of clock in or at its edges, so its times are placed by
-  subtracting the offset. The other days' times go through the C code
-  one by one, so a time that doesn't exist or occurs twice comes out as
-  in base, whose `mktime` picks one. With `tryFormats`, base checks for
+  subtracting the offset. The other days' times are written out and go
+  through base's own `strptime()` and `as.POSIXct()`, so a time that
+  doesn't exist or occurs twice comes out as in base: what it makes of
+  them depends on the R version (before 4.4.0, `strptime()` passed on the
+  isdst of a first `mktime()`) and the C library (glibc gives `NA` for
+  the day Pacific/Apia skipped in 2011, macOS a time on the next). With `tryFormats`, base checks for
   `NA` after placing the times, so a format fails on a time that doesn't
   exist and base goes on to a date-only format; `local_time()` does the
   same, one format at a time. A format with `%z` fixes the instant, so
