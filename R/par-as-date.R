@@ -219,13 +219,16 @@ local_secs <- function(secs, frac, tz, nthreads) {
     attr(lt, "tzone") <- tz
     lt$isdst <- -1L
     lt$gmtoff <- NA_integer_
-    # As base: strptime() keeps the isdst that a first mktime() decides,
-    # and as.POSIXct() passes it to a second. With R's own time-zone code
-    # the result is the same either way; the C library's mktime() may place
-    # a time that doesn't exist differently given -1.
-    isdst <- as.POSIXlt(as.POSIXct(lt, tz), tz)$isdst
-    isdst[is.na(isdst)] <- -1L
-    lt$isdst <- isdst
+    # Before R 4.4.0, strptime() kept the isdst that a first mktime()
+    # decided, and as.POSIXct() passed it to a second, which the C
+    # library's mktime() may place differently from -1 where the time
+    # doesn't exist. Since then it keeps -1 there (PR#18581), so one
+    # mktime() gives base's result.
+    if (getRversion() < "4.4.0") {
+      isdst <- as.POSIXlt(as.POSIXct(lt, tz), tz)$isdst
+      isdst[is.na(isdst)] <- -1L
+      lt$isdst <- isdst
+    }
     as.double(as.POSIXct(lt, tz))
   }
   days <- floor(secs / 86400)
