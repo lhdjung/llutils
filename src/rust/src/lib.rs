@@ -2630,9 +2630,11 @@ fn rank<T: Sync, K: Ord + Copy + Send + Sync>(
 /// column of `x`. As in R, each group's rows are added in their order, so
 /// the sums are R's to the bit, and integer sums that overflow give `NA`.
 /// The rows are split by group as `par_duplicated()` splits elements, and
-/// each thread sums its own groups. The sums are written through a pointer,
-/// so codes outside the groups, or a `x` that isn't a whole number of rows,
-/// are an error rather than a write out of bounds.
+/// each thread sums its own groups. Where a sum meets a second `NA` or
+/// `NaN`, it keeps the first if `nan_first`, else the second, as R's
+/// compiled `+=` does. The sums are written through a pointer, so codes
+/// outside the groups, or a `x` that isn't a whole number of rows, are an
+/// error rather than a write out of bounds.
 /// @noRd
 #[extendr]
 fn par_rowsum_rs(
@@ -2640,6 +2642,7 @@ fn par_rowsum_rs(
     codes: &[i32],
     ng: i32,
     na_rm: bool,
+    nan_first: bool,
     nthreads: i32,
 ) -> extendr_api::Result<Robj> {
     fn sums<T: Copy + Send + Sync>(
@@ -2685,9 +2688,15 @@ fn par_rowsum_rs(
     }
     let ng = ng as usize;
     Ok(if let Some(v) = x.as_real_slice() {
+        // Which of two NaNs an addition keeps is up to the compiler, so
+        // it is chosen here; with one, the addition keeps it.
         let add = |s: &mut f64, v: f64| {
             if !na_rm || !v.is_nan() {
-                *s += v
+                if !(s.is_nan() && v.is_nan()) {
+                    *s += v
+                } else if !nan_first {
+                    *s = v
+                }
             }
         };
         Doubles::from_values(sums(v, codes, ng, 0.0, add, &pool)).into()

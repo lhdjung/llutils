@@ -52,7 +52,10 @@ par_rowsum <- function(
   # Base finds each row's group by its raw value, not as match() compares
   # classed ones, such as difftime by its printed number.
   codes <- par_match(unclass(group), unclass(groups), nthreads = nthreads)
-  out <- par_rowsum_rs(x, codes, length(groups), na.rm, nthreads)
+  # Of NA and NaN in one group, base keeps the first or the second,
+  # depending on how R was compiled.
+  nan_first <- !is.nan(rowsum(c(NA, NaN), c(1, 1))[1L])
+  out <- par_rowsum_rs(x, codes, length(groups), na.rm, nan_first, nthreads)
   dim(out) <- c(length(groups), NCOL(x))
   dimnames(out) <- list(as.character(groups), colnames(x))
   out

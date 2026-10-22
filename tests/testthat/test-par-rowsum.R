@@ -29,10 +29,25 @@ test_that("par_rowsum() agrees with rowsum() to the bit", {
     }
   }
   expect_warning(par_rowsum(xs[[1]], groups[[1]]), "missing values")
+  # Of NA and NaN in one group, base keeps one, which depending on how R
+  # was compiled
+  x <- rep(c(NA, NaN, 1, NaN, NA, 1), length.out = 2e4)
+  g <- rep(c(1, 1, 1, 2, 2, 2), length.out = 2e4)
+  expect_identical(par_rowsum(x, g), rowsum(x, g))
+  rs <- function(first) {
+    par_rowsum_rs(c(NA, NaN), c(1L, 1L), 1L, FALSE, first, 1L)
+  }
+  expect_identical(c(rs(TRUE), rs(FALSE)), c(NA, NaN))
 })
 
 test_that("Rust refuses codes outside the groups", {
-  expect_error(par_rowsum_rs(c(1, 2), c(1L, 3L), 2L, FALSE, 1L), "malformed")
-  expect_error(par_rowsum_rs(c(1, 2), c(1L, NA), 2L, FALSE, 1L), "malformed")
-  expect_error(par_rowsum_rs(c(1, 2, 3), 1:2, 2L, FALSE, 1L), "malformed")
+  expect_error(
+    par_rowsum_rs(c(1, 2), c(1L, 3L), 2L, FALSE, TRUE, 1L),
+    "malformed"
+  )
+  expect_error(
+    par_rowsum_rs(c(1, 2), c(1L, NA), 2L, FALSE, TRUE, 1L),
+    "malformed"
+  )
+  expect_error(par_rowsum_rs(c(1, 2, 3), 1:2, 2L, FALSE, TRUE, 1L), "malformed")
 })

@@ -185,11 +185,13 @@ par_rank_rs <- function(x, ties, na_last, nthreads) .Call(wrap__par_rank_rs, x, 
 #' column of `x`. As in R, each group's rows are added in their order, so
 #' the sums are R's to the bit, and integer sums that overflow give `NA`.
 #' The rows are split by group as `par_duplicated()` splits elements, and
-#' each thread sums its own groups. The sums are written through a pointer,
-#' so codes outside the groups, or a `x` that isn't a whole number of rows,
-#' are an error rather than a write out of bounds.
+#' each thread sums its own groups. Where a sum meets a second `NA` or
+#' `NaN`, it keeps the first if `nan_first`, else the second, as R's
+#' compiled `+=` does. The sums are written through a pointer, so codes
+#' outside the groups, or a `x` that isn't a whole number of rows, are an
+#' error rather than a write out of bounds.
 #' @noRd
-par_rowsum_rs <- function(x, codes, ng, na_rm, nthreads) .Call(wrap__par_rowsum_rs, x, codes, ng, na_rm, nthreads)
+par_rowsum_rs <- function(x, codes, ng, na_rm, nan_first, nthreads) .Call(wrap__par_rowsum_rs, x, codes, ng, na_rm, nan_first, nthreads)
 
 #' `approx()`'s interpolation at each of `xout`, from `x` sorted, without
 #' `NA`, and `y`, as R's `approx1()` does it: `method` 1 is linear, 2
