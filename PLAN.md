@@ -114,8 +114,6 @@ Add ideas here when a use turns up.
 - **Factor pairs in `par_match_rows()`**: 191ms for 1e7 rows into 1e7 with
   two factor columns, where collapse takes 90ms, probably by indexing the
   codes directly instead of hashing them.
-- **Local time zones in `par_as_posixct()`**: Rust could parse the fields
-  and leave the time zone to R's own C code, by building a POSIXlt.
 - **`par_rowsum()` against collapse**: 103ms for 1e7 values in 1e5 groups,
   where `collapse::fsum()` takes 67ms; with 100 groups, 78ms against 30ms.
   It runs `par_unique()`, `par_match()`, and then the sums, three passes.
@@ -415,8 +413,14 @@ with the same result, which is a use case, not a function.
   (day "84" is `NA`, not day 8); text after the format is ignored;
   `"24:00:00"` is midnight of the next day, even on February 30; `%OS`
   leaves the seconds at 0 where it reads no number from 0 to 61, and reads
-  signs, exponents, and NaN as `R_strtod()` does. Formats with other
-  specifiers, or without a year, month, and day, go to base.
+  signs, exponents, and NaN as `R_strtod()` does. Also `%y`, `%e`,
+  `%j` (filling in the month and day as R does), `%I` with `%p`, `%b`,
+  `%B`, and `%h` (English names, only where `LC_TIME` is C or English,
+  else base), `%z` (R's own reading: four digits, and the minutes turned
+  into hundredths by integer division, so `+0501` is 5h 0m 36s), and
+  `%F`, `%T`, and `%R`. Formats with other specifiers, or without a year
+  and a month and day or day of the year, go to base. At 1e6 strings
+  `"%d %b %Y %I:%M %p"` takes 15ms, base 4.9s.
 - Fractional seconds are computed as `R_strtod()` does on doubles: digits
   accumulated, then divided by a power of 10. Where R is built with long
   doubles (x86-64), R divides in 80 bits and rounds twice, so the fraction
@@ -427,8 +431,20 @@ with the same result, which is a use case, not a function.
   first string that isn't `NA` or empty; for times, the first that reads
   every string that isn't `NA`. Where none fits, base runs to give its
   error, or `NA`s with `optional = TRUE`.
-- Times are parsed only in UTC (`"UTC"` or `"GMT"`): other zones need the
-  time zone database, and go to base.
+- In UTC (`"UTC"` or `"GMT"`) the parse gives the times. In another zone,
+  Rust still parses as UTC, and `local_secs()` places the times with R's
+  own C code (`as.POSIXct()` on a POSIXlt with `isdst = -1`), which takes
+  4us per time, on only two times per calendar day: a day whose offset
+  is the same at both ends, and at the ends of its neighbours, has no
+  change of clock in or at its edges, so its times are placed by
+  subtracting the offset. The other days' times go through the C code
+  one by one, so a time that doesn't exist or occurs twice comes out as
+  in base, whose `mktime` picks one. With `tryFormats`, base checks for
+  `NA` after placing the times, so a format fails on a time that doesn't
+  exist and base goes on to a date-only format; `local_time()` does the
+  same, one format at a time. A format with `%z` fixes the instant, so
+  the zone only labels it. At 1e6 times over 127 years in Europe/Berlin:
+  0.36s, base 11s; over 2 years, 0.08s.
 - At 1e6 strings: dates 7ms (base 4.6s, `data.table::as.IDate()` 4.6s, as
   it calls base), times 12ms (base 15s).
 

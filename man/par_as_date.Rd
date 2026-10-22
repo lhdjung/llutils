@@ -58,20 +58,30 @@ doesn't parse. \code{par_as_posixct()} returns a POSIXct vector instead, as
 }
 \description{
 \code{par_as_date()} is \code{\link[=as.Date]{as.Date()}} for strings, and
-\code{par_as_posixct()} is \code{\link[=as.POSIXct]{as.POSIXct()}} for strings in UTC, with the same
+\code{par_as_posixct()} is \code{\link[=as.POSIXct]{as.POSIXct()}} for strings, with the same
 results. Base R parses about a million dates in seconds, on one thread;
 these read the strings on several, and give the same results.
 }
 \details{
-Formats may use \verb{\%Y}, \verb{\%m}, \verb{\%d}, \verb{\%H}, \verb{\%M}, \verb{\%S}, and \verb{\%OS},
-with a year, month, and day, as the default \code{tryFormats} do. They are
-read as \code{\link[=strptime]{strptime()}} reads them, quirks included: text after the format
-is ignored, \code{"24:00:00"} is midnight of the next day, and \code{"2020-1-5"}
-is a date.
+Formats may use \verb{\%Y}, \verb{\%y}, \verb{\%m}, \verb{\%b} (also \verb{\%B} and \verb{\%h}:
+English month names, full or their first three letters, in any case,
+where the \code{LC_TIME} locale is C or English), \verb{\%d}, \verb{\%e}, \verb{\%j}, \verb{\%H},
+\verb{\%I} with \verb{\%p}, \verb{\%M}, \verb{\%S}, \verb{\%OS}, \verb{\%z} (an offset such as \code{+0530}),
+\verb{\%F}, \verb{\%T}, and \verb{\%R}, with a year, and a month and day or a day of the
+year, as the default \code{tryFormats} do. They are read as \code{\link[=strptime]{strptime()}}
+reads them, quirks included: text after the format is ignored,
+\code{"24:00:00"} is midnight of the next day, and \code{"2020-1-5"} is a date.
 
-Everything else goes to base R: other formats, time zones other than
-\code{"UTC"} and \code{"GMT"} (or \code{""} in a session whose time zone is UTC),
-inputs that aren't strings or factors, fewer than 1e4 strings, and
+In UTC (\code{"UTC"}, \code{"GMT"}, or \code{""} in a session whose time zone is UTC)
+the parse gives the times. In another time zone, base R's own C code
+places each local time, so a time that doesn't exist there, or occurs
+twice, comes out as in base. That code runs on only two times per
+calendar day for the days that have no change of clock, and on every
+time of the days that do.
+
+Everything else goes to base R: other formats, month names in other
+locales, inputs that aren't strings or factors, fewer than 1e4
+strings, \code{tryFormats} with \verb{\%z} in a time zone other than UTC, and
 seconds written in hexadecimal, with more than 15 digits, or as
 \code{nan(...)}. So does an input that no format fits, which base R reports.
 Factors are turned into strings first.
@@ -80,4 +90,7 @@ Factors are turned into strings first.
 par_as_date(c("2024-02-29", "2024-02-30", NA))
 par_as_date("05.03.2024", format = "\%d.\%m.\%Y")
 par_as_posixct(c("2024-03-05 14:30:00.25", "2024-03-05 24:00:00"), tz = "UTC")
+par_as_posixct("5 Mar 2024 2:30 PM", format = "\%d \%b \%Y \%I:\%M \%p", tz = "UTC")
+par_as_posixct("2024-03-05T14:30:00+0530", format = "\%FT\%T\%z", tz = "UTC")
+par_as_posixct("2024-03-05 14:30:00", tz = "Europe/Berlin")
 }

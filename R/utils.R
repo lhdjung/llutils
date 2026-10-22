@@ -1,5 +1,7 @@
 is_bool <- function(x) is.logical(x) && length(x) == 1L && !is.na(x)
 
+is_string <- function(x) is.character(x) && length(x) == 1L && !is.na(x)
+
 # Can't use is.numeric() because that's FALSE for POSIXct
 is_num <- function(x) is.integer(x) || is.double(x)
 

@@ -263,8 +263,9 @@ they don’t cover. At a million dates or ten million numbers, on 8 cores:
 | `par_rowsum()` | `rowsum()` | 10 million values in 100,000 groups | 0.1s | 1.2s | 12x |
 | `par_approx()` | `approx()` | 10 million points into 10,000 | 0.1s | 0.63s | 6x |
 
-`par_as_posixct()` parses in Rust only in UTC; other time zones go to
-base R. `par_rank()` beats `data.table::frank()` (0.61s), while collapse
+`par_as_posixct()` parses in Rust in any time zone; outside UTC, base
+R's C code places the times, so 1 million take 0.36s instead of 12ms.
+`par_rank()` beats `data.table::frank()` (0.61s), while collapse
 sums groups faster than `par_rowsum()` (67ms).
 
 ## Use cases

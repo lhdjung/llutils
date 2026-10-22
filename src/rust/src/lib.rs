@@ -1803,49 +1803,98 @@ fn par_find_interval_rs(
 }
 
 /// A part of a time format that `parse_time()` reads as R's `strptime()`
-/// does: `%Y`, `%m`, `%d`, `%H`, `%M`, `%S`, `%OS`, whitespace, which
-/// matches any amount, and other ASCII characters, which match themselves.
+/// does: `%Y`, `%y`, `%m`, `%b` (also `%B` and `%h`, English names), `%d`
+/// (also `%e`), `%j`, `%H`, `%I`, `%p`, `%M`, `%S`, `%OS`, `%z`, whitespace,
+/// which matches any amount, and other ASCII characters, which match
+/// themselves. `%F`, `%T`, and `%R` are spelled out.
 #[derive(Clone, Copy)]
 enum Part {
     Year,
+    Year2,
     Month,
+    MonthName,
     Day,
+    Yday,
     Hour,
+    Hour12,
+    AmPm,
     Min,
     Sec,
     SecFrac,
+    Offset,
     Space,
     Lit(u8),
 }
 
 /// The parts of `format`; `None` if it has any other, or lacks the year,
-/// month, or day, where R fills in what is missing in ways not copied here.
+/// or the month and day or the day of the year, where R fills in what is
+/// missing in ways not copied here.
 fn time_format(format: &[u8]) -> Option<Vec<Part>> {
+    use Part::*;
     let mut parts = Vec::new();
     let mut i = 0;
     while i < format.len() {
         let (part, len) = match &format[i..] {
-            [b'%', b'Y', ..] => (Part::Year, 2),
-            [b'%', b'm', ..] => (Part::Month, 2),
-            [b'%', b'd', ..] => (Part::Day, 2),
-            [b'%', b'H', ..] => (Part::Hour, 2),
-            [b'%', b'M', ..] => (Part::Min, 2),
-            [b'%', b'S', ..] => (Part::Sec, 2),
-            [b'%', b'O', b'S', ..] => (Part::SecFrac, 3),
+            [b'%', b'Y', ..] => (Year, 2),
+            [b'%', b'y', ..] => (Year2, 2),
+            [b'%', b'm', ..] => (Month, 2),
+            [b'%', b'b' | b'B' | b'h', ..] => (MonthName, 2),
+            [b'%', b'd' | b'e', ..] => (Day, 2),
+            [b'%', b'j', ..] => (Yday, 2),
+            [b'%', b'H', ..] => (Hour, 2),
+            [b'%', b'I', ..] => (Hour12, 2),
+            [b'%', b'p', ..] => (AmPm, 2),
+            [b'%', b'M', ..] => (Min, 2),
+            [b'%', b'S', ..] => (Sec, 2),
+            [b'%', b'O', b'S', ..] => (SecFrac, 3),
+            [b'%', b'z', ..] => (Offset, 2),
+            [b'%', b'%', ..] => (Lit(b'%'), 2),
+            [b'%', b'F', ..] => {
+                parts.extend([Year, Lit(b'-'), Month, Lit(b'-'), Day]);
+                i += 2;
+                continue;
+            }
+            [b'%', b'T', ..] => {
+                parts.extend([Hour, Lit(b':'), Min, Lit(b':'), Sec]);
+                i += 2;
+                continue;
+            }
+            [b'%', b'R', ..] => {
+                parts.extend([Hour, Lit(b':'), Min]);
+                i += 2;
+                continue;
+            }
             [b'%', ..] => return None,
-            [c, ..] if is_space(*c) => (Part::Space, 1),
-            [c, ..] if c.is_ascii() => (Part::Lit(*c), 1),
+            [c, ..] if is_space(*c) => (Space, 1),
+            [c, ..] if c.is_ascii() => (Lit(*c), 1),
             _ => return None,
         };
         parts.push(part);
         i += len;
     }
     let has = |f: fn(&Part) -> bool| parts.iter().any(f);
-    (has(|p| matches!(p, Part::Year))
-        && has(|p| matches!(p, Part::Month))
-        && has(|p| matches!(p, Part::Day)))
+    (has(|p| matches!(p, Year | Year2))
+        && ((has(|p| matches!(p, Month | MonthName)) && has(|p| matches!(p, Day)))
+            || has(|p| matches!(p, Yday))))
     .then_some(parts)
 }
+
+/// English month names, as R's `strptime()` reads them in the C locale:
+/// the full name first, then its first three letters, both ignoring case.
+const MONTHS: [&[u8]; 12] = [
+    b"january",
+    b"february",
+    b"march",
+    b"april",
+    b"may",
+    b"june",
+    b"july",
+    b"august",
+    b"september",
+    b"october",
+    b"november",
+    b"december",
+];
 
 /// C's `isspace()`.
 fn is_space(c: u8) -> bool {
@@ -1854,7 +1903,8 @@ fn is_space(c: u8) -> bool {
 
 /// What `parse_time()` makes of a string.
 enum Parsed {
-    Time(f64),
+    /// Whole seconds or days, and the fraction of a second.
+    Time(f64, f64),
     Na,
     /// Something `strtod()` leaves to R.
     Unsupported,
@@ -1866,7 +1916,10 @@ enum Parsed {
 /// their width, a format's whitespace matches any amount, text after the
 /// format is ignored, numbers take all the digits their width allows, even
 /// past their range, `%H` takes 24 for 24:00:00, the next day, and `%OS`
-/// leaves the seconds at 0 where it reads no number from 0 to 61.
+/// leaves the seconds at 0 where it reads no number from 0 to 61. `%y`
+/// below 69 is 20xx, `%I` is taken modulo 12 and `%p` adds 12 for PM, `%j`
+/// fills in the month and day where they aren't given, and `%z` is an
+/// offset `+hhmm`, subtracted from the time.
 fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
     // R's `get_number()`.
     let number = |p: &mut usize, from: i32, to: i32, width: u32| -> Option<i32> {
@@ -1890,8 +1943,13 @@ fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
         (from..=to).contains(&val).then_some(val)
     };
     let (mut year, mut mon, mut day, mut hour, mut min, mut sec) = (0, 1, 1, 0, 0, 0);
+    let (mut yday, mut have_mon, mut have_day) = (None, false, false);
+    let (mut hour12, mut pm, mut off) = (false, false, None);
     let mut psecs = 0.0;
     let mut p = 0;
+    let rest = |p: usize| &s[p.min(s.len())..];
+    let starts =
+        |p: usize, w: &[u8]| rest(p).len() >= w.len() && rest(p)[..w.len()].eq_ignore_ascii_case(w);
     for part in parts {
         let field = match part {
             Part::Space => {
@@ -1922,6 +1980,76 @@ fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
                 }
                 continue;
             }
+            Part::Year2 => {
+                let Some(v) = number(&mut p, 0, 99, 2) else {
+                    return Parsed::Na;
+                };
+                year = if v < 69 { 2000 + v } else { 1900 + v };
+                continue;
+            }
+            Part::MonthName => {
+                let Some(k) = MONTHS.iter().position(|&m| {
+                    for w in [m, &m[..3]] {
+                        if starts(p, w) {
+                            p += w.len();
+                            return true;
+                        }
+                    }
+                    false
+                }) else {
+                    return Parsed::Na;
+                };
+                (mon, have_mon) = (k as i32 + 1, true);
+                continue;
+            }
+            Part::Yday => {
+                let Some(v) = number(&mut p, 1, 366, 3) else {
+                    return Parsed::Na;
+                };
+                yday = Some(v - 1);
+                continue;
+            }
+            Part::Hour12 => {
+                let Some(v) = number(&mut p, 1, 12, 2) else {
+                    return Parsed::Na;
+                };
+                (hour, hour12) = (v % 12, true);
+                continue;
+            }
+            Part::AmPm => {
+                if starts(p, b"am") {
+                    p += 2;
+                } else if starts(p, b"pm") {
+                    (p, pm) = (p + 2, true);
+                } else {
+                    return Parsed::Na;
+                }
+                continue;
+            }
+            Part::Offset => {
+                while s.get(p) == Some(&b' ') {
+                    p += 1;
+                }
+                let neg = match s.get(p) {
+                    Some(b'+') => false,
+                    Some(b'-') => true,
+                    _ => return Parsed::Na,
+                };
+                p += 1;
+                let (mut val, mut n) = (0i64, 0);
+                while n < 4 && s.get(p).is_some_and(|c| c.is_ascii_digit()) {
+                    val = val * 10 + (s[p] - b'0') as i64;
+                    (p, n) = (p + 1, n + 1);
+                }
+                if n != 4 || val % 100 >= 60 || val > 1400 {
+                    return Parsed::Na;
+                }
+                // R turns the minutes into hundredths of an hour with
+                // integer division, so +0501 is 5h 0m 36s.
+                let val = (val / 100) * 100 + (val % 100) * 50 / 30;
+                off = Some(if neg { -val * 36 } else { val * 36 });
+                continue;
+            }
             Part::Year => (&mut year, number(&mut p, 0, 9999, 4)),
             Part::Month => (&mut mon, number(&mut p, 1, 12, 2)),
             Part::Day => (&mut day, number(&mut p, 1, 31, 2)),
@@ -1933,11 +2061,51 @@ fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
             (f, Some(v)) => *f = v,
             (_, None) => return Parsed::Na,
         }
+        match part {
+            Part::Month => have_mon = true,
+            Part::Day => have_day = true,
+            _ => {}
+        }
+    }
+    if hour12 && pm {
+        hour += 12;
+    }
+    let leap = |year: i32| year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    if let Some(yday) = yday.filter(|_| !(have_mon && have_day)) {
+        // As R: the month the day of the year falls in, and its day of the
+        // month, fill in what the format didn't give.
+        let cum = if leap(year) {
+            [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366]
+        } else {
+            [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
+        };
+        if yday >= cum[12] {
+            return Parsed::Na;
+        }
+        let t_mon = cum.iter().filter(|&&c| c <= yday).count();
+        if !have_mon {
+            mon = t_mon as i32;
+        }
+        if !have_day {
+            day = yday - cum[t_mon - 1] + 1;
+        }
     }
     // R's `validate_tm()`.
     let days_in = |mon: i32, year: i32| {
-        let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-        [31, 28 + leap as i32, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mon as usize - 1]
+        [
+            31,
+            28 + leap(year) as i32,
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ][mon as usize - 1]
     };
     if sec > 60 {
         return Parsed::Na;
@@ -1956,13 +2124,19 @@ fn parse_time(s: &[u8], parts: &[Part], date: bool) -> Parsed {
         return Parsed::Na;
     }
     let days = days_from_civil(year, mon, day);
+    let whole = (sec + min * 60 + hour * 3600) as i64 + days * 86400 - off.unwrap_or(0);
     if date {
-        return Parsed::Time(days as f64);
+        // A date takes the day as read, unless an offset moved the instant.
+        let days = if off.is_some() {
+            whole.div_euclid(86400)
+        } else {
+            days
+        };
+        return Parsed::Time(days as f64, 0.0);
     }
     // As `as.POSIXct()`: whole seconds, then the fraction `strptime()` kept.
     let secs = sec as f64 + (psecs - psecs.floor());
-    let whole = (sec + min * 60 + hour * 3600) as f64 + days as f64 * 86400.0;
-    Parsed::Time(whole + (secs - secs.floor()))
+    Parsed::Time(whole as f64, secs - secs.floor())
 }
 
 /// Days from 1970-01-01 to a date of the proleptic Gregorian calendar, as
@@ -2072,10 +2246,19 @@ fn strtod(s: &[u8], mut p: usize) -> Result<Option<(f64, usize)>, ()> {
 /// the format is the first of `formats` that reads, for a date, the first
 /// string that isn't `NA` or empty, else every string that isn't `NA`.
 /// `NULL` where R must decide, as for a format or a number `parse_time()`
-/// doesn't take, or no format fitting, which is an error in R.
+/// doesn't take, or no format fitting, which is an error in R. With
+/// `split`, a list of the whole seconds and the fractions instead, for R to
+/// add in base's order after placing the times in a time zone.
 /// @noRd
 #[extendr]
-fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthreads: i32) -> Robj {
+fn par_parse_time_rs(
+    x: Robj,
+    formats: Robj,
+    try_formats: bool,
+    date: bool,
+    split: bool,
+    nthreads: i32,
+) -> Robj {
     let x = unsafe { charsxps(&x) };
     let Some(formats) = unsafe { charsxps(&formats) }
         .iter()
@@ -2086,20 +2269,21 @@ fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthr
     };
     let na_ptr = unsafe { R_NaString } as usize;
     let unsupported = std::sync::atomic::AtomicBool::new(false);
+    let na = [NA_REAL, 0.0];
     let parse_all = |parts: &[Part]| {
-        let mut out = vec![NA_REAL; x.len()];
+        let mut out = vec![na; x.len()];
         per_string(
             &mut out,
             x,
-            NA_REAL,
+            na,
             nthreads,
             || (),
             |_, _, s| match parse_time(s, parts, date) {
-                Parsed::Time(v) => v,
-                Parsed::Na => NA_REAL,
+                Parsed::Time(w, f) => [w, f],
+                Parsed::Na => na,
                 Parsed::Unsupported => {
                     unsupported.store(true, std::sync::atomic::Ordering::Relaxed);
-                    NA_REAL
+                    na
                 }
             },
         );
@@ -2114,14 +2298,14 @@ fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthr
             .iter()
             .find(|&&p| p != na_ptr && unsafe { !bytes(p).is_empty() });
         match first {
-            None => Some(vec![NA_REAL; x.len()]),
+            None => Some(vec![na; x.len()]),
             Some(&p) => {
                 let mut buf = Vec::new();
                 let s = unsafe { utf8(p, &mut buf) };
                 let mut chosen = None;
                 for f in &formats {
                     match parse_time(s, f, date) {
-                        Parsed::Time(_) => {
+                        Parsed::Time(..) => {
                             chosen = Some(f);
                             break;
                         }
@@ -2133,7 +2317,7 @@ fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthr
             }
         }
     } else if x.iter().all(|&p| p == na_ptr) {
-        Some(vec![NA_REAL; x.len()])
+        Some(vec![na; x.len()])
     } else {
         formats.iter().find_map(|f| {
             let out = parse_all(f);
@@ -2141,13 +2325,19 @@ fn par_parse_time_rs(x: Robj, formats: Robj, try_formats: bool, date: bool, nthr
                 out.par_iter()
                     .zip(x)
                     .with_min_len(MATCH_PER_THREAD)
-                    .all(|(v, &p)| p == na_ptr || !v.is_nan())
+                    .all(|(v, &p)| p == na_ptr || !v[0].is_nan())
             });
             (all || unsupported()).then_some(out)
         })
     };
     match out {
-        Some(out) if !unsupported() => Doubles::from_values(out).into(),
+        Some(out) if !unsupported() && split => {
+            let col = |k: usize| Doubles::from_values(out.iter().map(|v| v[k]));
+            List::from_names_and_values(["whole", "frac"], [col(0), col(1)])
+                .unwrap()
+                .into()
+        }
+        Some(out) if !unsupported() => Doubles::from_values(out.iter().map(|[w, f]| w + f)).into(),
         _ => ().into(),
     }
 }

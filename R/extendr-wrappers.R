@@ -146,11 +146,13 @@ par_replace_term_rs <- function(x, terms, ignore_case, word_start, word_end, fix
 #' `as.Date()` (if `date`) or `as.POSIXct(tz = "UTC")` on strings: the
 #' days or seconds, `NA` where a string doesn't parse. If `try_formats`,
 #' the format is the first of `formats` that reads, for a date, the first
-#' string that isn't `NA` or empty, else every string that isn't `NA`. `NULL` where R must decide, as for a format or
-#' a number `parse_time()` doesn't take, or no format fitting, which is an
-#' error in R.
+#' string that isn't `NA` or empty, else every string that isn't `NA`.
+#' `NULL` where R must decide, as for a format or a number `parse_time()`
+#' doesn't take, or no format fitting, which is an error in R. With
+#' `split`, a list of the whole seconds and the fractions instead, for R to
+#' add in base's order after placing the times in a time zone.
 #' @noRd
-par_parse_time_rs <- function(x, formats, try_formats, date, nthreads) .Call(wrap__par_parse_time_rs, x, formats, try_formats, date, nthreads)
+par_parse_time_rs <- function(x, formats, try_formats, date, split, nthreads) .Call(wrap__par_parse_time_rs, x, formats, try_formats, date, split, nthreads)
 
 #' `rank(x)` for an integer or double vector, `NA` and `NaN` taking ranks
 #' after the others (`na_last` 1), before them (2), or staying `NA` (0).
@@ -165,7 +167,9 @@ par_rank_rs <- function(x, ties, na_last, nthreads) .Call(wrap__par_rank_rs, x, 
 #' column of `x`. As in R, each group's rows are added in their order, so
 #' the sums are R's to the bit, and integer sums that overflow give `NA`.
 #' The rows are split by group as `par_duplicated()` splits elements, and
-#' each thread sums its own groups.
+#' each thread sums its own groups. The sums are written through a pointer,
+#' so codes outside the groups, or a `x` that isn't a whole number of rows,
+#' are an error rather than a write out of bounds.
 #' @noRd
 par_rowsum_rs <- function(x, codes, ng, na_rm, nthreads) .Call(wrap__par_rowsum_rs, x, codes, ng, na_rm, nthreads)
 
