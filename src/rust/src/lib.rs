@@ -1228,8 +1228,9 @@ fn compile_terms(
     ignore_case: bool,
     bounds: Bounds,
     fixed: bool,
-) -> extendr_api::Result<Terms> {
-    struct Last(Robj, (bool, bool, Option<Bounds>), Terms);
+) -> extendr_api::Result<Arc<Terms>> {
+    // An `Arc`, not a clone: a cloned regex starts with empty caches.
+    struct Last(Robj, (bool, bool, Option<Bounds>), Arc<Terms>);
     // Only R's thread ever touches it.
     unsafe impl Send for Last {}
     static LAST: Mutex<Option<Last>> = Mutex::new(None);
@@ -1245,7 +1246,7 @@ fn compile_terms(
         }
     }
     let err = |e: &dyn std::fmt::Display| Error::Other(e.to_string());
-    let m = if fixed {
+    let m = Arc::new(if fixed {
         // The automaton ignores ASCII case itself; other letters are
         // lowercased on both sides.
         let (mut buf, mut at) = (Vec::new(), Vec::new());
@@ -1309,7 +1310,7 @@ fn compile_terms(
         // One clone per core, as `Search` explains.
         let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
         Terms::Regex(vec![set; cores], res)
-    };
+    });
     *last = Some(Last(copy, key, m.clone()));
     Ok(m)
 }
