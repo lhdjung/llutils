@@ -71,7 +71,7 @@ par_duplicated <- function(
         par_duplicated_rows_rs(unname(cols), fromLast, nthreads)
       }
     } else if (length(x) >= RUST_MIN && is.null(dim(x)) && is_dup_class(x)) {
-      if (is.integer(x) || is.double(x) || is.character(x)) {
+      if (is.integer(x) || is.double(x) || is.character(x) || is.factor(x)) {
         par_duplicated_rs(x, fromLast, nthreads)
       }
     }
@@ -124,7 +124,7 @@ par_unique <- function(
       is.null(dim(x)) &&
       is_dup_class(x) &&
       (!is.factor(x) || plain_factor) &&
-      (is.integer(x) || is.double(x) || is.character(x))
+      (is.integer(x) || is.double(x) || is.character(x) || is.factor(x))
   ) {
     par_unique_rs(x, fromLast, nthreads)
   }
@@ -177,7 +177,7 @@ dup_column <- function(a, nthreads) {
     NULL
   } else if (is.logical(a)) {
     as.integer(a)
-  } else if (is.integer(a) || is.double(a)) {
+  } else if (is.integer(a) || is.double(a) || is.factor(a)) {
     a
   } else if (is.character(a)) {
     if (par_pointers_suffice(a, a, nthreads)) {
